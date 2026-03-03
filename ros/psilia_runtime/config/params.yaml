@@ -1,0 +1,5 @@
+# Psilia runtime parameters
+# Loaded by default.launch.py
+
+psilia_runtime:
+  ros__parameters: {}

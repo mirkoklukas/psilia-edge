@@ -1,0 +1,30 @@
+# The usual
+*.egg-info
+*.pyc
+*.png
+**/.ipynb_checkpoints
+**/.DS_Store
+docs/*
+__pycache__/
+
+.venv/
+.vscode/
+
+CLAUDE.md
+
+ros_ws/build/
+ros_ws/install/
+ros_ws/log/
+ros_ws/recordings/
+ros_ws/src/*
+!ros_ws/src/psilia_ros/
+
+scripts/**/*.log
+
+# Files with a leading underscore `_files.*` are private,
+# helps keeping the repo clean while prototyping
+**/_*/
+**/_*
+**/_*.*
+!**/__*__.py
+**/.DS_Store
