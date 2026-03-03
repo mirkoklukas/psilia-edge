@@ -9,6 +9,8 @@ dependencies = [
     "numpy",
     "mcap",
     "paramiko",
+    "pyyaml",
+    "sshconf",
 ]
 
 [project.optional-dependencies]
