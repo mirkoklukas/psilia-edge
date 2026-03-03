@@ -68,22 +68,24 @@ def _step_connect(host: str | None) -> JetsonConn | None:
             _fail("No Jetson found. Check ethernet connection and try again.")
             return None
 
-    console.print(f"  Connecting as [bold]{_DEFAULT_USER}@{target_ip}[/bold]…")
-    console.print(
-        f"  [dim](Using default JetPack password: '{_DEFAULT_PASSWORD}')[/dim]"
-    )
+    # Default credentials are set during the JetPack OOBE (Out-of-Box Experience)
+    # wizard on first boot. If you went through the setup wizard, you chose a
+    # custom username/password there — use those here instead of the defaults.
+    # TODO: handle passwordless accounts (e.g. automated flash via SDK Manager)
+    #       — password auth will fail; fallback to key-based auth or prompt to
+    #       set a password via the physical console first.
+    user = Prompt.ask("  Username", default=_DEFAULT_USER)
+    password = Prompt.ask("  Password", default=_DEFAULT_PASSWORD, password=True)
+
+    console.print(f"  Connecting as [bold]{user}@{target_ip}[/bold]…")
 
     try:
         with console.status("  Connecting over SSH…"):
-            conn = connect(target_ip, user=_DEFAULT_USER, password=_DEFAULT_PASSWORD)
+            conn = connect(target_ip, user=user, password=password)
         _ok(f"Connected to {target_ip}")
         return conn
     except SSHError as exc:
         _fail(str(exc))
-        console.print(
-            "  [dim]Tip: If the Jetson is not on default credentials, "
-            "use --host and ensure the device is reachable.[/dim]"
-        )
         return None
 
 
