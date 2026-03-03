@@ -9,7 +9,7 @@ app.add_typer(spatial_app, name="spatial")
 
 
 @app.command()
-def init():
+def init(host: str = typer.Option(None, "--host", help="Skip discovery and connect to this IP or hostname directly.")):
     """Initialize a Jetson device."""
     raise NotImplementedError
 
