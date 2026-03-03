@@ -11,7 +11,9 @@ from rich.prompt import Prompt
 console = Console()
 
 # arp -a output line:  hostname (ip) at mac [ether] on iface
-_ARP_RE = re.compile(r"^(\S+)\s+\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+\S+.*\s+on\s+(\S+)", re.MULTILINE)
+_ARP_RE = re.compile(
+    r"^(\S+)\s+\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+\S+.*\s+on\s+(\S+)", re.MULTILINE
+)
 
 
 def _parse_arp(output: str, iface: str | None) -> list[tuple[str, str]]:
@@ -27,7 +29,9 @@ def _parse_arp(output: str, iface: str | None) -> list[tuple[str, str]]:
 
 def _run_arp() -> str:
     try:
-        result = subprocess.run(["arp", "-a"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(
+            ["arp", "-a"], capture_output=True, text=True, timeout=5
+        )
         return result.stdout
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return ""
@@ -48,7 +52,9 @@ def discover_jetson(iface: str | None = None) -> str | None:
     if not hosts:
         iface_note = f" on interface [bold]{iface}[/bold]" if iface else ""
         console.print(f"  [yellow]No hosts found{iface_note}.[/yellow]")
-        console.print("  Make sure the Jetson is powered on and the ethernet cable is connected.")
+        console.print(
+            "  Make sure the Jetson is powered on and the ethernet cable is connected."
+        )
         return None
 
     if len(hosts) == 1:

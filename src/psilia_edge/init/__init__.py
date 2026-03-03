@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import yaml
@@ -70,7 +69,9 @@ def _step_connect(host: str | None) -> JetsonConn | None:
             return None
 
     console.print(f"  Connecting as [bold]{_DEFAULT_USER}@{target_ip}[/bold]…")
-    console.print(f"  [dim](Using default JetPack password: '{_DEFAULT_PASSWORD}')[/dim]")
+    console.print(
+        f"  [dim](Using default JetPack password: '{_DEFAULT_PASSWORD}')[/dim]"
+    )
 
     try:
         with console.status("  Connecting over SSH…"):
@@ -99,7 +100,9 @@ def _step_ssh_keypair(conn: JetsonConn) -> None:
 
 def _step_network(conn: JetsonConn) -> None:
     console.rule("[bold]Step 4 — Network Setup")
-    console.print("  Sets up hotspot (USB wifi dongle preferred) and wifi client connections.")
+    console.print(
+        "  Sets up hotspot (USB wifi dongle preferred) and wifi client connections."
+    )
     _stub("hotspot + wifi client setup over SSH")
 
 
@@ -118,7 +121,9 @@ def _step_device_name(conn: JetsonConn) -> str:
 
 def _step_ssh_config(name: str, host: str) -> None:
     console.rule("[bold]Step 6 — SSH Config")
-    if not Confirm.ask(f"  Add SSH config entry for '{name}' to ~/.ssh/config?", default=True):
+    if not Confirm.ask(
+        f"  Add SSH config entry for '{name}' to ~/.ssh/config?", default=True
+    ):
         console.print("  [dim]Skipped.[/dim]")
         return
 
@@ -157,7 +162,9 @@ def _step_create_dirs(conn: JetsonConn) -> None:
 
 def _step_ssd(conn: JetsonConn) -> None:
     console.rule("[bold]Step 8 — Storage / SSD")
-    console.print("  Detects available drives and configures /ssd/psilia-data/ as data directory.")
+    console.print(
+        "  Detects available drives and configures /ssd/psilia-data/ as data directory."
+    )
     _stub("detect SSD, confirm mount point, configure data directory")
 
 
@@ -200,7 +207,9 @@ def _step_build_image(conn: JetsonConn) -> None:
 def _step_camera(conn: JetsonConn) -> None:
     console.rule("[bold]Step 13 — Camera (optional)")
     if not Confirm.ask("  Detect and configure connected camera now?", default=False):
-        console.print("  [dim]Skipped — configure later with 'psilia config camera'.[/dim]")
+        console.print(
+            "  [dim]Skipped — configure later with 'psilia config camera'.[/dim]"
+        )
         return
     _stub("detect USB stereo camera on Jetson")
 
@@ -242,7 +251,9 @@ def _step_write_config(name: str, host: str) -> None:
         "key": str(Path.home() / ".psilia" / "keys" / name),
         "data_path": "/ssd/psilia-data/recordings",
     }
-    config.setdefault("defaults", {}).setdefault("pull_to", str(Path.home() / "psilia-data"))
+    config.setdefault("defaults", {}).setdefault(
+        "pull_to", str(Path.home() / "psilia-data")
+    )
 
     config_path.write_text(yaml.dump(config, default_flow_style=False))
     _ok(f"Config written to {config_path}")

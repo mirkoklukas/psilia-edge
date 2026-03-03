@@ -72,7 +72,11 @@ def connect(
 
     try:
         client.connect(**connect_kwargs)
-    except (paramiko.AuthenticationException, paramiko.SSHException, socket.error) as exc:
+    except (
+        paramiko.AuthenticationException,
+        paramiko.SSHException,
+        socket.error,
+    ) as exc:
         client.close()
         raise SSHError(f"Could not connect to {user}@{host}: {exc}") from exc
 
