@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Psilia Edge</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, system-ui, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+      min-height: 100vh;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; letter-spacing: 0.05em; }
+    .subtitle { font-size: 0.8rem; color: #666; margin-bottom: 1.5rem; }
+    .card {
+      background: #16213e;
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      width: 100%;
+      max-width: 420px;
+      margin-bottom: 1rem;
+    }
+    .card h2 { font-size: 0.85rem; color: #4ecca3; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid #1a1a2e;
+      font-size: 0.85rem;
+    }
+    .row:last-child { border-bottom: none; }
+    .row .label { color: #888; font-family: monospace; }
+    .row .value { font-family: monospace; }
+    .badge {
+      font-size: 0.75rem;
+      padding: 0.15rem 0.6rem;
+      border-radius: 1rem;
+      font-weight: 600;
+    }
+    .green  { color: #4ecca3; }
+    .dim    { color: #555; }
+    .yellow { color: #f0c040; }
+
+    #api-status { font-size: 0.75rem; color: #555; margin-bottom: 1.25rem; }
+  </style>
+</head>
+<body>
+  <h1>Psilia Edge</h1>
+  <div class="subtitle">spatial perception runtime</div>
+  <div id="api-status">loading…</div>
+
+  <div class="card" id="services-card">
+    <h2>Services</h2>
+    <div class="row">
+      <span class="label">psilia-edge</span>
+      <span class="value green" id="svc-psilia">running</span>
+    </div>
+    <div class="row">
+      <span class="label">docker</span>
+      <span class="value dim" id="svc-docker">—</span>
+    </div>
+    <div class="row">
+      <span class="label">ros runtime</span>
+      <span class="value dim" id="svc-ros">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Network</h2>
+    <div id="network-list"><span style="color:#555;font-size:0.85rem;">loading…</span></div>
+  </div>
+
+  <script>
+    const stateColor = s => s === 'connected' ? 'green' : 'dim';
+
+    function renderNetwork(ifaces) {
+      const el = document.getElementById('network-list');
+      if (!ifaces.length) { el.innerHTML = '<span style="color:#555;font-size:0.85rem;">none</span>'; return; }
+      el.innerHTML = ifaces.map(i => `
+        <div class="row">
+          <span class="label">${i.name}</span>
+          <span class="value ${stateColor(i.state)}">${i.ip || i.state}</span>
+        </div>`).join('');
+    }
+
+    function renderServices(data) {
+      document.getElementById('svc-docker').textContent  = data.docker;
+      document.getElementById('svc-docker').className    = 'value ' + (data.docker === 'running' ? 'green' : 'dim');
+      document.getElementById('svc-ros').textContent     = data.ros_runtime;
+      document.getElementById('svc-ros').className       = 'value ' + (data.ros_runtime === 'running' ? 'green' : 'dim');
+    }
+
+    async function poll() {
+      try {
+        const r = await fetch('/api/status');
+        const d = await r.json();
+        document.getElementById('api-status').textContent = '';
+        renderNetwork(d.network || []);
+        renderServices(d);
+      } catch(e) {
+        document.getElementById('api-status').textContent = 'server unreachable';
+      }
+    }
+
+    poll();
+    setInterval(poll, 3000);
+  </script>
+</body>
+</html>

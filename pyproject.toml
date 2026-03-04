@@ -11,12 +11,8 @@ dependencies = [
     "paramiko",
     "pyyaml",
     "sshconf",
-]
-
-[project.optional-dependencies]
-jetson = [
     "fastapi",
-    "uvicorn",
+    "uvicorn[standard]",
 ]
 
 [project.scripts]

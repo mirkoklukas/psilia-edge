@@ -20,3 +20,16 @@
 | 13 | Write SSH config (managed psilia-edge section) | ✅ |
 | 14 | Write laptop config (~/.psilia/config.yaml) | ✅ |
 | 15 | Write Jetson config (/opt/psilia/config.yaml) | ✅ |
+
+## Mode 2: Base Layer (runtime)
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Daemon  | Start/stop background process, PID file, log file | ✅ |
+| Web server | FastAPI + uvicorn, served from psilia-edge install | ✅ |
+| CLI | `psilia base start/stop/status/monitor`, `psilia start/stop/status` | ✅ |
+| Web UI | Static HTML control page, polls /api/status every 3s | ✅ |
+| /api/status | Returns network interfaces; docker/ros status stubbed | ✅ |
+| Docker status | Check if Docker is running on device | ⬜ |
+| ROS runtime status | Check if psilia Docker container is running | ⬜ |
+| `psilia spatial start/stop` | Start/stop the ROS Docker container | ⬜ |

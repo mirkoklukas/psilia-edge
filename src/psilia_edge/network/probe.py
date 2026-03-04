@@ -14,7 +14,7 @@ def _run(cmd: list[str], runner: Runner = subprocess.run) -> tuple[int, str]:
     try:
         result = runner(cmd, capture_output=True, text=True)
         return result.returncode, result.stdout.strip()
-    except FileNotFoundError:
+    except (FileNotFoundError, NotADirectoryError, OSError):
         # Command not available (e.g. running on dev machine without nmcli/iw)
         return 127, ""
 
