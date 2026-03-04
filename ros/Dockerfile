@@ -14,13 +14,12 @@ RUN apt-get update && apt-get install -y \
 # Install psilia inference library (depth + pose algorithms)
 # RUN pip install psilia
 
-# Copy and build the psilia_runtime ROS package
-COPY psilia_runtime/ /opt/psilia/ros/psilia_runtime/
-RUN . /opt/ros/humble/setup.sh && \
-    cd /opt/psilia/ros && \
-    colcon build --packages-select psilia_runtime
+# psilia_runtime is mounted from the Jetson host at runtime:
+#   docker run -v /ssd/psilia/ros:/opt/psilia/ros ...
+# Expected layout: /ssd/psilia/ros/src/psilia_runtime/
+# The entrypoint runs colcon build on startup (incremental after first build).
 
-# Entrypoint: source workspaces and launch
+# Entrypoint: build workspace, source, and launch
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

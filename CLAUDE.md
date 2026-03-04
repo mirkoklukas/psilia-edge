@@ -5,7 +5,7 @@
 - Ask if things are not clear, rather than making implicit assumptions.
 - Plan and ask for confirmation before starting to code.
 - Make sure not to delete non-tracked files (git) without explicitly cross-checking with me.
-- Note that I gitignore files with a leading underscore `_*` and `_*.*`, except for `**/__*__.py.`
+- Note that I gitignore files with a leading underscore `_*` and `_*.*`, except for `**/__*__.py.`. It is okay to make suggestions for other exceptions.
 
 # Project Context
 

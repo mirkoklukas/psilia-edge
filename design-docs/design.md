@@ -72,21 +72,25 @@ Load recordings into a notebook, query topics, inspect timing, prototype algorit
 
 **Entry point:** `psilia init` on the laptop. A single guided wizard. No monitor on the Jetson required.
 
-If the Jetson is already reachable, skip discovery and go straight to bootstrap:
-```bash
-psilia init --host <ip-or-hostname>
-```
-
-> **Note:** This flow assumes a fresh Jetson with no prior setup. If the Jetson is already reachable over SSH (known IP or hostname), steps 1 and 2 can be skipped — the wizard should detect this and jump straight to the bootstrap. The Jetson's IP and hostname are saved to `~/.psilia/config.yaml` at the end of init for all future connections.
-
-### Prerequisites
-- Jetson flashed with JetPack (standard SD card / eMMC flash from laptop)
-- Ethernet cable between Jetson and laptop/router
-
 ### Flow
 
-**Step 1 — Prerequisites check**
-The wizard displays a checklist of what is expected and asks for confirmation before proceeding. No automation — just sets expectations.
+**Step 1 — Connect**
+The wizard asks upfront which situation you're in:
+
+```
+Do you have an IP or hostname for the Jetson already? [y/N]
+```
+
+**Path A — existing access:** You already know the Jetson's IP/hostname. The wizard prompts for host, username, and password, then attempts SSH. If the connection succeeds, proceed directly to bootstrap — no prerequisites checklist needed.
+
+```
+  Host (IP or hostname): 192.168.1.42
+  Username [nvidia]:
+  Password:
+  Connecting… ✓ Connected.
+```
+
+**Path B — fresh setup:** You have a fresh Jetson with no known IP. The wizard displays a prerequisites checklist (no confirmation needed — just sets expectations) then discovers the Jetson over ethernet.
 
 ```
 Before we begin, make sure you have:
@@ -94,46 +98,75 @@ Before we begin, make sure you have:
   ✓ Jetson flashed with JetPack
   ✓ Ethernet cable connected between Jetson and your laptop/router
   ✓ Jetson powered on
-
-Ready to continue? [y/N]
 ```
 
-**Step 2 — Connect and discover**
-Power on Jetson with ethernet connected. Psilia discovers it by inspecting the ARP table on the laptop's ethernet interface — no manual IP required. If exactly one host is found, it proceeds automatically. If multiple are found, the user is prompted to pick one.
+Psilia discovers the Jetson by inspecting the ARP table on the laptop's ethernet interface — no manual IP required. If exactly one host is found, it proceeds automatically. If multiple are found, the user is prompted to pick one. Once discovered, the wizard prompts for username and password and attempts SSH.
 
-Once connected, init sets the Jetson's hostname to `psilia-jetson` (configurable). All subsequent connections use `psilia-jetson.local` via mDNS.
+Both paths merge here — the remaining bootstrap steps are identical.
 
-**Step 3 — Remote bootstrap (over SSH)**
-Once discovered, `psilia init` SSHs into the Jetson and runs the full bootstrap remotely:
+**Step 2 — Remote bootstrap (over SSH)**
+Once connected, `psilia init` runs the full bootstrap remotely:
 
 1. **Generate SSH keypair** — dedicated keypair for Psilia, does not touch existing SSH config.
-2. **Network setup:**
+2. **Set device name** — wizard prompts for a name (default: `psilia-jetson`). Sets the Jetson hostname to `<name>`, all subsequent connections use `<name>.local` via mDNS.
+3. **Network setup:**
    - **Hotspot** — detect USB wifi dongle (preferred, `wlx` prefix). Fall back to built-in wifi with a warning. User prompted for SSID and password (defaults provided).
    - **WiFi connection** — scan visible networks, user selects SSID and enters password. Persisted as autoconnect profile.
-3. **Set device name** — wizard prompts for a name (default: `psilia-jetson`). Sets the Jetson hostname to `<name>`, all subsequent connections use `<name>.local` via mDNS.
-4. **SSH config** — optionally add an entry to `~/.ssh/config` on the laptop for easy access (`ssh <name>`) over ethernet, wifi, or hotspot.
-5. **Create `/opt/psilia/` directory structure** on the Jetson.
-6. **Detect and set up SSD** — wizard detects available drives, confirms mount point (default: `/ssd/`), configures `/ssd/psilia-data/` as data directory. Explicit confirmation before any formatting. Falls back to eMMC with a storage warning.
-7. **Install Docker.**
-8. **Clone `psilia-edge`** and `pip install -e .`. In future, `pip install psilia-edge` or a curl installer.
-9. **Copy `psilia_runtime`** ROS package from the cloned repo to `/opt/psilia/ros/psilia_runtime/`.
-10. **Build the Docker image** on the Jetson from `ros/Dockerfile` in the cloned repo. (In future: pull `psilia/runtime:latest` from a registry.)
-11. **Detect connected camera** (optional — can be skipped and configured later with `psilia config camera`).
-12. **Set up systemd service** — wizard asks whether to enable autostart on boot.
+4. **Create directory structure** — `/opt/psilia/` on eMMC (config only) and `/ssd/psilia/ros/src/`, `/ssd/psilia/data/recordings/` on the SSD.
+5. **Detect and set up SSD** — wizard detects available drives, confirms mount point (default: `/ssd/`), configures `/ssd/psilia-data/` as data directory. Explicit confirmation before any formatting. Falls back to eMMC with a storage warning.
+6. **Install `psilia-edge`** — clone the repo to `/ssd/psilia/psilia-edge/` on the Jetson and `pip install -e .`. In future, `pip install psilia-edge` or a curl installer. Until the repo is public, the wizard copies `~/.git-credentials` from the laptop to the Jetson to authenticate the clone, then removes it afterwards.
+7. **Populate ROS workspace** — copy `psilia_runtime` from the cloned repo into `/ssd/psilia/ros/src/psilia_runtime/`. `/ssd/psilia/ros/` is the live colcon workspace: `src/` holds the packages, and build artifacts accumulate in `build/`, `install/`, `log/`. Users can edit nodes directly here. It is intentionally kept separate from the repo clone.
+8. **Install Docker** — skip if already installed.
+9. **Build the Docker image** on the Jetson from `ros/Dockerfile` in the cloned repo. (In future: pull `psilia/runtime:latest` from a registry.)
+10. **Detect connected camera** (optional — can be skipped and configured later with `psilia config camera`).
+11. **Set up systemd service** — wizard asks whether to enable autostart on boot.
 
-**Step 4 — Write local config**
-On completion, writes `~/.psilia/config.yaml` on the laptop:
+**Step 3 — Write local configs**
+On completion, writes config on the laptop:
 
+- **SSH config** — the wizard maintains a `# psilia-edge BEGIN/END` section in `~/.ssh/config`. Each `psilia init` adds or updates two entries for the device: one for ethernet/wifi (`<name>.local`) and one for hotspot (fixed IP). Multiple devices accumulate in the same section. Nothing outside the section is touched.
+
+```
+# >>> psilia-edge (managed by psilia — do not edit manually)
+Host <name>
+    HostName <name>.local
+    User nvidia
+    IdentityFile ~/.psilia/keys/<name>
+
+Host <name>-hotspot
+    HostName 10.42.0.1
+    User nvidia
+    IdentityFile ~/.psilia/keys/<name>
+# <<< psilia-edge
+```
+- **Psilia config** — writes `~/.psilia/config.yaml` on the laptop and `/opt/psilia/config.yaml` on the Jetson.
+
+Laptop (`~/.psilia/config.yaml`):
 ```yaml
 devices:
-  <name>:                                   # device name chosen during init
+  <name>:
     host: <name>.local
     user: nvidia
     key: ~/.psilia/keys/<name>
-    data_path: /ssd/psilia-data/recordings  # configured during init
+    data_path: /ssd/psilia/data/recordings
+    hotspot_ssid: <name>-ap               # to connect in the field
+    camera: null                           # set if camera was configured
 
 defaults:
   pull_to: ~/psilia-data
+```
+
+Jetson (`/opt/psilia/config.yaml`):
+```yaml
+storage:
+  mount: /ssd/
+  data_path: /ssd/psilia/data/
+runtime:
+  image: psilia/runtime:latest
+  ros_workspace: /ssd/psilia/ros/
+  autostart: true                          # set based on user choice in step 11
+camera:
+  type: null                               # set if camera was configured
 ```
 
 **Done.** The user never touches the Jetson directly. One command, linear flow.
@@ -163,21 +196,29 @@ defaults:
 ### Jetson
 
 ```
-/opt/psilia/            # system config and ROS workspace (eMMC/SD)
+/opt/psilia/            # eMMC — config only, not user-scoped
   config.yaml           # Jetson-side config (storage mount point, runtime image, autostart)
-  ros/
-    psilia_runtime/     # default ROS package — visible and editable
-      package.xml
-      setup.py
-      launch/
-        default.launch.py
-      config/
-        params.yaml
+                        # Must live on eMMC: the systemd service reads it at boot to know
+                        # where the SSD is mounted — before the SSD is available.
 
-/ssd/psilia-data/       # data storage (SSD, mount point configured during init)
-  recordings/
-    device_session_001_20250601T120000.mcap
-    ...
+/ssd/psilia/            # SSD — everything else
+  psilia-edge/          # repo clone (pip install -e . run from here)
+  ros/                  # colcon workspace (mounted into Docker at runtime)
+    src/
+      psilia_runtime/   # default ROS package — visible and editable
+        package.xml
+        setup.py
+        launch/
+          default.launch.py
+        config/
+          params.yaml
+    build/
+    install/
+    log/
+  data/
+    recordings/
+      device_session_001_20250601T120000.mcap
+      ...
 ```
 
 ---
@@ -195,7 +236,7 @@ It contains:
 
 The image is purely the environment — ROS, CUDA, and dependencies. The `psilia_runtime` ROS package lives on the Jetson host and is mounted into the container at runtime. The image is fully open. Users can inspect it, derive from it, or replace it entirely.
 
-> **Note:** In a future version we may bake `psilia_runtime` into the image for a simpler, more reproducible deployment. For now the mounted workspace is simpler and more flexible during development.
+> **Note:** In a future version we may bake `psilia_runtime` into the image for a simpler, more reproducible deployment. For now the mounted workspace keeps the edit → restart cycle fast during development.
 
 ### The ROS Workspace
 
