@@ -9,17 +9,11 @@ app.add_typer(spatial_app, name="spatial")
 
 
 @app.command()
-def init(
-    host: str = typer.Option(
-        None,
-        "--host",
-        help="Skip discovery and connect to this IP or hostname directly.",
-    ),
-):
+def init():
     """Initialize a Jetson device."""
     from psilia_edge.init import run_init_wizard
 
-    run_init_wizard(host=host)
+    run_init_wizard()
 
 
 @app.command()
