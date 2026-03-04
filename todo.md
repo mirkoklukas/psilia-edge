@@ -4,18 +4,19 @@
 
 | Step | Description | Status |
 |------|-------------|--------|
-| 1 | Prerequisites checklist | ✅ |
-| 2 | Connect (discovery + SSH) | ✅ |
-| 3 | SSH Keypair | ⬜ |
-| 4 | Network (hotspot + wifi) | ⬜ |
-| 5 | Device name / hostname | ⬜ |
-| 6 | SSH config entry | ✅ |
-| 7 | Create dirs on Jetson | ⬜ |
-| 8 | SSD/storage setup | ⬜ |
-| 9 | Docker install | ⬜ |
-| 10 | Clone psilia-edge | ⬜ |
-| 11 | Copy ROS package | ⬜ |
-| 12 | Build Docker image | ⬜ |
-| 13 | Camera detection | ⬜ |
-| 14 | Systemd autostart | ⬜ |
-| 15 | Write local config | ✅ |
+| 1  | Connect — Path A (known IP) / Path B (discover over ethernet) | ✅ |
+| 2  | Device name — read current hostname, set new one via hostnamectl | ✅ |
+| 3  | SSH keypair — generate RSA-4096, install pubkey on Jetson | ✅ |
+| 4  | Network — detect dongle/interface, create hotspot via nmcli | ✅ |
+| 4b | Network — wifi client setup (connect Jetson to existing network) | ⬜ |
+| 5  | SSD — detect drives, confirm mount point, configure /etc/fstab | ⬜ |
+| 6  | Create dirs — /opt/psilia, /ssd/psilia/ros/src, /ssd/psilia/data | ✅ |
+| 7  | Clone psilia-edge repo + pip install -e . | ✅ |
+| 8  | Copy ROS package (psilia_runtime) to Jetson workspace | ✅ |
+| 9  | Docker — check installed, install via get.docker.com if missing | ✅ |
+| 10 | Build Docker image (psilia/runtime:latest) | ⬜ |
+| 11 | Camera detection (optional) | ⬜ |
+| 12 | Systemd autostart service | ⬜ |
+| 13 | Write SSH config (managed psilia-edge section) | ✅ |
+| 14 | Write laptop config (~/.psilia/config.yaml) | ✅ |
+| 15 | Write Jetson config (/opt/psilia/config.yaml) | ✅ |
