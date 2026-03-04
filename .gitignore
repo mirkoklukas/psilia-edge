@@ -10,8 +10,6 @@ __pycache__/
 .venv/
 .vscode/
 
-CLAUDE.md
-
 ros_ws/build/
 ros_ws/install/
 ros_ws/log/
