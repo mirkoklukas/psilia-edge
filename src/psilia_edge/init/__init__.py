@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import shlex
+import subprocess
 from pathlib import Path
 
 import paramiko
@@ -143,19 +144,88 @@ def _step_ssh_keypair(conn: JetsonConn, name: str) -> Path:
 _DEFAULT_HOTSPOT_PASSWORD = "psilia1234"
 
 
+def _ssh_runner(conn: JetsonConn):
+    """Return a Runner compatible with psilia_edge.network.* that runs commands over SSH."""
+    def runner(cmd: list[str], capture_output: bool = False, text: bool = False, **_):
+        shell_cmd = " ".join(shlex.quote(str(c)) for c in cmd)
+        rc, stdout, _ = conn.run(shell_cmd)
+        return subprocess.CompletedProcess(cmd, rc, stdout=stdout)
+    return runner
+
+
+def _ssh_sudo_runner(conn: JetsonConn):
+    """Like _ssh_runner but runs each command under sudo -S, using the stored password."""
+    def runner(cmd: list[str], capture_output: bool = False, text: bool = False, **_):
+        shell_cmd = "sudo -S " + " ".join(shlex.quote(str(c)) for c in cmd)
+        rc, stdout, _ = conn.run(shell_cmd, stdin_data=(conn._password or "") + "\n")
+        return subprocess.CompletedProcess(cmd, rc, stdout=stdout)
+    return runner
+
+
 def _step_network(conn: JetsonConn, name: str) -> str:
+    from psilia_edge.network.hotspot import create_hotspot, find_active_hotspot
+    from psilia_edge.network.probe import list_interfaces
+
     console.rule("[bold]Step 4 — Network Setup")
     console.print(
         "  Configures a wifi hotspot on the Jetson (USB dongle preferred)\n"
         "  so you can reach it in the field without a router."
     )
+
+    runner = _ssh_runner(conn)
+    with console.status("  Detecting wifi interfaces and existing hotspot…"):
+        ifaces = list_interfaces(runner)
+        wifi_ifaces = [i for i in ifaces if i.is_wifi]
+
+        existing_hotspot = None
+        for wi in wifi_ifaces:
+            existing_hotspot = find_active_hotspot(wi.name, runner)
+            if existing_hotspot:
+                break
+
+    # Pick interface: prefer USB dongle, then anything that supports AP
+    usb = [i for i in wifi_ifaces if i.is_usb_wifi]
+    candidates = usb or wifi_ifaces
+    ap_capable = [i for i in candidates if i.supports_ap] or candidates
+    iface = ap_capable[0] if ap_capable else None
+
+    if existing_hotspot:
+        _ok(f"Existing hotspot found: [bold]{existing_hotspot}[/bold]")
+        if not Confirm.ask("  Replace it?", default=False):
+            console.print("  [dim]Keeping existing hotspot.[/dim]")
+            return existing_hotspot
+
+    if iface is None:
+        console.print("  [yellow]⚠[/yellow]  No wifi interface found — skipping network setup.")
+        console.print("  [dim]Connect a USB wifi dongle and re-run 'psilia init'.[/dim]")
+        return f"{name}-ap"
+    elif iface.is_usb_wifi:
+        _ok(f"USB wifi dongle detected: [bold]{iface.name}[/bold]")
+    else:
+        console.print(f"  [yellow]⚠[/yellow]  No USB dongle — using built-in wifi: [bold]{iface.name}[/bold]")
+        console.print("  [dim]Note: built-in wifi can't act as hotspot and client simultaneously on all hardware.[/dim]")
+
     ssid = Prompt.ask("  Hotspot SSID", default=f"{name}-ap")
     password = Prompt.ask("  Hotspot password", default=_DEFAULT_HOTSPOT_PASSWORD)
     console.print("\n  [dim]Will configure:[/dim]")
-    console.print(f"    SSID:     [bold]{ssid}[/bold]")
-    console.print(f"    Password: [bold]{password}[/bold]")
-    console.print("    IP:       [bold]10.42.0.1[/bold] (fixed, Jetson side)")
-    _stub("nmcli hotspot + wifi client setup over SSH")
+    console.print(f"    Interface: [bold]{iface.name}[/bold]")
+    console.print(f"    SSID:      [bold]{ssid}[/bold]")
+    console.print(f"    Password:  [bold]{password}[/bold]")
+    console.print("    IP:        [bold]10.42.0.1[/bold] (fixed, Jetson side)")
+
+    with console.status("  Creating hotspot…"):
+        ok = create_hotspot(
+            ifname=iface.name,
+            password=password,
+            ssid=ssid,
+            con_name=f"{ssid}-Hotspot",
+            runner=_ssh_sudo_runner(conn),
+        )
+    if ok:
+        _ok(f"Hotspot '{ssid}' is up")
+    else:
+        _fail("Failed to create hotspot — configure manually with nmcli")
+
     return ssid
 
 
@@ -273,9 +343,14 @@ def _step_docker(conn: JetsonConn) -> None:
         return
 
     console.print("  Docker not found — installing…")
+    with console.status("  Downloading Docker install script…"):
+        rc, _, err = conn.run("curl -fsSL https://get.docker.com -o /tmp/_get-docker.sh")
+    if rc != 0:
+        _fail(f"Failed to download Docker install script: {err.strip()}")
+        return
     with console.status("  Installing Docker (this may take a while)…"):
-        rc, _, err = conn.run("curl -fsSL https://get.docker.com | sudo -S sh",
-                              stdin_data=(conn._password or "") + "\n")
+        rc, _, err = conn.sudo("sh /tmp/_get-docker.sh")
+        conn.run("rm -f /tmp/_get-docker.sh")
     if rc != 0:
         _fail(f"Docker install failed: {err.strip()}")
         return
@@ -451,13 +526,15 @@ def _step_write_jetson_config(
         },
     }
     config_yaml = yaml.dump(jetson_config, default_flow_style=False)
+    tmp = "/tmp/_psilia_jetson_config.yaml"
     with console.status("  Writing Jetson config…"):
-        rc, _, err = conn.sudo("mkdir -p /opt/psilia")
-    if rc == 0:
-        rc, _, err = conn.run(
-            f"echo {shlex.quote(config_yaml)} | sudo -S tee /opt/psilia/config.yaml > /dev/null",
-            stdin_data=(conn._password or "") + "\n",
-        )
+        # Write to /tmp as the current user (no sudo), then sudo-copy to /opt/psilia/.
+        # Can't use `echo ... | sudo -S tee` — the pipe consumes stdin so sudo -S
+        # never receives the password.
+        rc, _, err = conn.run(f"cat > {tmp}", stdin_data=config_yaml)
+        if rc == 0:
+            rc, _, err = conn.sudo(f"cp {tmp} /opt/psilia/config.yaml")
+            conn.run(f"rm -f {tmp}")
     if rc != 0:
         _fail(f"Failed to write Jetson config: {err.strip()}")
     else:

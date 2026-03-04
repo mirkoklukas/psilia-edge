@@ -1,4 +1,9 @@
-"""Create and manage a WiFi hotspot (AP mode) via nmcli."""
+"""Create and manage a WiFi hotspot via nmcli.
+
+AP (Access Point) mode: the wifi interface acts as a base station that other
+devices connect to, as opposed to infrastructure (client) mode where it
+connects to an existing router.
+"""
 
 from __future__ import annotations
 
