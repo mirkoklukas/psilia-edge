@@ -1,8 +1,9 @@
 import socket
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Annotated
 
+import click
 import typer
 from rich.console import Console
 from rich.live import Live
@@ -11,14 +12,16 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+
+console = Console()
+
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
 base_app = typer.Typer(help="Manage the base layer (daemon + web server)")
 spatial_app = typer.Typer(help="Manage the Spatial Runtime (ROS nodes)")
 
-app.add_typer(base_app, name="base")
-app.add_typer(spatial_app, name="spatial")
+app.add_typer(base_app, name="base", hidden=True)
+app.add_typer(spatial_app, name="spatial", hidden=True)
 
-console = Console()
 
 # ── print helper commands ─────────────────────────────────────────────────────
 def _print_section(title: str, content: str) -> None:
@@ -34,7 +37,6 @@ def _print_file(fname: str | Path) -> None:
         _print_section(fname, f"[dim]{str(fname)} not found[/dim]")
 
 
-# ── top-level commands ────────────────────────────────────────────────────────
 @app.command(hidden=True)
 def debug():
     """Show internal state, adapts to role (runtime host vs device manager)."""
@@ -74,7 +76,12 @@ def _debug_device_manager() -> None:
             _SSH_CONFIG_PATH, 
             f"[dim]{_SSH_CONFIG_PATH} not found[/dim]")
 
-@app.command()
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   DEVICE MANAGEMENT COMMANDS
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+@app.command(rich_help_panel="Device Management")
 def pair():
     """Pair a Jetson: connect, generate SSH keypair, register device on this laptop."""
     from psilia_edge.pair import run_pair_wizard
@@ -82,21 +89,16 @@ def pair():
     run_pair_wizard()
 
 
-@app.command()
-def setup(device: Optional[str] = typer.Argument(None, help="Registered device name")):
-    """Bootstrap a Jetson device.
-
-    With DEVICE: runs all setup steps over SSH from this laptop.
-    Without DEVICE: runs setup locally (must be on a runtime host).
-    """
-    from psilia_edge.config import is_runtime_host
-
+# def setup(device: Optional[str] = typer.Argument(None, help="Registered device name")):
+@app.command(rich_help_panel="Device Management")
+def setup(device: Annotated[str, typer.Argument(help="Registered device name")]):
+    """Bootstrap a Jetson device."""
+    # TODO: eventually we may want to support local setup from the laptop as well.
+    # But for that, we'd need to first install psilia_edge on the device. So probably there will 
+    # be an install script that installs psilia_edge and then calls this setup command locally.
     if device:
         from psilia_edge.setup import run_setup_remote
         run_setup_remote(device)
-    elif is_runtime_host():
-        from psilia_edge.setup import run_setup_local
-        run_setup_local()
     else:
         console.print(
             "[red]No device specified.[/red]\n"
@@ -105,7 +107,7 @@ def setup(device: Optional[str] = typer.Argument(None, help="Registered device n
         )
 
 
-@app.command()
+@app.command(rich_help_panel="Device Management")
 def devices():
     """List all registered Jetson devices."""
     from psilia_edge.config import read_laptop_config
@@ -135,44 +137,79 @@ def devices():
 
     console.print(table)
 
-
-@app.command()
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   RUNTIME COMMANDS
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+@app.command(rich_help_panel="Runtime")
 def start(
-    host: str = typer.Option("0.0.0.0", help="Bind address"),
-    port: int = typer.Option(8080, help="HTTP port"),
-    foreground: bool = typer.Option(False, "--foreground", "-f", help="Run in foreground"),
+    device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
+    host: str = typer.Option("0.0.0.0", help="Bind address", hidden=True),
+    port: int = typer.Option(8080, help="HTTP port", hidden=True),
+    foreground: bool = typer.Option(False, "--foreground", "-f", help="Run in foreground", hidden=True),
 ):
-    """Start the base layer and Spatial Runtime."""
-    _base_start(host=host, port=port, foreground=foreground)
+    """Start the runtime. With <device>: SSH wrapper for a registered device."""
+    if device:
+        _ssh_run(device, "start")
+    else:
+        _base_start(host=host, port=port, foreground=foreground)
 
 
-@app.command()
-def stop():
-    """Stop the base layer and Spatial Runtime."""
-    _base_stop()
+@app.command(rich_help_panel="Runtime")
+def stop(
+    device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
+):
+    """Stop the runtime. With <device>: SSH wrapper for a registered device."""
+    if device:
+        _ssh_run(device, "stop")
+    else:
+        _base_stop()
 
 
-@app.command()
-def status():
-    """Show base layer status and network interfaces."""
-    _base_status()
+@app.command(rich_help_panel="Runtime")
+def status(
+    device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
+):
+    """Show runtime status. With <device>: SSH wrapper for a registered device."""
+    if device:
+        _ssh_run(device, "status")
+    else:
+        _base_status()
 
 
-@app.command()
+@app.command("monitor", rich_help_panel="Runtime")
+def monitor(
+    device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
+):
+    """Live log view. Ctrl-C to detach. With <device>: SSH wrapper for a registered device."""
+    if device:
+        _ssh_exec(device, "monitor")
+        return
+
+    from psilia_edge.runtime.daemon import is_running, read_log_tail
+
+    if not is_running():
+        console.print("[yellow]Base layer is not running.[/yellow] Start it with: psilia start")
+        raise typer.Exit(1)
+
+    console.print("Monitoring psilia base layer  [dim]Ctrl-C to detach[/dim]\n")
+    try:
+        with Live(refresh_per_second=2, screen=False) as live:
+            while True:
+                live.update(_build_monitor_display(read_log_tail(30)))
+                time.sleep(0.5)
+    except KeyboardInterrupt:
+        console.print("\n[dim]Detached. Daemon is still running.[/dim]")
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   DATA MANAGEMENT COMMANDS
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+@app.command(rich_help_panel="Data Management")
 def pull(device: str = typer.Argument(None, help="Target device name")):
     """Pull recordings from Jetson to laptop. [dim](not yet implemented)[/dim]"""
-    raise NotImplementedError
-
-
-@app.command()
-def push():
-    """Push recordings from laptop to cloud. [dim](not yet implemented)[/dim]"""
-    raise NotImplementedError
-
-
-@app.command()
-def sync(device: str = typer.Argument(None, help="Target device name")):
-    """Pull from Jetson then push to cloud. [dim](not yet implemented)[/dim]"""
     raise NotImplementedError
 
 
@@ -187,66 +224,22 @@ def serve(
     run_server(host=host, port=port)
 
 
-# ── psilia base * ─────────────────────────────────────────────────────────────
-
-
-@base_app.command("start")
-def base_start(
-    host: str = typer.Option("0.0.0.0", help="Bind address"),
-    port: int = typer.Option(8080, help="HTTP port"),
-    foreground: bool = typer.Option(False, "--foreground", "-f", help="Run in foreground"),
-):
-    """Start the base layer (daemon + web server)."""
-    _base_start(host=host, port=port, foreground=foreground)
-
-
-@base_app.command("stop")
-def base_stop():
-    """Stop the base layer."""
-    _base_stop()
-
-
-@base_app.command("status")
-def base_status():
-    """Show base layer status and network interfaces."""
-    _base_status()
-
-
-@base_app.command("monitor")
-def base_monitor():
-    """Live log view. Ctrl-C to detach (does not stop the daemon)."""
-    from psilia_edge.runtime.daemon import is_running, read_log_tail
-
-    if not is_running():
-        console.print("[yellow]Base layer is not running.[/yellow] Start it with: psilia base start")
-        raise typer.Exit(1)
-
-    console.print("Monitoring psilia base layer  [dim]Ctrl-C to detach[/dim]\n")
-    try:
-        with Live(refresh_per_second=2, screen=False) as live:
-            while True:
-                live.update(_build_monitor_display(read_log_tail(30)))
-                time.sleep(0.5)
-    except KeyboardInterrupt:
-        console.print("\n[dim]Detached. Daemon is still running.[/dim]")
-
-
-# ── psilia spatial * ──────────────────────────────────────────────────────────
-
-
-@spatial_app.command("start")
-def spatial_start():
-    """Start the Spatial Runtime (ROS layer) only. [dim](not yet implemented)[/dim]"""
-    raise NotImplementedError
-
-
-@spatial_app.command("stop")
-def spatial_stop():
-    """Stop the Spatial Runtime (ROS layer) only. [dim](not yet implemented)[/dim]"""
-    raise NotImplementedError
-
-
 # ── helpers ───────────────────────────────────────────────────────────────────
+
+
+def _ssh_run(device: str, *args: str) -> None:
+    """Run `psilia <args>` on a registered device over SSH and stream output."""
+    import subprocess
+
+    result = subprocess.run(["ssh", device, "psilia", *args])
+    raise typer.Exit(result.returncode)
+
+
+def _ssh_exec(device: str, *args: str) -> None:
+    """Replace current process with `ssh <device> psilia <args>` (preserves TTY)."""
+    import os
+
+    os.execvp("ssh", ["ssh", "-t", device, "psilia", *args])
 
 
 def _base_start(host: str, port: int, foreground: bool) -> None:

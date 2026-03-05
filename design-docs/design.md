@@ -51,23 +51,27 @@ otherwise it assumes a device manager (laptop).
 ```
 Command                     Runs on    Description
 ────────────────────────────────────────────────────────────────────
+# Device Management
 psilia pair                 laptop     Connect to Jetson, generate keypair, register device
 psilia devices              laptop     List all registered devices
 psilia setup <device>       laptop     Bootstrap a Jetson over SSH
-psilia start <device>       laptop     [ssh wrapper] Start runtime on a registered device
-psilia stop <device>        laptop     [ssh wrapper] Stop runtime on a registered device
-psilia status <device>      jetson     [ssh wrapper] Show runtime status of registered device
-psilia autostart <device>   laptop     [ssh wrapper] Configure autostart on a registered device
+
+# Data Mangement
 psilia pull <device>        laptop     Sync recordings Jetson → laptop
 
+# Runtime
 psilia start                jetson     Start base layer + ROS layer
 psilia stop                 jetson     Stop base layer + ROS layer
 psilia status               jetson     Show local runtime status
-psilia base start           jetson     Start base layer only (dev/debug)
-psilia base stop            jetson     Stop base layer only (dev/debug)
-psilia spatial start        jetson     Start ROS layer only (dev/debug)
-psilia spatial stop         jetson     Stop ROS layer only (dev/debug)
+psilia monitor              jetson     Live log view. Ctrl-C to detach (does not stop the daemon).
 psilia autostart on/off     jetson     Configure systemd autostart on boot
+
+# Runtime Wrapper
+psilia start <device>            laptop     [ssh wrapper] Start runtime on a registered device
+psilia stop <device>             laptop     [ssh wrapper] Stop runtime on a registered device
+psilia status <device>           laptop     [ssh wrapper] Show runtime status of registered device
+psilia monitor <device>          laptop     [ssh wrapper] Live log view. Ctrl-C to detach (does not stop the daemon).
+psilia autostart <device> on/off laptop     [ssh wrapper] Configure autostart on a registered device
 ```
 
 ---

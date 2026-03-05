@@ -27,7 +27,7 @@ class MockNode(Node):
         img.height = 480
         img.width = 640
         img.encoding = "rgb8"
-        img.data = (np.zeros((480, 640, 3), dtype=np.uint8)).tobytes()
+        img.data = (np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)).tobytes()
         self.image_pub.publish(img)
 
         depth = Image()
@@ -35,7 +35,7 @@ class MockNode(Node):
         depth.height = 480
         depth.width = 640
         depth.encoding = "32FC1"
-        depth.data = (np.ones((480, 640), dtype=np.float32)).tobytes()
+        depth.data = (np.random.rand(480, 640).astype(np.float32)).tobytes()
         self.depth_pub.publish(depth)
 
         pose = PoseStamped()
