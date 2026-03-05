@@ -1,5 +1,6 @@
 import socket
 import time
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -22,11 +23,84 @@ console = Console()
 
 
 @app.command()
-def init():
-    """Initialize a Jetson device."""
-    from psilia_edge.init import run_init_wizard
+def pair():
+    """Pair a Jetson: connect, generate SSH keypair, register device on this laptop."""
+    from psilia_edge.init import run_pair_wizard
 
-    run_init_wizard()
+    run_pair_wizard()
+
+
+@app.command()
+def setup(device: Optional[str] = typer.Argument(None, help="Registered device name")):
+    """Bootstrap a Jetson device.
+
+    With DEVICE: runs all setup steps over SSH from this laptop.
+    Without DEVICE: runs setup locally (on the Jetson itself).
+    """
+    if device:
+        from psilia_edge.setup import run_setup_remote
+
+        run_setup_remote(device)
+    else:
+        from psilia_edge.setup import run_setup_local
+
+        run_setup_local()
+
+
+@app.command(hidden=True)
+def debug():
+    """Show internal state: psilia config and managed SSH config section."""
+    from psilia_edge.config import LAPTOP_CONFIG_PATH
+    from psilia_edge.init import _SSH_CONFIG_PATH, _SSH_SECTION_END, _SSH_SECTION_START
+
+    console.rule("[bold]~/.psilia/config.yaml")
+    if LAPTOP_CONFIG_PATH.exists():
+        console.print(LAPTOP_CONFIG_PATH.read_text())
+    else:
+        console.print(f"[dim]{LAPTOP_CONFIG_PATH} not found[/dim]")
+
+    console.rule("[bold]~/.ssh/config  (psilia section)")
+    if _SSH_CONFIG_PATH.exists():
+        text = _SSH_CONFIG_PATH.read_text()
+        if _SSH_SECTION_START in text:
+            start = text.index(_SSH_SECTION_START)
+            end = text.index(_SSH_SECTION_END) + len(_SSH_SECTION_END)
+            console.print(text[start:end])
+        else:
+            console.print("[dim]No psilia section found[/dim]")
+    else:
+        console.print(f"[dim]{_SSH_CONFIG_PATH} not found[/dim]")
+
+
+@app.command()
+def devices():
+    """List all registered Jetson devices."""
+    from psilia_edge.config import read_laptop_config
+
+    config = read_laptop_config()
+    devs = config.get("devices", {})
+
+    if not devs:
+        console.print("[dim]No devices registered. Run 'psilia pair' to add one.[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
+    table.add_column("Name")
+    table.add_column("Host")
+    table.add_column("User")
+    table.add_column("Camera")
+    table.add_column("Data Path")
+
+    for name, dev in devs.items():
+        table.add_row(
+            name,
+            dev.get("host", "—"),
+            dev.get("user", "—"),
+            dev.get("camera") or "—",
+            dev.get("data_path") or "—",
+        )
+
+    console.print(table)
 
 
 @app.command()

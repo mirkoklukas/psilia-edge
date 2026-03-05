@@ -34,19 +34,48 @@ The layered `psilia base` / `psilia spatial` commands exist for development, tes
 
 ### CLI commands
 
-```bash
-psilia start           # start base layer + ROS layer
-psilia stop            # stop base layer + ROS layer
+The same binary is installed on both laptop and Jetson. The presence of `<device>` determines context — required on the laptop (which manages one or more Jetsons), absent on the Jetson (which operates locally).
 
-psilia base start      # start base layer only
-psilia base stop       # stop base layer only
+Most laptop commands that take a `<device>` argument are thin SSH wrappers — they connect to the named device and invoke the equivalent local command there.
 
-psilia spatial start   # start ROS layer only (requires base layer running)
-psilia spatial stop    # stop ROS layer only
+- Laptop: Device Manager, which manages one or more Jetsons
+- Jetson: Runtime host.
 
-psilia autostart on    # enable base layer autostart on boot
-psilia autostart off   # disable base layer autostart on boot
 ```
+Command                     Runs on    Description
+────────────────────────────────────────────────────────────────────
+psilia pair                 laptop     Add a Jetson: interactive wizard, SSH + register
+psilia devices              laptop     List all registered Jetsons
+psilia setup <device>       laptop     SSH wrapper for `psilia setup`
+psilia start <device>       laptop     SSH wrapper for `psilia start`
+psilia stop <device>        laptop     SSH wrapper for `psilia stop`
+psilia status <device>      laptop     SSH wrapper for `psilia status`
+psilia pull <device>        laptop     Sync recordings Jetson → laptop
+
+psilia setup                jetson     Bootstrap this device locally
+psilia start                jetson     Start base layer + ROS layer
+psilia stop                 jetson     Stop base layer + ROS layer
+psilia status               jetson     Show local runtime status
+psilia base start           jetson     Start base layer only (dev/debug)
+psilia base stop            jetson     Stop base layer only (dev/debug)
+psilia spatial start        jetson     Start ROS layer only (dev/debug)
+psilia spatial stop         jetson     Stop ROS layer only (dev/debug)
+psilia autostart on/off     jetson     Configure systemd autostart on boot
+```
+
+---
+
+### Component Summary
+
+| Component | Runs On | Entry Point | Scope |
+|---|---|---|---|
+| Spatial Runtime — base layer | Jetson host | systemd / `psilia base start` | Control plane, web UI, API |
+| Spatial Runtime — ROS layer | Jetson (Docker) | `psilia spatial start` | Perception outputs, recording |
+| Control UI | Jetson (served by base layer) | Browser (phone/laptop) | Monitor, record |
+| CLI — pair / setup | Laptop | `psilia pair`, `psilia setup <device>` | One-time: connect, keypair, bootstrap Jetson |
+| CLI — runtime ops | Laptop / Jetson | `psilia start/stop/status` | Start/stop runtime, check status |
+| CLI — data | Laptop | `psilia pull/push/sync` | Sync recordings to laptop and cloud |
+| Dev API | Laptop / Cloud | Python / notebook | Explore recorded data |
 
 ---
 
@@ -54,7 +83,7 @@ psilia autostart off   # disable base layer autostart on boot
 
 There are four distinct modes a user operates in. Each has different UX requirements and should be designed for independently.
 
-### 1. Init (one-time)
+### 1. Pair + Setup (one-time)
 Get the Jetson, laptop, and camera talking to each other. Runs once. Never touched again.
 
 ### 2. Field
@@ -68,20 +97,25 @@ Load recordings into a notebook, query topics, inspect timing, prototype algorit
 
 ---
 
-## Mode 1: Init
+## Mode 1: Pair + Setup
 
-**Entry point:** `psilia init` on the laptop. A single guided wizard. No monitor on the Jetson required.
+Two commands, run once from the laptop. No monitor on the Jetson required.
 
-### Flow
+---
+
+### `psilia pair`
+
+Interactive wizard. Establishes the SSH connection and registers the device on the laptop.
 
 **Step 1 — Connect**
+
 The wizard asks upfront which situation you're in:
 
 ```
 Do you have an IP or hostname for the Jetson already? [y/N]
 ```
 
-**Path A — existing access:** You already know the Jetson's IP/hostname. The wizard prompts for host, username, and password, then attempts SSH. If the connection succeeds, proceed directly to bootstrap — no prerequisites checklist needed.
+**Path A — existing access:** You already know the Jetson's IP/hostname. The wizard prompts for host, username, and password, then attempts SSH.
 
 ```
   Host (IP or hostname): 192.168.1.42
@@ -90,7 +124,7 @@ Do you have an IP or hostname for the Jetson already? [y/N]
   Connecting… ✓ Connected.
 ```
 
-**Path B — fresh setup:** You have a fresh Jetson with no known IP. The wizard displays a prerequisites checklist (no confirmation needed — just sets expectations) then discovers the Jetson over ethernet.
+**Path B — fresh setup:** You have a fresh Jetson with no known IP. The wizard displays a prerequisites checklist then discovers the Jetson over ethernet.
 
 ```
 Before we begin, make sure you have:
@@ -100,31 +134,16 @@ Before we begin, make sure you have:
   ✓ Jetson powered on
 ```
 
-Psilia discovers the Jetson by inspecting the ARP table on the laptop's ethernet interface — no manual IP required. If exactly one host is found, it proceeds automatically. If multiple are found, the user is prompted to pick one. Once discovered, the wizard prompts for username and password and attempts SSH.
+Psilia discovers the Jetson by inspecting the ARP table on the laptop's ethernet interface — no manual IP required. If exactly one host is found, it proceeds automatically. If multiple are found, the user picks one. Once discovered, the wizard prompts for username and password and attempts SSH.
 
-Both paths merge here — the remaining bootstrap steps are identical.
+**Step 2 — Keypair + device name**
 
-**Step 2 — Remote bootstrap (over SSH)**
-Once connected, `psilia init` runs the full bootstrap remotely:
-
-1. **Generate SSH keypair** — dedicated keypair for Psilia, does not touch existing SSH config.
+1. **Generate SSH keypair** on the laptop — dedicated keypair for Psilia, does not touch existing SSH keys.
 2. **Set device name** — wizard prompts for a name (default: `psilia-jetson`). Sets the Jetson hostname to `<name>`, all subsequent connections use `<name>.local` via mDNS.
-3. **Network setup:**
-   - **Hotspot** — detect USB wifi dongle (preferred, `wlx` prefix). Fall back to built-in wifi with a warning. User prompted for SSID and password (defaults provided).
-   - **WiFi connection** — scan visible networks, user selects SSID and enters password. Persisted as autoconnect profile.
-4. **Create directory structure** — `/opt/psilia/` on eMMC (config only) and `/ssd/psilia/ros/src/`, `/ssd/psilia/data/recordings/` on the SSD.
-5. **Detect and set up SSD** — wizard detects available drives, confirms mount point (default: `/ssd/`), configures `/ssd/psilia-data/` as data directory. Explicit confirmation before any formatting. Falls back to eMMC with a storage warning.
-6. **Install `psilia-edge`** — clone the repo to `/ssd/psilia/psilia-edge/` on the Jetson and `pip install -e .`. In future, `pip install psilia-edge` or a curl installer. Until the repo is public, the wizard copies `~/.git-credentials` from the laptop to the Jetson to authenticate the clone, then removes it afterwards.
-7. **Populate ROS workspace** — copy `psilia_runtime` from the cloned repo into `/ssd/psilia/ros/src/psilia_runtime/`. `/ssd/psilia/ros/` is the live colcon workspace: `src/` holds the packages, and build artifacts accumulate in `build/`, `install/`, `log/`. Users can edit nodes directly here. It is intentionally kept separate from the repo clone.
-8. **Install Docker** — skip if already installed.
-9. **Build the Docker image** on the Jetson from `ros/Dockerfile` in the cloned repo. (In future: pull `psilia/runtime:latest` from a registry.)
-10. **Detect connected camera** (optional — can be skipped and configured later with `psilia config camera`).
-11. **Set up systemd service** — wizard asks whether to enable autostart on boot.
 
-**Step 3 — Write local configs**
-On completion, writes config on the laptop:
+**Step 3 — Write laptop config**
 
-- **SSH config** — the wizard maintains a `# psilia-edge BEGIN/END` section in `~/.ssh/config`. Each `psilia init` adds or updates two entries for the device: one for ethernet/wifi (`<name>.local`) and one for hotspot (fixed IP). Multiple devices accumulate in the same section. Nothing outside the section is touched.
+- **SSH config** — maintains a `# psilia-edge BEGIN/END` section in `~/.ssh/config`. Adds two entries per device: one for ethernet/wifi (`<name>.local`) and one for hotspot (fixed IP). Multiple devices accumulate in the same section. Nothing outside the section is touched.
 
 ```
 # >>> psilia-edge (managed by psilia — do not edit manually)
@@ -139,24 +158,43 @@ Host <name>-hotspot
     IdentityFile ~/.psilia/keys/<name>
 # <<< psilia-edge
 ```
-- **Psilia config** — writes `~/.psilia/config.yaml` on the laptop and `/opt/psilia/config.yaml` on the Jetson.
 
-Laptop (`~/.psilia/config.yaml`):
+- **Psilia config** — registers the device in `~/.psilia/config.yaml` with connection info. Device-specific fields (`data_path`, `camera`, `hotspot_ssid`) are filled in after `psilia setup` via config sync.
+
 ```yaml
 devices:
   <name>:
     host: <name>.local
     user: nvidia
     key: ~/.psilia/keys/<name>
-    data_path: /ssd/psilia/data/recordings
-    hotspot_ssid: <name>-ap               # to connect in the field
-    camera: null                           # set if camera was configured
 
 defaults:
   pull_to: ~/psilia-data
 ```
 
-Jetson (`/opt/psilia/config.yaml`):
+Done. The device is now registered and reachable via `ssh <name>`.
+
+---
+
+### `psilia setup <device>`
+
+SSH wrapper for `psilia setup` on the Jetson. Bootstraps the device, then automatically syncs the Jetson config back to the laptop.
+
+**On the Jetson, `psilia setup` runs:**
+
+1. **Network setup:**
+   - **Hotspot** — detect USB wifi dongle (preferred, `wlx` prefix). Fall back to built-in wifi with a warning. User prompted for SSID and password (defaults provided).
+   - **WiFi connection** — scan visible networks, user selects SSID and enters password. Persisted as autoconnect profile.
+2. **Detect and set up SSD** — detects available drives, confirms mount point (default: `/ssd/`). Explicit confirmation before any formatting. Falls back to eMMC with a storage warning.
+3. **Create directory structure** — `/opt/psilia/` on eMMC (config only), `/ssd/psilia/ros/src/`, `/ssd/psilia/data/recordings/` on the SSD.
+4. **Install `psilia-edge`** — clone the repo to `/ssd/psilia/psilia-edge/` and `pip install -e .`. Until the repo is public, copies `~/.git-credentials` from the laptop to authenticate, then removes it.
+5. **Populate ROS workspace** — copy `psilia_runtime` from the cloned repo into `/ssd/psilia/ros/src/psilia_runtime/`. Intentionally kept separate from the repo clone so users can edit nodes directly.
+6. **Install Docker** — skip if already installed.
+7. **Build the Docker image** from `ros/Dockerfile` in the cloned repo. (In future: pull from a registry.)
+8. **Detect connected camera** — optional, can be skipped and configured later.
+9. **Configure systemd autostart** — wizard asks whether to enable autostart on boot.
+10. **Write Jetson config** — writes `/opt/psilia/config.yaml`:
+
 ```yaml
 storage:
   mount: /ssd/
@@ -164,18 +202,35 @@ storage:
 runtime:
   image: psilia/runtime:latest
   ros_workspace: /ssd/psilia/ros/
-  autostart: true                          # set based on user choice in step 11
+  autostart: true                          # set based on user choice in step 9
 camera:
   type: null                               # set if camera was configured
+hotspot:
+  ssid: <name>-ap
+  interface: wlx...                        # detected dongle
 ```
 
-**Done.** The user never touches the Jetson directly. One command, linear flow.
+**Back on the laptop**, `psilia setup <device>` calls `sync_device_config(<device>)` — reads the Jetson config and merges relevant fields into `~/.psilia/config.yaml`:
 
-### What Init Does NOT Do
+```yaml
+devices:
+  <name>:
+    host: <name>.local
+    user: nvidia
+    key: ~/.psilia/keys/<name>
+    data_path: /ssd/psilia/data/recordings  # ← from Jetson config
+    hotspot_ssid: <name>-ap                 # ← from Jetson config
+    camera: null                            # ← from Jetson config
+```
+
+`sync_device_config` is an internal function, callable independently if the Jetson config changes later (e.g. after camera setup).
+
+---
+
+### What Pair + Setup Does NOT Do
 - Does not ask the user to choose a Docker image or configure ROS — Psilia owns that by default
 - Does not touch existing SSH keys or network config beyond what is needed
-- Does not set up cloud sync — configured separately if needed
-- Does not require a camera — camera setup is optional during init. The mock node runs in its place, giving a fully working system to explore without hardware.
+- Does not require a camera — the mock node runs in its place, giving a fully working system to explore without hardware.
 
 ---
 
@@ -436,17 +491,6 @@ rec.stats("/psilia/pose")
 
 ---
 
-## Component Summary
-
-| Component | Runs On | Entry Point | Scope |
-|---|---|---|---|
-| Spatial Runtime — base layer | Jetson host | systemd / `psilia base start` | Control plane, web UI, API |
-| Spatial Runtime — ROS layer | Jetson (Docker) | `psilia spatial start` | Perception outputs, recording |
-| Control UI | Jetson (served by base layer) | Browser (phone/laptop) | Monitor, record |
-| CLI (`psilia`) | Laptop | Terminal | Init, start/stop, pull, push, sync |
-| Dev API | Laptop / Cloud | Python / notebook | Explore recorded data |
-
----
 
 ## What Psilia Edge Is Not (v0)
 
