@@ -64,45 +64,67 @@ def _step_create_dirs(conn: JetsonConn | LocalRunner) -> None:
 # ── step 3: clone repo ────────────────────────────────────────────────────────
 
 
+def _read_git_credentials(host: str) -> tuple[str, str] | None:
+    """Parse ~/.git-credentials and return (username, password) for the given host, or None."""
+    creds_path = Path.home() / ".git-credentials"
+    if not creds_path.exists():
+        return None
+    for line in creds_path.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # Format: https://username:password@hostname
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(line)
+            if parsed.hostname == host and parsed.username and parsed.password:
+                return parsed.username, parsed.password
+        except Exception:
+            continue
+    return None
+
+
 def _step_clone(conn: JetsonConn | LocalRunner) -> None:
     console.rule("[bold]Step 3 — Clone psilia-edge")
 
-    already_cloned = f"test -d /ssd/psilia/psilia-edge/.git"
-    clone_cmd = f"git clone --branch {_PSILIA_REPO_BRANCH} {_PSILIA_REPO_URL} /ssd/psilia/psilia-edge"
+    repo_dir = "/ssd/psilia/psilia-edge"
+    clone_cmd = f"git clone --branch {_PSILIA_REPO_BRANCH} {_PSILIA_REPO_URL} {repo_dir}"
+    pull_cmd = f"git -C {repo_dir} pull"
 
-    if isinstance(conn, LocalRunner):
-        # Local: try public URL first; prompt for token if clone fails
+    # If already cloned, pull; otherwise clone.
+    rc_check, _, _ = conn.run(f"test -d {repo_dir}/.git")
+    if rc_check == 0:
+        with console.status("  Pulling latest changes…"):
+            rc, _, err = conn.run(pull_cmd)
+        if rc != 0:
+            _fail(f"git pull failed: {err.strip()}")
+            return
+        _ok("Repository updated")
+    else:
+        # Try public URL first (works if the repo is public)
         with console.status(f"  Cloning psilia-edge ({_PSILIA_REPO_BRANCH})…"):
-            rc, _, err = conn.run(f"{already_cloned} || {clone_cmd}")
+            rc, _, err = conn.run(clone_cmd)
+
         if rc != 0:
             console.print(f"  [yellow]Clone failed:[/yellow] {err.strip()}")
-            username = Prompt.ask("  GitHub username")
-            token = Prompt.ask("  GitHub token/password", password=True)
+            # Try stored credentials from ~/.git-credentials before prompting
+            creds = _read_git_credentials("github.com")
+            if creds:
+                username, token = creds
+                console.print("  [dim]Using credentials from ~/.git-credentials[/dim]")
+            else:
+                username = Prompt.ask("  GitHub username")
+                token = Prompt.ask("  GitHub token/password", password=True)
             auth_url = _PSILIA_REPO_URL.replace("https://", f"https://{username}:{token}@")
-            auth_clone = f"git clone --branch {_PSILIA_REPO_BRANCH} {auth_url} /ssd/psilia/psilia-edge"
+            auth_clone = f"git clone --branch {_PSILIA_REPO_BRANCH} {auth_url} {repo_dir}"
             with console.status("  Retrying clone with credentials…"):
-                rc, _, err = conn.run(f"{already_cloned} || {auth_clone}")
-    else:
-        # Remote: copy git credentials from laptop if available
-        creds_path = Path.home() / ".git-credentials"
-        if creds_path.exists():
-            with console.status("  Copying git credentials…"):
-                conn.put(creds_path, "/tmp/.git-credentials")
-            conn.run(
-                "git config --global credential.helper "
-                "'store --file /tmp/.git-credentials'"
-            )
-        with console.status(f"  Cloning psilia-edge ({_PSILIA_REPO_BRANCH})…"):
-            rc, _, err = conn.run(f"{already_cloned} || {clone_cmd}")
-        if creds_path.exists():
-            conn.run("rm -f /tmp/.git-credentials")
-            conn.run("git config --global --unset credential.helper || true")
+                rc, _, err = conn.run(auth_clone)
 
-    if rc != 0:
-        _fail(f"Clone failed: {err.strip()}")
-        return
+        if rc != 0:
+            _fail(f"Clone failed: {err.strip()}")
+            return
+        _ok("Repository cloned to /ssd/psilia/psilia-edge")
 
-    _ok("Repository cloned to /ssd/psilia/psilia-edge")
     # TODO: install into a venv at /ssd/psilia/.venv instead of system Python.
     with console.status("  Running pip install -e .…"):
         rc2, _, err2 = conn.run("pip install -e /ssd/psilia/psilia-edge")

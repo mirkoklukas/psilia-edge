@@ -1,16 +1,11 @@
-import socket
 import time
 from pathlib import Path
 from typing import Optional, Annotated
 
-import click
 import typer
 from rich.console import Console
 from rich.live import Live
 from rich.padding import Padding
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
 
 
 console = Console()
@@ -119,6 +114,7 @@ def devices():
         console.print("[dim]No devices registered. Run 'psilia pair' to add one.[/dim]")
         return
 
+    from rich.table import Table
     table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
     table.add_column("Name")
     table.add_column("Host")
@@ -150,9 +146,12 @@ def start(
     foreground: bool = typer.Option(False, "--foreground", "-f", help="Run in foreground", hidden=True),
 ):
     """Start the runtime. With <device>: SSH wrapper for a registered device."""
+    from psilia_edge.runtime.commands import _base_start, _require_runtime_host, _ssh_run
+
     if device:
         _ssh_run(device, "start")
     else:
+        _require_runtime_host("start <device>")
         _base_start(host=host, port=port, foreground=foreground)
 
 
@@ -161,9 +160,12 @@ def stop(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
     """Stop the runtime. With <device>: SSH wrapper for a registered device."""
+    from psilia_edge.runtime.commands import _base_stop, _require_runtime_host, _ssh_run
+
     if device:
         _ssh_run(device, "stop")
     else:
+        _require_runtime_host("stop <device>")
         _base_stop()
 
 
@@ -172,9 +174,12 @@ def status(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
     """Show runtime status. With <device>: SSH wrapper for a registered device."""
+    from psilia_edge.runtime.commands import _base_status, _require_runtime_host, _ssh_run
+
     if device:
         _ssh_run(device, "status")
     else:
+        _require_runtime_host("status <device>")
         _base_status()
 
 
@@ -183,11 +188,14 @@ def monitor(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
     """Live log view. Ctrl-C to detach. With <device>: SSH wrapper for a registered device."""
+    from psilia_edge.runtime.commands import _build_monitor_display, _require_runtime_host, _ssh_exec
+    from psilia_edge.runtime.daemon import is_running, read_log_tail
+
     if device:
         _ssh_exec(device, "monitor")
         return
 
-    from psilia_edge.runtime.daemon import is_running, read_log_tail
+    _require_runtime_host("monitor <device>")
 
     if not is_running():
         console.print("[yellow]Base layer is not running.[/yellow] Start it with: psilia start")
@@ -222,116 +230,3 @@ def serve(
     from psilia_edge.runtime.server import serve as run_server
 
     run_server(host=host, port=port)
-
-
-# ── helpers ───────────────────────────────────────────────────────────────────
-
-
-def _ssh_run(device: str, *args: str) -> None:
-    """Run `psilia <args>` on a registered device over SSH and stream output."""
-    import subprocess
-
-    result = subprocess.run(["ssh", device, "psilia", *args])
-    raise typer.Exit(result.returncode)
-
-
-def _ssh_exec(device: str, *args: str) -> None:
-    """Replace current process with `ssh <device> psilia <args>` (preserves TTY)."""
-    import os
-
-    os.execvp("ssh", ["ssh", "-t", device, "psilia", *args])
-
-
-def _base_start(host: str, port: int, foreground: bool) -> None:
-    from psilia_edge.runtime.daemon import LOG_FILE, is_running, start_daemon
-    from psilia_edge.runtime.server import serve
-
-    if is_running():
-        console.print("[yellow]Already running.[/yellow] Use `psilia stop` first.")
-        raise typer.Exit(1)
-
-    if foreground:
-        console.print(f"Starting on [bold]http://{host}:{port}[/bold]  (foreground, Ctrl-C to stop)")
-        serve(host=host, port=port)
-        return
-
-    with console.status("Starting base layer…"):
-        pid = start_daemon(host=host, port=port)
-        time.sleep(1.5)  # give uvicorn a moment to bind
-
-    hostname = socket.gethostname().split(".")[0]
-    try:
-        _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        _s.connect(("8.8.8.8", 80))
-        lan_ip = _s.getsockname()[0]
-        _s.close()
-    except OSError:
-        lan_ip = None
-    console.print(f"[green]✓[/green] Base layer started  (PID {pid})")
-    console.print(f"  Web UI:  [bold]http://{hostname}.local:{port}[/bold]  [dim](from other devices)[/dim]")
-    if lan_ip:
-        console.print(f"           [bold]http://{lan_ip}:{port}[/bold]  [dim](always works)[/dim]")
-    console.print(f"  Logs:    {LOG_FILE}")
-    console.print("  Monitor: [bold]psilia base monitor[/bold]")
-
-
-def _base_stop() -> None:
-    from psilia_edge.runtime.daemon import stop_daemon
-
-    if stop_daemon():
-        console.print("[green]✓[/green] Base layer stopped.")
-    else:
-        console.print("[dim]Not running.[/dim]")
-
-
-def _base_status() -> None:
-    from psilia_edge.network.probe import list_interfaces
-    from psilia_edge.runtime.daemon import is_running
-
-    running = is_running()
-    style = "green" if running else "dim"
-    label = "running" if running else "stopped"
-    console.print(f"psilia base layer: [{style}]{label}[/{style}]")
-
-    with console.status("Scanning interfaces…"):
-        interfaces = list_interfaces()
-    if interfaces:
-        _show_interface_table(interfaces)
-    else:
-        console.print("[dim]No interfaces found.[/dim]")
-
-
-def _show_interface_table(interfaces) -> None:
-    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
-    table.add_column("Interface")
-    table.add_column("Type")
-    table.add_column("State")
-    table.add_column("IP")
-    table.add_column("Connection")
-    for i in interfaces:
-        state_style = "green" if i.is_connected else "dim"
-        table.add_row(
-            i.name,
-            i.type,
-            f"[{state_style}]{i.state}[/{state_style}]",
-            i.ip4 or "—",
-            i.connection or "—",
-        )
-    console.print(table)
-
-
-def _build_monitor_display(log_lines: list[str]) -> Table:
-    from psilia_edge.runtime.daemon import is_running
-
-    grid = Table.grid(padding=(0, 1))
-    grid.add_column()
-
-    running = is_running()
-    svc = Text("● psilia base layer  ")
-    svc.append("running" if running else "stopped", style="green" if running else "red")
-    grid.add_row(Panel(svc, expand=True, border_style="cyan"))
-
-    log_text = Text("\n".join(log_lines), style="dim", overflow="fold")
-    grid.add_row(Panel(log_text, title="log", expand=True, border_style="dim"))
-
-    return grid
