@@ -7,6 +7,15 @@ from pathlib import Path
 import yaml
 
 LAPTOP_CONFIG_PATH = Path.home() / ".psilia" / "config.yaml"
+JETSON_CONFIG_PATH = Path("/opt/psilia/config.yaml")
+
+
+def is_runtime_host() -> bool:
+    """Return True if this machine is a runtime host (Jetson).
+
+    Heuristic: /opt/psilia/config.yaml only exists after `psilia setup` has run.
+    """
+    return JETSON_CONFIG_PATH.exists()
 
 
 def read_laptop_config() -> dict:

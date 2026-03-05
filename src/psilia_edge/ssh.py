@@ -1,8 +1,12 @@
-"""SSH connection wrapper for Jetson communication."""
+"""SSH connection wrapper and local runner for device communication."""
 
 from __future__ import annotations
 
+import getpass
+import shlex
+import shutil
 import socket
+import subprocess
 from pathlib import Path
 
 import paramiko
@@ -37,6 +41,22 @@ class JetsonConn:
         """Run a command with sudo, passing the stored password via stdin."""
         password = (self._password or "") + "\n"
         return self.run(f"sudo -S {cmd}", stdin_data=password)
+
+    def as_runner(self):
+        """Return a network-compatible runner: list[str] → CompletedProcess."""
+        def runner(cmd: list[str], **_) -> subprocess.CompletedProcess:
+            shell_cmd = " ".join(shlex.quote(str(c)) for c in cmd)
+            rc, stdout, stderr = self.run(shell_cmd)
+            return subprocess.CompletedProcess(cmd, rc, stdout=stdout, stderr=stderr)
+        return runner
+
+    def as_sudo_runner(self):
+        """Return a network-compatible sudo runner: list[str] → CompletedProcess."""
+        def runner(cmd: list[str], **_) -> subprocess.CompletedProcess:
+            shell_cmd = "sudo -S " + " ".join(shlex.quote(str(c)) for c in cmd)
+            rc, stdout, stderr = self.run(shell_cmd, stdin_data=(self._password or "") + "\n")
+            return subprocess.CompletedProcess(cmd, rc, stdout=stdout, stderr=stderr)
+        return runner
 
     def put(self, local: str | Path, remote: str) -> None:
         """Upload a local file to the remote path."""
@@ -76,6 +96,51 @@ class JetsonConn:
 
     def __exit__(self, *_: object) -> None:
         self.close()
+
+
+class LocalRunner:
+    """Run commands locally with the same interface as JetsonConn."""
+
+    def __init__(self) -> None:
+        self.user = getpass.getuser()
+        self._password = ""  # unused locally, kept for interface compat
+
+    def run(self, cmd: str, stdin_data: str | None = None) -> tuple[int, str, str]:
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            input=stdin_data,
+        )
+        return result.returncode, result.stdout, result.stderr
+
+    def sudo(self, cmd: str) -> tuple[int, str, str]:
+        result = subprocess.run(
+            f"sudo {cmd}",
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode, result.stdout, result.stderr
+
+    def as_runner(self):
+        """Return a network-compatible runner: list[str] → CompletedProcess."""
+        def runner(cmd: list[str], **_) -> subprocess.CompletedProcess:
+            return subprocess.run(cmd, capture_output=True, text=True)
+        return runner
+
+    def as_sudo_runner(self):
+        """Return a network-compatible sudo runner: list[str] → CompletedProcess."""
+        def runner(cmd: list[str], **_) -> subprocess.CompletedProcess:
+            return subprocess.run(["sudo"] + list(cmd), capture_output=True, text=True)
+        return runner
+
+    def put(self, local: str | Path, remote: str) -> None:
+        shutil.copy2(str(local), remote)
+
+    def put_dir(self, local: str | Path, remote: str) -> None:
+        shutil.copytree(str(local), remote, dirs_exist_ok=True)
 
 
 def connect(

@@ -32,27 +32,34 @@ Boot sequence (autostart): Jetson starts → systemd runs `psilia start` → bot
 
 The layered `psilia base` / `psilia spatial` commands exist for development, testing, and debugging — not because users typically operate the layers independently.
 
+### Two Roles
+
+The same `psilia-edge` package is installed on both machines, but each takes on a distinct role:
+
+**Runtime host** (Jetson) — runs the spatial perception stack. Hosts the base layer daemon, the ROS layer in Docker, and serves the Control UI. Detected by the presence of `/opt/psilia/config.yaml`, which is written during `psilia setup` and lives on eMMC.
+
+**Device manager** (laptop) — manages one or more runtime hosts. Handles pairing, bootstrapping over SSH, and data operations (pull, sync, cloud push). Keeps a registry of registered devices in `~/.psilia/config.yaml`.
+
+The role distinction is intentional and permanent for a given machine — a Jetson is always a runtime host, a laptop is always a device manager. The binary auto-detects its role at runtime using the heuristic above and adapts its behavior accordingly (e.g. `psilia setup` with no argument runs local setup on a runtime host, and shows an error on a device manager).
+
 ### CLI commands
 
-The same binary is installed on both laptop and Jetson. The presence of `<device>` determines context — required on the laptop (which manages one or more Jetsons), absent on the Jetson (which operates locally).
-
-Most laptop commands that take a `<device>` argument are thin SSH wrappers — they connect to the named device and invoke the equivalent local command there.
-
-- Laptop: Device Manager, which manages one or more Jetsons
-- Jetson: Runtime host.
+The same binary is installed on both laptop and Jetson. Context is detected automatically:
+if `/opt/psilia/config.yaml` exists the binary is running on a runtime host (Jetson);
+otherwise it assumes a device manager (laptop).
 
 ```
 Command                     Runs on    Description
 ────────────────────────────────────────────────────────────────────
-psilia pair                 laptop     Add a Jetson: interactive wizard, SSH + register
-psilia devices              laptop     List all registered Jetsons
-psilia setup <device>       laptop     SSH wrapper for `psilia setup`
-psilia start <device>       laptop     SSH wrapper for `psilia start`
-psilia stop <device>        laptop     SSH wrapper for `psilia stop`
-psilia status <device>      laptop     SSH wrapper for `psilia status`
+psilia pair                 laptop     Connect to Jetson, generate keypair, register device
+psilia devices              laptop     List all registered devices
+psilia setup <device>       laptop     Bootstrap a Jetson over SSH
+psilia start <device>       laptop     [ssh wrapper] Start runtime on a registered device
+psilia stop <device>        laptop     [ssh wrapper] Stop runtime on a registered device
+psilia status <device>      jetson     [ssh wrapper] Show runtime status of registered device
+psilia autostart <device>   laptop     [ssh wrapper] Configure autostart on a registered device
 psilia pull <device>        laptop     Sync recordings Jetson → laptop
 
-psilia setup                jetson     Bootstrap this device locally
 psilia start                jetson     Start base layer + ROS layer
 psilia stop                 jetson     Stop base layer + ROS layer
 psilia status               jetson     Show local runtime status
@@ -182,15 +189,17 @@ SSH wrapper for `psilia setup` on the Jetson. Bootstraps the device, then automa
 
 **On the Jetson, `psilia setup` runs:**
 
-1. **Network setup:**
+> Note: keep step order in sync with `src/psilia_edge/setup/__init__.py`.
+
+1. **Detect and set up SSD** — detects available drives, confirms mount point (default: `/ssd/`). Explicit confirmation before any formatting. Falls back to eMMC with a storage warning.
+2. **Create directory structure** — `/opt/psilia/` on eMMC (config only), `/ssd/psilia/ros/src/`, `/ssd/psilia/data/recordings/` on the SSD.
+3. **Install `psilia-edge`** — clone the repo to `/ssd/psilia/psilia-edge/` and `pip install -e .`. Until the repo is public, copies `~/.git-credentials` from the laptop to authenticate, then removes it.
+4. **Populate ROS workspace** — copy `psilia_runtime` from the cloned repo into `/ssd/psilia/ros/src/psilia_runtime/`. Intentionally kept separate from the repo clone so users can edit nodes directly.
+5. **Install Docker** — skip if already installed.
+6. **Build the Docker image** from `ros/Dockerfile` in the cloned repo. (In future: pull from a registry.)
+7. **Network setup:**
    - **Hotspot** — detect USB wifi dongle (preferred, `wlx` prefix). Fall back to built-in wifi with a warning. User prompted for SSID and password (defaults provided).
    - **WiFi connection** — scan visible networks, user selects SSID and enters password. Persisted as autoconnect profile.
-2. **Detect and set up SSD** — detects available drives, confirms mount point (default: `/ssd/`). Explicit confirmation before any formatting. Falls back to eMMC with a storage warning.
-3. **Create directory structure** — `/opt/psilia/` on eMMC (config only), `/ssd/psilia/ros/src/`, `/ssd/psilia/data/recordings/` on the SSD.
-4. **Install `psilia-edge`** — clone the repo to `/ssd/psilia/psilia-edge/` and `pip install -e .`. Until the repo is public, copies `~/.git-credentials` from the laptop to authenticate, then removes it.
-5. **Populate ROS workspace** — copy `psilia_runtime` from the cloned repo into `/ssd/psilia/ros/src/psilia_runtime/`. Intentionally kept separate from the repo clone so users can edit nodes directly.
-6. **Install Docker** — skip if already installed.
-7. **Build the Docker image** from `ros/Dockerfile` in the cloned repo. (In future: pull from a registry.)
 8. **Detect connected camera** — optional, can be skipped and configured later.
 9. **Configure systemd autostart** — wizard asks whether to enable autostart on boot.
 10. **Write Jetson config** — writes `/opt/psilia/config.yaml`:

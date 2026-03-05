@@ -1,4 +1,9 @@
-"""psilia pair — interactive Jetson pairing wizard."""
+"""psilia pair — interactive Jetson pairing wizard.
+
+Developer note: be explicit at every step about what gets written or changed —
+on the Jetson, on the laptop, or in config files. This can be tightened later
+once the UX is proven, but err on the side of too much information for now.
+"""
 
 from __future__ import annotations
 
@@ -6,14 +11,10 @@ import re
 from pathlib import Path
 
 import paramiko
-from rich.console import Console
-from rich.panel import Panel
 from rich.prompt import Prompt
 
-from psilia_edge.init.discovery import discover_jetson
-from psilia_edge.init.ssh import JetsonConn, SSHError, connect
-
-console = Console()
+from psilia_edge.ssh import JetsonConn, SSHError, connect
+from psilia_edge.ui import _fail, _ok, _header, console
 
 
 _DEFAULT_DEVICE_NAME = "psilia-jetson"
@@ -22,52 +23,15 @@ _SSH_SECTION_START = "# >>> psilia-edge (managed by psilia — do not edit manua
 _SSH_SECTION_END = "# <<< psilia-edge"
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
-
-
-def _ok(msg: str) -> None:
-    console.print(f"  [green]✓[/green] {msg}")
-
-
-def _fail(msg: str) -> None:
-    console.print(f"  [red]✗[/red] {msg}")
-
-
 # ── step 1: connect (Path A / Path B) ────────────────────────────────────────
 
 
 def _step_connect() -> JetsonConn | None:
     console.rule("[bold]Step 1 — Connect")
 
-    has_ip = Prompt.ask(
-        "  Do you have an IP or hostname for the Jetson already? [y/N]",
-        default="n",
-    ).strip().lower() in ("y", "yes")
-
-    if has_ip:
-        # Path A — existing access
-        target_ip = Prompt.ask("  Host (IP or hostname)")
-        user = Prompt.ask("  Username")
-        password = Prompt.ask("  Password", default="", password=True)
-    else:
-        # Path B — fresh setup: show checklist, then discover
-        console.print(
-            Panel(
-                "Before we begin, make sure you have:\n\n"
-                "  [green]✓[/green] Jetson flashed with JetPack\n"
-                "  [green]✓[/green] Ethernet cable connected between Jetson and your laptop/router\n"
-                "  [green]✓[/green] Jetson powered on",
-                expand=False,
-                border_style="dim",
-            )
-        )
-        console.print("  Discovering Jetson…")
-        target_ip = discover_jetson()
-        if target_ip is None:
-            _fail("No Jetson found. Check ethernet connection and try again.")
-            return None
-        user = Prompt.ask("  Username")
-        password = Prompt.ask("  Password", default="", password=True)
+    target_ip = Prompt.ask("  Host (IP or hostname)")
+    user = Prompt.ask("  Username")
+    password = Prompt.ask("  Password", default="", password=True)
 
     console.print(f"  Connecting as [bold]{user}@{target_ip}[/bold]…")
     try:
@@ -85,6 +49,7 @@ def _step_connect() -> JetsonConn | None:
 
 def _step_device_name(conn: JetsonConn) -> str:
     console.rule("[bold]Step 2 — Device Name")
+    console.print("  [dim]Changing the name will update the Jetson hostname and /etc/hosts.[/dim]")
     _, current, _ = conn.run("hostname")
     current = current.strip()
     if current:
@@ -125,6 +90,7 @@ def _step_ssh_keypair(conn: JetsonConn, name: str) -> Path:
             f" && chmod 600 ~/.ssh/authorized_keys"
         )
     _ok(f"Keypair saved to {key_path}")
+    _ok(f"Public key installed on Jetson (~/.ssh/authorized_keys)")
     return key_path
 
 
@@ -189,6 +155,9 @@ def _step_write_ssh_config(name: str, key_path: Path, user: str) -> None:
 
     _SSH_CONFIG_PATH.write_text(new_file)
     _ok(f"SSH config updated ({_SSH_CONFIG_PATH})")
+    console.print(f"  [dim]Added entries:[/dim]")
+    console.print(f"    [dim]Host {name}         → {name}.local[/dim]")
+    console.print(f"    [dim]Host {name}-hotspot  → 10.42.0.1[/dim]")
     console.print(f"  [dim]Connect with: ssh {name}[/dim]")
 
 
@@ -203,20 +172,19 @@ def _step_register_device(name: str, user: str, key_path: Path) -> None:
 
     from psilia_edge.config import LAPTOP_CONFIG_PATH
     _ok(f"Device registered in {LAPTOP_CONFIG_PATH}")
+    console.print(f"  [dim]  name: {name}[/dim]")
+    console.print(f"  [dim]  host: {name}.local[/dim]")
+    console.print(f"  [dim]  user: {user}[/dim]")
+    console.print(f"  [dim]  key:  {key_path}[/dim]")
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
 
 def run_pair_wizard() -> None:
-    console.print(
-        Panel(
-            "[bold]Psilia Edge[/bold] — Pair Wizard\n"
-            "[dim]Connects to a Jetson and registers it on this laptop.[/dim]",
-            expand=False,
-            border_style="cyan",
-        )
-    )
+    _header(
+        "Pair Wizard", 
+        "[dim]Connects to a Jetson and registers it on this laptop.[/dim]")
 
     # Step 1 — connect (Path A or B)
     conn = _step_connect()

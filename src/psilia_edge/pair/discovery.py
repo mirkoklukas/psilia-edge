@@ -1,4 +1,4 @@
-"""Jetson discovery: mDNS first, active ping sweep fallback, passive ARP fallback."""
+"""Jetson discovery: mDNS first, passive ARP, active TCP-probe fallback."""
 
 from __future__ import annotations
 
@@ -8,10 +8,9 @@ import re
 import socket
 import subprocess
 
-from rich.console import Console
 from rich.prompt import Prompt
 
-console = Console()
+from psilia_edge.ui import console
 
 # arp -a output line:  hostname (ip) at mac [ether] on iface
 # Only match entries with a resolved MAC (exclude '(incomplete)' entries).
@@ -23,17 +22,41 @@ _ARP_RE = re.compile(
 _MDNS_HOSTNAME = "nvidia.local"
 
 # Port name keywords that identify non-wired interfaces to exclude.
-_EXCLUDE_PORT_KEYWORDS = {"wi-fi", "thunderbolt", "bluetooth", "bridge"}
+# "thunderbolt" alone would also exclude "Thunderbolt Ethernet" adapters — keep it out.
+_EXCLUDE_PORT_KEYWORDS = {"wi-fi", "bluetooth", "bridge"}
 
 
 # ── interface helpers ─────────────────────────────────────────────────────────
 
 
+def _find_ifaces_with_ip() -> list[str]:
+    """Return all network interfaces that have a non-loopback IPv4 address.
+
+    Cross-platform fallback used when `networksetup` is unavailable or returns
+    nothing — parses raw `ifconfig` output instead.
+    """
+    try:
+        result = subprocess.run(["ifconfig"], capture_output=True, text=True, timeout=5)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+
+    ifaces: list[str] = []
+    current: str | None = None
+    for line in result.stdout.splitlines():
+        if line and not line[0].isspace():
+            current = line.split(":")[0].split()[0]
+        elif current and "inet " in line:
+            m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", line)
+            if m and not m.group(1).startswith("127.") and current not in ifaces:
+                ifaces.append(current)
+    return ifaces
+
+
 def _find_wired_ifaces() -> list[str]:
     """Return active wired ethernet interface names (macOS only).
 
-    Parses `networksetup -listallhardwareports`, drops Wi-Fi / Thunderbolt /
-    Bluetooth / Bridge ports, then keeps only those with `status: active`.
+    Parses `networksetup -listallhardwareports`, drops Wi-Fi / Bluetooth /
+    Bridge ports, then keeps only those with `status: active`.
     Returns an empty list if `networksetup` is not available.
     """
     try:
@@ -115,13 +138,17 @@ def _run_arp() -> str:
     cache. This cache is passive — it only contains devices the laptop has
     recently communicated with, and entries expire after ~20 minutes.
 
-    `arp -a` dumps the full cache. Example output line:
+    `arp -an` dumps the full cache. Example output line:
         ? (192.168.100.3) at 3c:6d:66:76:67:ad on en10 ifscope [ethernet]
          hostname  ip              mac address       interface
+
+    The `-n` flag suppresses reverse DNS lookups. Without it, `arp -a` queries
+    DNS for every cached IP — when the cache contains hundreds of incomplete
+    entries (e.g. after a subnet sweep), this can hang for tens of seconds.
     """
     try:
         result = subprocess.run(
-            ["arp", "-a"], capture_output=True, text=True, timeout=5
+            ["arp", "-an"], capture_output=True, text=True, timeout=5
         )
         return result.stdout
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -148,33 +175,29 @@ def _parse_arp(output: str, ifaces: list[str] | None = None) -> list[tuple[str, 
     return results
 
 
-def _ping_sweep(subnet: str, max_workers: int = 50) -> None:
-    """Ping all hosts in a subnet concurrently to populate the ARP cache.
+def _tcp_probe(subnet: str, port: int = 22, max_workers: int = 50) -> None:
+    """Attempt TCP connections to populate the ARP cache.
 
-    The ping response doesn't matter — it's discarded. The point is to trigger
-    an ARP request for every address: the OS broadcasts "who has x.x.x.x?"
-    before sending the ICMP packet. Any device that replies updates the ARP
-    cache with its MAC address, which we then read with `arp -a`.
+    Ping-based sweeps fail when ICMP is blocked (common on Jetsons). TCP
+    connection attempts work instead: the OS still broadcasts an ARP request
+    before sending the SYN packet, which is all we need to get a MAC address
+    into the cache. The connection result (success, refused, timeout) doesn't
+    matter — we only care about the ARP side effect.
 
-    The subnet is derived from the laptop's own IP on the wired interface,
-    forced to /24. E.g. if the laptop is 192.168.100.99, we sweep
-    192.168.100.1–254. This assumes the Jetson lands in the same /24,
-    which is true for direct-cable connections in practice.
-
-    Devices that were already in the ARP cache from a previous connection
-    are caught earlier by the passive scan and don't need the sweep.
+    Port 22 (SSH) is used by default since Jetsons always have SSH running.
     """
     network = ipaddress.IPv4Network(subnet)
 
-    def _ping(ip: str) -> None:
-        subprocess.run(
-            ["ping", "-c", "1", "-W", "300", ip],
-            capture_output=True,
-            timeout=2,
-        )
+    def _probe(ip: str) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.3)
+            try:
+                s.connect((ip, port))
+            except OSError:
+                pass  # refused / timeout — ARP was still triggered
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        executor.map(_ping, (str(h) for h in network.hosts()))
+        executor.map(_probe, (str(h) for h in network.hosts()))
 
 
 def _arp_scan(ifaces: list[str]) -> list[tuple[str, str]]:
@@ -183,11 +206,11 @@ def _arp_scan(ifaces: list[str]) -> list[tuple[str, str]]:
 
 
 def _active_scan(ifaces: list[str]) -> list[tuple[str, str]]:
-    """Ping-sweep each iface's /24, then read ARP filtered to those ifaces."""
+    """TCP-probe each iface's /24 on port 22, then read ARP filtered to those ifaces."""
     subnets = [s for iface in ifaces if (s := _iface_cidr24(iface))]
     for subnet in subnets:
         console.print(f"  Sweeping [bold]{subnet}[/bold]…")
-        _ping_sweep(subnet)
+        _tcp_probe(subnet)
     return _parse_arp(_run_arp(), ifaces)
 
 
@@ -255,22 +278,32 @@ def discover_jetson() -> str | None:
     wired = _find_wired_ifaces()
     if wired:
         console.print(f"  Wired interface(s): [bold]{', '.join(wired)}[/bold]")
+    else:
+        # Fall back to any interface that has an IP — covers Linux, unusual adapters,
+        # and Thunderbolt ethernet that networksetup may not report.
+        wired = _find_ifaces_with_ip()
+        if wired:
+            console.print(f"  [dim]No wired interfaces via networksetup — scanning:[/dim] {', '.join(wired)}")
+        else:
+            console.print("  [yellow]⚠[/yellow]  No network interfaces with IPs found.")
 
     own_ips = _iface_ips(wired)
 
     # 2. Passive ARP
     with console.status("  Checking ARP cache…"):
         hosts = _arp_scan(wired or [])
-    if hosts:
-        console.print("  Found in ARP cache:")
-        if ip := _pick_host(hosts, own_ips):
+    external = [(h, ip) for h, ip in hosts if ip not in own_ips]
+    if external:
+        console.print("  Found something in ARP cache")
+        if ip := _pick_host(external, own_ips):
             return ip
 
-    # 3. Active ping sweep
+    # 3. Active TCP probe (port 22) — works even when ICMP is blocked
     console.print("  Running active scan…")
     with console.status("  Sweeping subnet(s)…"):
         hosts = _active_scan(wired or [])
-    if ip := _pick_host(hosts, own_ips):
+    external = [(h, ip) for h, ip in hosts if ip not in own_ips]
+    if ip := _pick_host(external, own_ips):
         return ip
 
     console.print("  [yellow]No devices found.[/yellow]")

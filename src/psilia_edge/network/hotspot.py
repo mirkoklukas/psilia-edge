@@ -17,12 +17,12 @@ HOTSPOT_CON_NAME = "Borne-Hotspot"
 HOTSPOT_SSID = "Borne"
 
 
-def _run(cmd: list[str], runner: Runner = subprocess.run) -> tuple[int, str]:
+def _run(cmd: list[str], runner: Runner = subprocess.run) -> tuple[int, str, str]:
     try:
         result = runner(cmd, capture_output=True, text=True)
-        return result.returncode, result.stdout.strip()
+        return result.returncode, result.stdout.strip(), result.stderr.strip()
     except FileNotFoundError:
-        return 127, ""
+        return 127, "", "command not found"
 
 
 def hotspot_exists(
@@ -30,7 +30,7 @@ def hotspot_exists(
     runner: Runner = subprocess.run,
 ) -> bool:
     """Return True if a hotspot connection profile already exists."""
-    rc, out = _run(["nmcli", "-t", "-f", "NAME", "connection", "show"], runner)
+    rc, out, _ = _run(["nmcli", "-t", "-f", "NAME", "connection", "show"], runner)
     if rc != 0:
         return False
     return any(line.strip() == con_name for line in out.splitlines())
@@ -41,7 +41,7 @@ def hotspot_is_active(
     runner: Runner = subprocess.run,
 ) -> bool:
     """Return True if the hotspot is currently up."""
-    rc, out = _run(
+    rc, out, _ = _run(
         ["nmcli", "-t", "-f", "NAME,STATE", "connection", "show", "--active"],
         runner,
     )
@@ -66,7 +66,7 @@ def find_active_hotspot(
     `device show` for reading the 802-11-WIRELESS.MODE field.
     """
     # Step 1: get the active connection name for this interface.
-    rc, out = _run(
+    rc, out, _ = _run(
         ["nmcli", "-t", "-f", "GENERAL.CONNECTION", "device", "show", ifname],
         runner,
     )
@@ -78,7 +78,7 @@ def find_active_hotspot(
         return None
 
     # Step 2: check whether that connection profile is in AP mode.
-    rc, out = _run(
+    rc, out, _ = _run(
         ["nmcli", "-t", "-f", "802-11-WIRELESS.MODE", "connection", "show", con_name],
         runner,
     )
@@ -93,7 +93,7 @@ def create_hotspot(
     ssid: str = HOTSPOT_SSID,
     con_name: str = HOTSPOT_CON_NAME,
     runner: Runner = subprocess.run,
-) -> bool:
+) -> tuple[bool, str]:
     """
     Create and bring up a WiFi hotspot on `ifname`.
 
@@ -101,7 +101,7 @@ def create_hotspot(
     `nmcli device wifi hotspot`, which ignores con-name on some nmcli versions
     and always creates a profile called "Hotspot".
 
-    Returns True on success.
+    Returns (success, error_message).
     """
     # Delete any AP already running on this interface — bring-down alone isn't
     # enough since autoconnect would immediately restore it.
@@ -113,7 +113,7 @@ def create_hotspot(
     if hotspot_exists(con_name, runner):
         _run(["nmcli", "connection", "delete", con_name], runner)
 
-    rc, _ = _run(
+    rc, _, err = _run(
         [
             "nmcli",
             "connection",
@@ -140,10 +140,10 @@ def create_hotspot(
         runner,
     )
     if rc != 0:
-        return False
+        return False, err or "nmcli connection add failed"
 
-    rc, _ = _run(["nmcli", "connection", "up", con_name], runner)
-    return rc == 0
+    rc, _, err = _run(["nmcli", "connection", "up", con_name], runner)
+    return (True, "") if rc == 0 else (False, err or "nmcli connection up failed")
 
 
 def bring_up_hotspot(
@@ -151,7 +151,7 @@ def bring_up_hotspot(
     runner: Runner = subprocess.run,
 ) -> bool:
     """Bring up an existing hotspot profile."""
-    rc, _ = _run(["nmcli", "connection", "up", con_name], runner)
+    rc, _, _ = _run(["nmcli", "connection", "up", con_name], runner)
     return rc == 0
 
 
@@ -160,5 +160,5 @@ def bring_down_hotspot(
     runner: Runner = subprocess.run,
 ) -> bool:
     """Bring down the hotspot without deleting the profile."""
-    rc, _ = _run(["nmcli", "connection", "down", con_name], runner)
+    rc, _, _ = _run(["nmcli", "connection", "down", con_name], runner)
     return rc == 0

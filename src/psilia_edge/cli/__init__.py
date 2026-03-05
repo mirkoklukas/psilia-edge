@@ -1,10 +1,12 @@
 import socket
 import time
+from pathlib import Path
 from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.live import Live
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -18,14 +20,64 @@ app.add_typer(spatial_app, name="spatial")
 
 console = Console()
 
+# ── print helper commands ─────────────────────────────────────────────────────
+def _print_section(title: str, content: str) -> None:
+    console.rule(f"[bold]'{title}'", align="center")
+    console.print(Padding(content, 1))
+
+
+def _print_file(fname: str | Path) -> None:
+    fname = Path(fname)
+    if fname.exists():
+        _print_section(fname, fname.read_text())
+    else:
+        _print_section(fname, f"[dim]{str(fname)} not found[/dim]")
+
 
 # ── top-level commands ────────────────────────────────────────────────────────
+@app.command(hidden=True)
+def debug():
+    """Show internal state, adapts to role (runtime host vs device manager)."""
+    from psilia_edge.config import is_runtime_host
 
+    if is_runtime_host():
+        _debug_runtime_host()
+    else:
+        _debug_device_manager()
+
+
+def _debug_runtime_host() -> None:
+    from psilia_edge.config import JETSON_CONFIG_PATH
+    _print_file(JETSON_CONFIG_PATH)
+
+
+def _debug_device_manager() -> None:
+    from psilia_edge.config import LAPTOP_CONFIG_PATH
+    from psilia_edge.pair import _SSH_CONFIG_PATH, _SSH_SECTION_END, _SSH_SECTION_START
+
+    _print_file(LAPTOP_CONFIG_PATH)
+
+    if _SSH_CONFIG_PATH.exists():
+        text = _SSH_CONFIG_PATH.read_text()
+        if _SSH_SECTION_START in text:
+            start = text.index(_SSH_SECTION_START)
+            end = text.index(_SSH_SECTION_END) + len(_SSH_SECTION_END)
+            _print_section(
+                _SSH_CONFIG_PATH, 
+                text[start:end])
+        else:
+            _print_section(
+                _SSH_CONFIG_PATH, 
+                "[dim]No psilia section found[/dim]")
+    else:
+        _print_section(
+            _SSH_CONFIG_PATH, 
+            f"[dim]{_SSH_CONFIG_PATH} not found[/dim]")
 
 @app.command()
 def pair():
     """Pair a Jetson: connect, generate SSH keypair, register device on this laptop."""
-    from psilia_edge.init import run_pair_wizard
+    from psilia_edge.pair import run_pair_wizard
 
     run_pair_wizard()
 
@@ -35,41 +87,22 @@ def setup(device: Optional[str] = typer.Argument(None, help="Registered device n
     """Bootstrap a Jetson device.
 
     With DEVICE: runs all setup steps over SSH from this laptop.
-    Without DEVICE: runs setup locally (on the Jetson itself).
+    Without DEVICE: runs setup locally (must be on a runtime host).
     """
+    from psilia_edge.config import is_runtime_host
+
     if device:
         from psilia_edge.setup import run_setup_remote
-
         run_setup_remote(device)
-    else:
+    elif is_runtime_host():
         from psilia_edge.setup import run_setup_local
-
         run_setup_local()
-
-
-@app.command(hidden=True)
-def debug():
-    """Show internal state: psilia config and managed SSH config section."""
-    from psilia_edge.config import LAPTOP_CONFIG_PATH
-    from psilia_edge.init import _SSH_CONFIG_PATH, _SSH_SECTION_END, _SSH_SECTION_START
-
-    console.rule("[bold]~/.psilia/config.yaml")
-    if LAPTOP_CONFIG_PATH.exists():
-        console.print(LAPTOP_CONFIG_PATH.read_text())
     else:
-        console.print(f"[dim]{LAPTOP_CONFIG_PATH} not found[/dim]")
-
-    console.rule("[bold]~/.ssh/config  (psilia section)")
-    if _SSH_CONFIG_PATH.exists():
-        text = _SSH_CONFIG_PATH.read_text()
-        if _SSH_SECTION_START in text:
-            start = text.index(_SSH_SECTION_START)
-            end = text.index(_SSH_SECTION_END) + len(_SSH_SECTION_END)
-            console.print(text[start:end])
-        else:
-            console.print("[dim]No psilia section found[/dim]")
-    else:
-        console.print(f"[dim]{_SSH_CONFIG_PATH} not found[/dim]")
+        console.print(
+            "[red]No device specified.[/red]\n"
+            "  On a laptop: [bold]psilia setup <device>[/bold]\n"
+            "  Run [bold]psilia devices[/bold] to see registered devices."
+        )
 
 
 @app.command()
