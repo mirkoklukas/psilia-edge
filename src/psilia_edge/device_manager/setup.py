@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 from rich.prompt import Confirm, Prompt
 
-from psilia_edge.ssh import JetsonConn, LocalRunner
+from psilia_edge.device_manager.ssh import JetsonConn, LocalRunner
 from psilia_edge.ui import _fail, _ok, _warn, _stub, _info, _item, _detail, _section_header, _header, _done, console
 
 _DEFAULT_HOTSPOT_PASSWORD = "psilia1234"
@@ -340,10 +340,10 @@ def _write_runtime_config(conn: JetsonConn | LocalRunner, runtime_config: dict) 
 
 def run_setup_remote(device: str) -> None:
     """Bootstrap a registered Jetson device over SSH (runs from the laptop)."""
-    from psilia_edge.config import read_laptop_config, sync_device_config
-    from psilia_edge.ssh import SSHError, connect
+    from psilia_edge.device_manager.config import read_config, sync_device_config
+    from psilia_edge.device_manager.ssh import SSHError, connect
 
-    config = read_laptop_config()
+    config = read_config()
     devices = config.get("devices", {})
     if device not in devices:
         _fail(f"Device '{device}' not registered. Run 'psilia pair' first.")

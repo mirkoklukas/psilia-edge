@@ -143,6 +143,30 @@ class LocalRunner:
         shutil.copytree(str(local), remote, dirs_exist_ok=True)
 
 
+def _ssh_on_device(device: str, *args: str, replace_process: bool = False) -> None:
+    """Run `psilia <args>` on a registered device over SSH.
+
+    If replace_process=True, replaces the current process via execvp (use for
+    monitor so the TTY stays live). Otherwise runs as a subprocess and exits
+    with its return code.
+
+    -t allocates a pseudo-TTY on the remote side so Rich renders styled output.
+    """
+    import os
+    import subprocess
+
+    import typer
+
+    cmd = shlex.join(["psilia", *args])
+    ssh_argv = ["ssh", "-t", device, "bash", "-lc", f"'{cmd}'"]
+
+    if replace_process:
+        os.execvp("ssh", ssh_argv)
+    else:
+        result = subprocess.run(ssh_argv)
+        raise typer.Exit(result.returncode)
+
+
 def connect(
     host: str,
     user: str = "nvidia",

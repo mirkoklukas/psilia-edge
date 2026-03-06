@@ -13,7 +13,7 @@ from pathlib import Path
 import paramiko
 from rich.prompt import Prompt
 
-from psilia_edge.ssh import JetsonConn, SSHError, connect
+from psilia_edge.device_manager.ssh import JetsonConn, SSHError, connect
 from psilia_edge.ui import _fail, _ok, _warn, _info, _item, _detail, _section_header, _header, _done, console
 
 
@@ -165,12 +165,12 @@ def _step_write_ssh_config(name: str, key_path: Path, user: str) -> None:
 
 def _step_register_device(name: str, user: str, key_path: Path) -> None:
     _section_header("Step 5 — Register Device")
-    from psilia_edge.config import register_device
+    from psilia_edge.device_manager.config import register_device
 
     register_device(name=name, host=f"{name}.local", user=user, key_path=key_path)
 
-    from psilia_edge.config import LAPTOP_CONFIG_PATH
-    _ok(f"Device registered in {LAPTOP_CONFIG_PATH}")
+    from psilia_edge.device_manager.core import CONFIG_PATH
+    _ok(f"Device registered in {CONFIG_PATH}")
     _detail("name", name)
     _detail("host", f"{name}.local")
     _detail("user", user)

@@ -10,7 +10,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 
-WEB_DIR = Path(__file__).parent.parent / "web"
+# Assumes editable install: .../psilia-edge/src/psilia_edge/runtime/server.py
+WEB_DIR = Path(__file__).resolve().parent.parent.parent.parent / "web"
 
 app = FastAPI(title="Psilia Edge", docs_url=None, redoc_url=None)
 

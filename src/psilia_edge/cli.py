@@ -35,7 +35,7 @@ def _print_file(fname: str | Path) -> None:
 @app.command(hidden=True)
 def debug():
     """Show internal state, adapts to role (runtime host vs device manager)."""
-    from psilia_edge.config import is_runtime_host
+    from psilia_edge.runtime.core import is_runtime_host
 
     if is_runtime_host():
         _debug_runtime_host()
@@ -44,15 +44,15 @@ def debug():
 
 
 def _debug_runtime_host() -> None:
-    from psilia_edge.config import JETSON_CONFIG_PATH
+    from psilia_edge.runtime.core import RUNTIME_CONFIG_PATH as JETSON_CONFIG_PATH
     _print_file(JETSON_CONFIG_PATH)
 
 
 def _debug_device_manager() -> None:
-    from psilia_edge.config import LAPTOP_CONFIG_PATH
-    from psilia_edge.pair import _SSH_CONFIG_PATH, _SSH_SECTION_END, _SSH_SECTION_START
+    from psilia_edge.device_manager.core import CONFIG_PATH
+    from psilia_edge.device_manager.pair import _SSH_CONFIG_PATH, _SSH_SECTION_END, _SSH_SECTION_START
 
-    _print_file(LAPTOP_CONFIG_PATH)
+    _print_file(CONFIG_PATH)
 
     if _SSH_CONFIG_PATH.exists():
         text = _SSH_CONFIG_PATH.read_text()
@@ -79,7 +79,7 @@ def _debug_device_manager() -> None:
 @app.command(rich_help_panel="Device Management")
 def pair():
     """Pair a Jetson: connect, generate SSH keypair, register device on this laptop."""
-    from psilia_edge.pair import run_pair_wizard
+    from psilia_edge.device_manager.pair import run_pair_wizard
 
     run_pair_wizard()
 
@@ -92,7 +92,7 @@ def setup(device: Annotated[str, typer.Argument(help="Registered device name")])
     # But for that, we'd need to first install psilia_edge on the device. So probably there will 
     # be an install script that installs psilia_edge and then calls this setup command locally.
     if device:
-        from psilia_edge.setup import run_setup_remote
+        from psilia_edge.device_manager.setup import run_setup_remote
         run_setup_remote(device)
     else:
         console.print(
@@ -105,9 +105,9 @@ def setup(device: Annotated[str, typer.Argument(help="Registered device name")])
 @app.command(rich_help_panel="Device Management")
 def devices():
     """List all registered Jetson devices."""
-    from psilia_edge.config import read_laptop_config
+    from psilia_edge.device_manager.config import read_config
 
-    config = read_laptop_config()
+    config = read_config()
     devs = config.get("devices", {})
 
     if not devs:
@@ -146,10 +146,11 @@ def start(
     foreground: bool = typer.Option(False, "--foreground", "-f", help="Run in foreground", hidden=True),
 ):
     """Start the runtime. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.commands import _base_start, _require_runtime_host, _ssh_run
+    from psilia_edge.runtime.commands import _base_start, _require_runtime_host
+    from psilia_edge.device_manager.ssh import _ssh_on_device
 
     if device:
-        _ssh_run(device, "start")
+        _ssh_on_device(device, "start")
     else:
         _require_runtime_host("start <device>")
         _base_start(host=host, port=port, foreground=foreground)
@@ -160,10 +161,11 @@ def stop(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
     """Stop the runtime. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.commands import _base_stop, _require_runtime_host, _ssh_run
+    from psilia_edge.runtime.commands import _base_stop, _require_runtime_host
+    from psilia_edge.device_manager.ssh import _ssh_on_device
 
     if device:
-        _ssh_run(device, "stop")
+        _ssh_on_device(device, "stop")
     else:
         _require_runtime_host("stop <device>")
         _base_stop()
@@ -174,10 +176,11 @@ def status(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
     """Show runtime status. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.commands import _base_status, _require_runtime_host, _ssh_run
+    from psilia_edge.runtime.commands import _base_status, _require_runtime_host
+    from psilia_edge.device_manager.ssh import _ssh_on_device
 
     if device:
-        _ssh_run(device, "status")
+        _ssh_on_device(device, "status")
     else:
         _require_runtime_host("status <device>")
         _base_status()
@@ -188,11 +191,12 @@ def monitor(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
     """Live log view. Ctrl-C to detach. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.commands import _build_monitor_display, _require_runtime_host, _ssh_exec
+    from psilia_edge.runtime.commands import _build_monitor_display, _require_runtime_host
     from psilia_edge.runtime.daemon import is_running, read_log_tail
+    from psilia_edge.device_manager.ssh import _ssh_on_device
 
     if device:
-        _ssh_exec(device, "monitor")
+        _ssh_on_device(device, "monitor", replace_process=True)
         return
 
     _require_runtime_host("monitor <device>")

@@ -6,7 +6,6 @@ and the if-device branching; these functions contain the actual logic.
 
 from __future__ import annotations
 
-import shlex
 import socket
 import time
 
@@ -19,7 +18,7 @@ from rich.pretty import pprint
 
 def _require_runtime_host(device_hint: str) -> None:
     """Exit with a clear message if not running on a runtime host (Jetson)."""
-    from psilia_edge.config import is_runtime_host
+    from psilia_edge.runtime.core import is_runtime_host
 
     if not is_runtime_host():
         console.print(
@@ -28,27 +27,6 @@ def _require_runtime_host(device_hint: str) -> None:
         )
         raise typer.Exit(1)
 
-
-def _ssh_run(device: str, *args: str) -> None:
-    """Run `psilia <args>` on a registered device over SSH and stream output.
-
-    -t allocates a pseudo-TTY (teletypewriter) on the remote side, making the
-    remote process think it is connected to a real terminal. Without it, SSH
-    stdout is a pipe and Rich detects no TTY, falling back to unstyled output.
-    """
-    import subprocess
-
-    cmd = shlex.join(["psilia", *args])
-    result = subprocess.run(["ssh", "-t", device, "bash", "-lc", f"'{cmd}'"])
-    raise typer.Exit(result.returncode)
-
-
-def _ssh_exec(device: str, *args: str) -> None:
-    """Replace current process with `ssh <device> psilia <args>` (preserves TTY)."""
-    import os
-
-    cmd = shlex.join(["psilia", *args])
-    os.execvp("ssh", ["ssh", "-t", device, "bash", "-lc", f"'{cmd}'"])
 
 
 def _base_start(host: str, port: int, foreground: bool) -> None:

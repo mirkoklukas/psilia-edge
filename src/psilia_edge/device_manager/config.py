@@ -6,32 +6,22 @@ from pathlib import Path
 
 import yaml
 
-LAPTOP_CONFIG_PATH = Path.home() / ".psilia" / "config.yaml"
-JETSON_CONFIG_PATH = Path("/opt/psilia/runtime_config.yaml")
+from psilia_edge.device_manager.core import CONFIG_PATH
 
-
-def is_runtime_host() -> bool:
-    """Return True if this machine is a runtime host (Jetson).
-
-    Heuristic: /opt/psilia/runtime_config.yaml only exists after `psilia setup` has run.
-    """
-    return JETSON_CONFIG_PATH.exists()
-
-
-def read_laptop_config() -> dict:
+def read_config() -> dict:
     """Read ~/.psilia/config.yaml, returning {} if missing or unreadable."""
-    if not LAPTOP_CONFIG_PATH.exists():
+    if not CONFIG_PATH.exists():
         return {}
     try:
-        return yaml.safe_load(LAPTOP_CONFIG_PATH.read_text()) or {}
+        return yaml.safe_load(CONFIG_PATH.read_text()) or {}
     except yaml.YAMLError:
         return {}
 
 
-def write_laptop_config(config: dict) -> None:
+def write_config(config: dict) -> None:
     """Write config dict to ~/.psilia/config.yaml."""
-    LAPTOP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    LAPTOP_CONFIG_PATH.write_text(yaml.dump(config, default_flow_style=False))
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(yaml.dump(config, default_flow_style=False))
 
 
 def register_device(name: str, host: str, user: str, key_path: Path) -> None:
@@ -39,7 +29,7 @@ def register_device(name: str, host: str, user: str, key_path: Path) -> None:
 
     Merges into existing config without overwriting other devices or defaults.
     """
-    config = read_laptop_config()
+    config = read_config()
     config.setdefault("devices", {})[name] = {
         "host": host,
         "user": user,
@@ -48,7 +38,7 @@ def register_device(name: str, host: str, user: str, key_path: Path) -> None:
     config.setdefault("defaults", {}).setdefault(
         "pull_to", str(Path.home() / "psilia-data")
     )
-    write_laptop_config(config)
+    write_config(config)
 
 
 def sync_device_config(device: str, conn) -> None:
@@ -65,7 +55,7 @@ def sync_device_config(device: str, conn) -> None:
     except yaml.YAMLError:
         return
 
-    config = read_laptop_config()
+    config = read_config()
     dev = config.setdefault("devices", {}).setdefault(device, {})
 
     storage = jetson_cfg.get("storage", {})
@@ -82,4 +72,4 @@ def sync_device_config(device: str, conn) -> None:
     camera = jetson_cfg.get("camera", {})
     dev["camera"] = camera.get("type")
 
-    write_laptop_config(config)
+    write_config(config)
