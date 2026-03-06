@@ -7,6 +7,8 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
+from rich.pretty import pprint
+import yaml
 
 console = Console()
 
@@ -47,6 +49,42 @@ def _item(msg: str) -> None:
 def _detail(key: str, value: str) -> None:
     """Key/value config detail line."""
     console.print(f"    [dim]{key}:[/dim]  {value}")
+
+def _dict(d: dict) -> None:
+    """Pretty-print a dictionary with rich's pprint."""
+    pprint(d, expand_all=True, console=console, indent_guides=False)
+
+def _yaml2(d) -> None:
+    console.print(
+        Padding(
+            yaml.dump(d, default_flow_style=False),
+            (2, 2),
+        )
+    )
+
+
+def _yaml(d: dict, key_color="") -> None:
+    """YAML-like dict printer with bold keys (Rich markup)."""
+    def _collect(d: dict, indent: int) -> list[str]:
+        lines = []
+        pad = "  " * indent
+        for key, value in d.items():
+            if isinstance(value, dict):
+                lines.append(f"{pad}[bold {key_color}]{key}:[/bold {key_color}]")
+                lines.extend(_collect(value, indent + 1))
+            elif isinstance(value, list):
+                lines.append(f"{pad}[bold {key_color}]{key}:[/bold {key_color}]")
+                for item in value:
+                    if isinstance(item, dict):
+                        lines.append(f"{pad}  -")
+                        lines.extend(_collect(item, indent + 2))
+                    else:
+                        lines.append(f"{pad}  - {item}")
+            else:
+                lines.append(f"{pad}[bold {key_color}]{key}:[/bold {key_color}] {value}")
+        return lines
+
+    console.print("\n".join(_collect(d, 0)))
 
 
 # ── structural ────────────────────────────────────────────────────────────────
@@ -161,6 +199,23 @@ def _demo() -> None:
         "Run [bold]psilia setup psilia-jetson[/bold] to bootstrap the runtime.",
     )
     console.print()
+
+    pprint({
+        "device": {
+            "name": "psilia-jetson",
+            "host": "psilia-jetson.local",
+            "user": "nvidia",
+        },
+        "status": "paired",
+    })
+    pprint({
+        "device": {
+            "name": "psilia-jetson",
+            "host": "psilia-jetson.local",
+            "user": "nvidia",
+        },
+        "status": "paired",
+    }, expand_all=True)
 
 
 if __name__ == "__main__":

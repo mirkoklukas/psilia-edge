@@ -11,9 +11,11 @@ import socket
 import time
 
 import typer
+import yaml
 
-from psilia_edge.ui import console
-
+from psilia_edge.runtime.status import _runtime_status
+from psilia_edge.ui import _header, _yaml, console
+from rich.pretty import pprint
 
 def _require_runtime_host(device_hint: str) -> None:
     """Exit with a clear message if not running on a runtime host (Jetson)."""
@@ -94,8 +96,10 @@ def _base_stop() -> None:
 def _base_status() -> None:
     import yaml
     from psilia_edge.runtime.status import _runtime_status
+    from psilia_edge.ui import _header
 
-    console.print(yaml.dump(_runtime_status(), default_flow_style=False), end="")
+    _header("Runtime → [bold]Status[/bold]", "Current status of the runtime, connected devices, etc.")
+    _yaml(_runtime_status())
 
 
 def _build_monitor_display(log_lines: list[str]):
