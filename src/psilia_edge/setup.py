@@ -13,15 +13,13 @@ Developer notes:
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import yaml
-from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
 from psilia_edge.ssh import JetsonConn, LocalRunner
-from psilia_edge.ui import _fail, _ok, _stub, console
+from psilia_edge.ui import _fail, _ok, _warn, _stub, _info, _item, _detail, _section_header, _header, _done, console
 
 _DEFAULT_HOTSPOT_PASSWORD = "psilia1234"
 _PSILIA_REPO_URL = "https://github.com/mirkoklukas/psilia-edge.git"
@@ -37,12 +35,12 @@ _JETSON_DIRS = [
 
 
 def _step_ssd(conn: JetsonConn | LocalRunner) -> dict:
-    console.rule("[bold]Step 1 — Storage / SSD")
-    console.print("  Detects available drives and configures the data directory.")
+    _section_header("Step 1 — Storage / SSD")
+    _info("Detects available drives and configures the data directory.")
     _stub("detect SSD, confirm mount point, configure /etc/fstab")
     mount = "/ssd/"
-    console.print(f"  [dim]Defaulting to mount point:[/dim] [bold]{mount}[/bold]")
-    console.print(f"  [dim]Data will be stored at:[/dim]   [bold]{mount}psilia/data/[/bold]")
+    _detail("mount", f"[bold]{mount}[/bold]")
+    _detail("data", f"[bold]{mount}psilia/data/[/bold]")
     return {"storage": {"mount": mount, "data_path": "/ssd/psilia/data/"}}
 
 
@@ -50,9 +48,9 @@ def _step_ssd(conn: JetsonConn | LocalRunner) -> dict:
 
 
 def _step_create_dirs(conn: JetsonConn | LocalRunner) -> None:
-    console.rule("[bold]Step 2 — Directory Structure")
+    _section_header("Step 2 — Directory Structure")
     for d in _JETSON_DIRS:
-        console.print(f"  [dim]→[/dim] {d}")
+        _item(d)
     with console.status("  Creating directories on Jetson…"):
         rc, _, err = conn.sudo(f"mkdir -p {' '.join(_JETSON_DIRS)}")
     if rc != 0:
@@ -90,7 +88,7 @@ def _read_git_credentials(host: str) -> tuple[str, str] | None:
 
 
 def _step_clone(conn: JetsonConn | LocalRunner) -> None:
-    console.rule("[bold]Step 3 — Clone psilia-edge")
+    _section_header("Step 3 — Clone psilia-edge")
 
     repo_dir = "/ssd/psilia/psilia-edge"
     clone_cmd = f"git clone --branch {_PSILIA_REPO_BRANCH} {_PSILIA_REPO_URL} {repo_dir}"
@@ -111,12 +109,12 @@ def _step_clone(conn: JetsonConn | LocalRunner) -> None:
             rc, _, err = conn.run(clone_cmd)
 
         if rc != 0:
-            console.print(f"  [yellow]Clone failed:[/yellow] {err.strip()}")
+            _warn(f"Clone failed: {err.strip()}")
             # Try stored credentials from ~/.git-credentials before prompting
             creds = _read_git_credentials("github.com")
             if creds:
                 username, token = creds
-                console.print("  [dim]Using credentials from ~/.git-credentials[/dim]")
+                _info("[dim]Using credentials from ~/.git-credentials[/dim]")
             else:
                 username = Prompt.ask("  GitHub username")
                 token = Prompt.ask("  GitHub token/password", password=True)
@@ -143,7 +141,7 @@ def _step_clone(conn: JetsonConn | LocalRunner) -> None:
 
 
 def _step_copy_ros(conn: JetsonConn | LocalRunner) -> None:
-    console.rule("[bold]Step 4 — ROS Package")
+    _section_header("Step 4 — ROS Package")
 
     if isinstance(conn, LocalRunner):
         import shutil as _shutil
@@ -157,9 +155,9 @@ def _step_copy_ros(conn: JetsonConn | LocalRunner) -> None:
             _shutil.copytree(str(src), dst, dirs_exist_ok=True)
     else:
         # Upload from the laptop repo checkout
-        # __file__ = .../psilia-edge/src/psilia_edge/setup/__init__.py
-        # repo_root = 4 levels up
-        repo_root = Path(__file__).parent.parent.parent.parent
+        # __file__ = .../psilia-edge/src/psilia_edge/setup.py
+        # repo_root = 3 levels up
+        repo_root = Path(__file__).parent.parent.parent
         local_ros = repo_root / "ros" / "psilia_runtime"
         if not local_ros.exists():
             _fail(f"Local psilia_runtime not found at {local_ros}")
@@ -174,7 +172,7 @@ def _step_copy_ros(conn: JetsonConn | LocalRunner) -> None:
 
 
 def _step_docker(conn: JetsonConn | LocalRunner) -> None:
-    console.rule("[bold]Step 5 — Docker")
+    _section_header("Step 5 — Docker")
     with console.status("  Checking Docker…"):
         rc, _, _ = conn.run("docker --version")
     if rc == 0:
@@ -182,7 +180,7 @@ def _step_docker(conn: JetsonConn | LocalRunner) -> None:
         _ok(f"Docker already installed ({ver.strip()})")
         return
 
-    console.print("  Docker not found — installing…")
+    _info("Docker not found — installing…")
     with console.status("  Downloading Docker install script…"):
         rc, _, err = conn.run("curl -fsSL https://get.docker.com -o /tmp/_get-docker.sh")
     if rc != 0:
@@ -205,13 +203,12 @@ def _step_docker(conn: JetsonConn | LocalRunner) -> None:
 
 
 def _step_build_image(conn: JetsonConn | LocalRunner) -> None:
-    console.rule("[bold]Step 6 — Build Docker Image")
-    console.print(
-        "  Builds [bold]psilia/runtime:latest[/bold] on the Jetson.\n"
-        "  Source: [dim]/ssd/psilia/psilia-edge/ros/Dockerfile[/dim]\n"
-        "  This step might take a while on first run."
-    )
+    _section_header("Step 6 — Build Docker Image")
+    _info("Builds [bold]psilia/runtime:latest[/bold] on the Jetson.")
+    _detail("source", "[dim]/ssd/psilia/psilia-edge/ros/Dockerfile[/dim]")
+    _info("[dim]This step might take a while on first run.[/dim]")
     _stub("docker build -t psilia/runtime:latest /ssd/psilia/psilia-edge/ros")
+    _ok("Docker image built: psilia/runtime:latest")
 
 # ── step 7: network ───────────────────────────────────────────────────────────
 
@@ -220,11 +217,9 @@ def _step_network(conn: JetsonConn | LocalRunner, name: str) -> dict:
     from psilia_edge.network.hotspot import create_hotspot, find_active_hotspot
     from psilia_edge.network.probe import list_interfaces
 
-    console.rule("[bold]Step 7 — Network Setup")
-    console.print(
-        "  Configures a wifi hotspot on the Jetson (USB dongle preferred)\n"
-        "  so you can reach it in the field without a router."
-    )
+    _section_header("Step 7 — Network Setup")
+    _info("Configures a wifi hotspot on the Jetson (USB dongle preferred)")
+    _info("[dim]so you can reach it in the field without a router.[/dim]")
 
     runner = conn.as_runner()
     sudo_runner = conn.as_sudo_runner()
@@ -251,22 +246,22 @@ def _step_network(conn: JetsonConn | LocalRunner, name: str) -> dict:
             return {}
 
     if iface is None:
-        console.print("  [yellow]⚠[/yellow]  No wifi interface found — skipping network setup.")
-        console.print("  [dim]Connect a USB wifi dongle and re-run 'psilia setup'.[/dim]")
+        _warn("No wifi interface found — skipping network setup.")
+        _info("[dim]Connect a USB wifi dongle and re-run 'psilia setup'.[/dim]")
         return {}
     elif iface.is_usb_wifi:
         _ok(f"USB wifi dongle detected: [bold]{iface.name}[/bold]")
     else:
-        console.print(f"  [yellow]⚠[/yellow]  No USB dongle — using built-in wifi: [bold]{iface.name}[/bold]")
-        console.print("  [dim]Note: built-in wifi can't act as hotspot and client simultaneously on all hardware.[/dim]")
+        _warn(f"No USB dongle — using built-in wifi: [bold]{iface.name}[/bold]")
+        _info("[dim]Note: built-in wifi can't act as hotspot and client simultaneously on all hardware.[/dim]")
 
     ssid = Prompt.ask("  Hotspot SSID", default=f"{name}-ap")
     password = Prompt.ask("  Hotspot password", default=_DEFAULT_HOTSPOT_PASSWORD)
-    console.print("\n  [dim]Will configure:[/dim]")
-    console.print(f"    Interface: [bold]{iface.name}[/bold]")
-    console.print(f"    SSID:      [bold]{ssid}[/bold]")
-    console.print(f"    Password:  [bold]{password}[/bold]")
-    console.print("    IP:        [bold]10.42.0.1[/bold] (fixed, Jetson side)")
+    _info("[dim]Will configure:[/dim]")
+    _detail("interface", f"[bold]{iface.name}[/bold]")
+    _detail("ssid",      f"[bold]{ssid}[/bold]")
+    _detail("password",  f"[bold]{password}[/bold]")
+    _detail("ip",        "[bold]10.42.0.1[/bold] (fixed, Jetson side)")
 
     with console.status("  Creating hotspot…"):
         ok, err = create_hotspot(
@@ -280,7 +275,7 @@ def _step_network(conn: JetsonConn | LocalRunner, name: str) -> dict:
         _ok(f"Hotspot '{ssid}' is up")
     else:
         _fail(f"Failed to create hotspot: {err}")
-        console.print("  [dim]Configure manually with nmcli.[/dim]")
+        _info("[dim]Configure manually with nmcli.[/dim]")
 
     return {"hotspot": {"ssid": ssid, "password": password}}
 
@@ -289,11 +284,9 @@ def _step_network(conn: JetsonConn | LocalRunner, name: str) -> dict:
 
 
 def _step_camera(conn: JetsonConn | LocalRunner) -> dict:
-    console.rule("[bold]Step 8 — Camera (optional)")
+    _section_header("Step 8 — Camera (optional)")
     if not Confirm.ask("  Detect and configure connected camera now?", default=False):
-        console.print(
-            "  [dim]Skipped — configure later with 'psilia config camera'.[/dim]"
-        )
+        _info("[dim]Skipped — configure later with 'psilia config camera'.[/dim]")
         return {}
     _stub("detect USB stereo camera on Jetson")
     return {}
@@ -303,18 +296,16 @@ def _step_camera(conn: JetsonConn | LocalRunner) -> dict:
 
 
 def _step_systemd(conn: JetsonConn | LocalRunner) -> bool:
-    console.rule("[bold]Step 9 — Autostart")
-    console.print(
-        "  Installs a systemd service ([bold]psilia.service[/bold]) on the Jetson\n"
-        "  so the runtime starts automatically on boot."
-    )
+    _section_header("Step 9 — Autostart")
+    _info("Installs a systemd service ([bold]psilia.service[/bold]) on the Jetson")
+    _info("[dim]so the runtime starts automatically on boot.[/dim]")
     _stub("install /etc/systemd/system/psilia.service and reload daemon")
     autostart = Confirm.ask("  Enable autostart on boot?", default=True)
     if autostart:
         _stub("systemctl enable psilia")
         _ok("Autostart enabled — runtime will start on next boot")
     else:
-        console.print("  [dim]Autostart disabled — start manually with:[/dim] psilia start")
+        _info("[dim]Autostart disabled — start manually with:[/dim] psilia start")
     return autostart
 
 
@@ -322,7 +313,7 @@ def _step_systemd(conn: JetsonConn | LocalRunner) -> bool:
 
 
 def _write_runtime_config(conn: JetsonConn | LocalRunner, runtime_config: dict) -> None:
-    console.rule("[bold]Step 10 — Runtime Config")
+    _section_header("Step 10 — Runtime Config")
     config_yaml = yaml.dump(runtime_config, default_flow_style=False)
     tmp = "/tmp/_psilia_runtime_config.yaml"
 
@@ -355,7 +346,7 @@ def run_setup_remote(device: str) -> None:
     config = read_laptop_config()
     devices = config.get("devices", {})
     if device not in devices:
-        console.print(f"[red]Device '{device}' not registered.[/red] Run 'psilia pair' first.")
+        _fail(f"Device '{device}' not registered. Run 'psilia pair' first.")
         return
 
     dev = devices[device]
@@ -363,19 +354,12 @@ def run_setup_remote(device: str) -> None:
     user = dev["user"]
     key = dev.get("key")
 
-    console.print(
-        Panel(
-            f"[bold]psilia setup[/bold] — [bold cyan]{device}[/bold cyan]\n"
-            f"[dim]Bootstrapping over SSH as {user}@{host}[/dim]",
-            expand=False,
-            border_style="cyan",
-        )
-    )
+    _header(f"psilia setup — {device}", f"[dim]Bootstrapping over SSH as {user}@{host}[/dim]")
     try:
         with console.status("  Connecting…"):
             conn = connect(host, user=user, key=key)
     except SSHError as exc:
-        console.print(f"[red]SSH connection failed:[/red] {exc}")
+        _fail(f"SSH connection failed: {exc}")
         return
 
     if not conn._password:
@@ -400,13 +384,9 @@ def run_setup_remote(device: str) -> None:
         _write_runtime_config(conn, runtime_config)
         sync_device_config(device, conn)
 
-    console.print(
-        Panel(
-            f"[bold green]✓ {device} bootstrapped.[/bold green]\n"
-            f"[dim]Run [bold]psilia start {device}[/bold] to launch the spatial runtime.[/dim]",
-            expand=False,
-            border_style="green",
-        )
+    _done(
+        f"{device} bootstrapped.",
+        f"Run [bold]psilia start {device}[/bold] to launch the spatial runtime.",
     )
 
 
@@ -418,14 +398,7 @@ def run_setup_local() -> None:
     rc, out, _ = runner.run("hostname")
     name = out.strip() or "psilia-jetson"
 
-    console.print(
-        Panel(
-            f"[bold]psilia setup[/bold] — [bold cyan]{name}[/bold cyan]\n"
-            f"[dim]Bootstrapping locally[/dim]",
-            expand=False,
-            border_style="cyan",
-        )
-    )
+    _header(f"psilia setup — {name}", "[dim]Bootstrapping locally[/dim]")
 
     runtime_config: dict = {
         "runtime": {
@@ -444,11 +417,7 @@ def run_setup_local() -> None:
     runtime_config["runtime"]["autostart"] = _step_systemd(runner)
     _write_runtime_config(runner, runtime_config)
 
-    console.print(
-        Panel(
-            f"[bold green]✓ {name} bootstrapped.[/bold green]\n"
-            f"[dim]Run [bold]psilia start[/bold] to launch the spatial runtime.[/dim]",
-            expand=False,
-            border_style="green",
-        )
+    _done(
+        f"{name} bootstrapped.",
+        "Run [bold]psilia start[/bold] to launch the spatial runtime.",
     )

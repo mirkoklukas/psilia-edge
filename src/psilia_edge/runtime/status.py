@@ -54,13 +54,16 @@ def _runtime_section() -> dict:
 
 
 def _hotspot_section() -> dict:
-    from psilia_edge.network.hotspot import HOTSPOT_CON_NAME, hotspot_is_active
+    from psilia_edge.network.hotspot import hotspot_is_active
 
-    active = hotspot_is_active(HOTSPOT_CON_NAME)
     cfg = _read_runtime_config().get("hotspot", {})
+    ssid = cfg.get("ssid")
+    con_name = f"{ssid}-Hotspot" if ssid else None
+    active = hotspot_is_active(con_name) if con_name else False
+
     section: dict = {"active": active}
     if active:
-        if ssid := cfg.get("ssid"):
+        if ssid:
             section["ssid"] = ssid
         if password := cfg.get("password"):
             section["password"] = password
@@ -107,4 +110,5 @@ def _runtime_status() -> dict:
         "hotspot": _hotspot_section(),
         "sensors": _sensors_section(),
         "storage": _storage_section(),
+        "runtime_config": _read_runtime_config(),
     }

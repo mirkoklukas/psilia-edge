@@ -14,7 +14,7 @@ import paramiko
 from rich.prompt import Prompt
 
 from psilia_edge.ssh import JetsonConn, SSHError, connect
-from psilia_edge.ui import _fail, _ok, _header, console
+from psilia_edge.ui import _fail, _ok, _warn, _info, _item, _detail, _section_header, _header, _done, console
 
 
 _DEFAULT_DEVICE_NAME = "psilia-jetson"
@@ -27,13 +27,13 @@ _SSH_SECTION_END = "# <<< psilia-edge"
 
 
 def _step_connect() -> JetsonConn | None:
-    console.rule("[bold]Step 1 — Connect")
+    _section_header("Step 1 — Connect")
 
     target_ip = Prompt.ask("  Host (IP or hostname)")
     user = Prompt.ask("  Username")
     password = Prompt.ask("  Password", default="", password=True)
 
-    console.print(f"  Connecting as [bold]{user}@{target_ip}[/bold]…")
+    _info(f"Connecting as [bold]{user}@{target_ip}[/bold]…")
     try:
         with console.status("  Connecting over SSH…"):
             conn = connect(target_ip, user=user, password=password or None)
@@ -48,12 +48,12 @@ def _step_connect() -> JetsonConn | None:
 
 
 def _step_device_name(conn: JetsonConn) -> str:
-    console.rule("[bold]Step 2 — Device Name")
-    console.print("  [dim]Changing the name will update the Jetson hostname and /etc/hosts.[/dim]")
+    _section_header("Step 2 — Device Name")
+    _info("[dim]Changing the name will update the Jetson hostname and /etc/hosts.[/dim]")
     _, current, _ = conn.run("hostname")
     current = current.strip()
     if current:
-        console.print(f"  Current hostname: [bold]{current}[/bold]")
+        _info(f"Current hostname: [bold]{current}[/bold]")
     name = Prompt.ask("  Device name", default=current or _DEFAULT_DEVICE_NAME)
     if name == current:
         _ok(f"Hostname unchanged: '{name}'")
@@ -72,7 +72,7 @@ def _step_device_name(conn: JetsonConn) -> str:
 
 
 def _step_ssh_keypair(conn: JetsonConn, name: str) -> Path:
-    console.rule("[bold]Step 3 — SSH Keypair")
+    _section_header("Step 3 — SSH Keypair")
     key_dir = Path.home() / ".psilia" / "keys"
     key_dir.mkdir(parents=True, exist_ok=True)
     key_path = key_dir / name
@@ -109,7 +109,7 @@ def _remove_device_hosts(section: str, name: str) -> str:
 
 
 def _step_write_ssh_config(name: str, key_path: Path, user: str) -> None:
-    console.rule("[bold]Step 4 — SSH Config")
+    _section_header("Step 4 — SSH Config")
 
     new_block = (
         f"Host {name}\n"
@@ -155,27 +155,26 @@ def _step_write_ssh_config(name: str, key_path: Path, user: str) -> None:
 
     _SSH_CONFIG_PATH.write_text(new_file)
     _ok(f"SSH config updated ({_SSH_CONFIG_PATH})")
-    console.print(f"  [dim]Added entries:[/dim]")
-    console.print(f"    [dim]Host {name}         → {name}.local[/dim]")
-    console.print(f"    [dim]Host {name}-hotspot  → 10.42.0.1[/dim]")
-    console.print(f"  [dim]Connect with: ssh {name}[/dim]")
+    _item(f"Host {name}         → {name}.local")
+    _item(f"Host {name}-hotspot  → 10.42.0.1")
+    _detail("connect with", f"ssh {name}")
 
 
 # ── step 5: register device ───────────────────────────────────────────────────
 
 
 def _step_register_device(name: str, user: str, key_path: Path) -> None:
-    console.rule("[bold]Step 5 — Register Device")
+    _section_header("Step 5 — Register Device")
     from psilia_edge.config import register_device
 
     register_device(name=name, host=f"{name}.local", user=user, key_path=key_path)
 
     from psilia_edge.config import LAPTOP_CONFIG_PATH
     _ok(f"Device registered in {LAPTOP_CONFIG_PATH}")
-    console.print(f"  [dim]  name: {name}[/dim]")
-    console.print(f"  [dim]  host: {name}.local[/dim]")
-    console.print(f"  [dim]  user: {user}[/dim]")
-    console.print(f"  [dim]  key:  {key_path}[/dim]")
+    _detail("name", name)
+    _detail("host", f"{name}.local")
+    _detail("user", user)
+    _detail("key",  str(key_path))
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
@@ -189,7 +188,7 @@ def run_pair_wizard() -> None:
     # Step 1 — connect (Path A or B)
     conn = _step_connect()
     if conn is None:
-        console.print("\n[yellow]Aborted — could not connect.[/yellow]")
+        _warn("Aborted — could not connect.")
         return
 
     with conn:
@@ -205,9 +204,7 @@ def run_pair_wizard() -> None:
         # Step 5 — register device (~/.psilia/config.yaml, connection info only)
         _step_register_device(name, conn.user, key_path)
 
-    console.print()
-    console.rule("[bold]Done")
-    console.print(
-        f"\n  Device [bold]{name}[/bold] paired."
-        f"\n  Run [bold]psilia setup {name}[/bold] to bootstrap the device."
+    _done(
+        f"{name} paired.",
+        f"Run [bold]psilia setup {name}[/bold] to bootstrap the device.",
     )
