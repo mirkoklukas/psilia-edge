@@ -9,7 +9,6 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from psilia_edge.network.probe import list_interfaces
 
 WEB_DIR = Path(__file__).parent.parent / "web"
 
@@ -21,24 +20,9 @@ app = FastAPI(title="Psilia Edge", docs_url=None, redoc_url=None)
 
 @app.get("/api/status")
 async def api_status() -> JSONResponse:
-    interfaces = list_interfaces()
-    return JSONResponse(
-        {
-            "psilia_edge": "running",
-            "network": [
-                {
-                    "name": i.name,
-                    "type": i.type,
-                    "state": i.state,
-                    "ip": i.ip4,
-                    "connection": i.connection,
-                }
-                for i in interfaces
-            ],
-            "docker": "unknown",    # TODO: check docker status
-            "ros_runtime": "unknown",  # TODO: check container status
-        }
-    )
+    from psilia_edge.runtime.status import _runtime_status
+
+    return JSONResponse(_runtime_status())
 
 
 # ── Static files (catch-all, must come last) ─────────────────────────────────

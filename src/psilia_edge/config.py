@@ -7,13 +7,13 @@ from pathlib import Path
 import yaml
 
 LAPTOP_CONFIG_PATH = Path.home() / ".psilia" / "config.yaml"
-JETSON_CONFIG_PATH = Path("/opt/psilia/config.yaml")
+JETSON_CONFIG_PATH = Path("/opt/psilia/runtime_config.yaml")
 
 
 def is_runtime_host() -> bool:
     """Return True if this machine is a runtime host (Jetson).
 
-    Heuristic: /opt/psilia/config.yaml only exists after `psilia setup` has run.
+    Heuristic: /opt/psilia/runtime_config.yaml only exists after `psilia setup` has run.
     """
     return JETSON_CONFIG_PATH.exists()
 
@@ -52,12 +52,12 @@ def register_device(name: str, host: str, user: str, key_path: Path) -> None:
 
 
 def sync_device_config(device: str, conn) -> None:
-    """Read /opt/psilia/config.yaml from Jetson and merge relevant fields into laptop config.
+    """Read /opt/psilia/runtime_config.yaml from Jetson and merge relevant fields into laptop config.
 
     Merges: data_path, hotspot.ssid, camera.type.
     conn must implement .run(cmd) -> (rc, stdout, stderr).
     """
-    rc, out, _ = conn.run("cat /opt/psilia/config.yaml")
+    rc, out, _ = conn.run("cat /opt/psilia/runtime_config.yaml")
     if rc != 0:
         return
     try:

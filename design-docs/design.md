@@ -36,7 +36,7 @@ The layered `psilia base` / `psilia spatial` commands exist for development, tes
 
 The same `psilia-edge` package is installed on both machines, but each takes on a distinct role:
 
-**Runtime host** (Jetson) — runs the spatial perception stack. Hosts the base layer daemon, the ROS layer in Docker, and serves the Control UI. Detected by the presence of `/opt/psilia/config.yaml`, which is written during `psilia setup` and lives on eMMC.
+**Runtime host** (Jetson) — runs the spatial perception stack. Hosts the base layer daemon, the ROS layer in Docker, and serves the Control UI. Detected by the presence of `/opt/psilia/runtime_config.yaml`, which is written during `psilia setup` and lives on eMMC.
 
 **Device manager** (laptop) — manages one or more runtime hosts. Handles pairing, bootstrapping over SSH, and data operations (pull, sync, cloud push). Keeps a registry of registered devices in `~/.psilia/config.yaml`.
 
@@ -45,7 +45,7 @@ The role distinction is intentional and permanent for a given machine — a Jets
 ### CLI commands
 
 The same binary is installed on both laptop and Jetson. Context is detected automatically:
-if `/opt/psilia/config.yaml` exists the binary is running on a runtime host (Jetson);
+if `/opt/psilia/runtime_config.yaml` exists the binary is running on a runtime host (Jetson);
 otherwise it assumes a device manager (laptop).
 
 ```
@@ -206,7 +206,7 @@ SSH wrapper for `psilia setup` on the Jetson. Bootstraps the device, then automa
    - **WiFi connection** — scan visible networks, user selects SSID and enters password. Persisted as autoconnect profile.
 8. **Detect connected camera** — optional, can be skipped and configured later.
 9. **Configure systemd autostart** — wizard asks whether to enable autostart on boot.
-10. **Write Jetson config** — writes `/opt/psilia/config.yaml`:
+10. **Write Jetson config** — writes `/opt/psilia/runtime_config.yaml`:
 
 ```yaml
 storage:

@@ -92,41 +92,10 @@ def _base_stop() -> None:
 
 
 def _base_status() -> None:
-    from psilia_edge.network.probe import list_interfaces
-    from psilia_edge.runtime.daemon import is_running
+    import yaml
+    from psilia_edge.runtime.status import _runtime_status
 
-    running = is_running()
-    style = "green" if running else "dim"
-    label = "running" if running else "stopped"
-    console.print(f"psilia base layer: [{style}]{label}[/{style}]")
-
-    with console.status("Scanning interfaces…"):
-        interfaces = list_interfaces()
-    if interfaces:
-        _show_interface_table(interfaces)
-    else:
-        console.print("[dim]No interfaces found.[/dim]")
-
-
-def _show_interface_table(interfaces) -> None:
-    from rich.table import Table
-
-    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
-    table.add_column("Interface")
-    table.add_column("Type")
-    table.add_column("State")
-    table.add_column("IP")
-    table.add_column("Connection")
-    for i in interfaces:
-        state_style = "green" if i.is_connected else "dim"
-        table.add_row(
-            i.name,
-            i.type,
-            f"[{state_style}]{i.state}[/{state_style}]",
-            i.ip4 or "—",
-            i.connection or "—",
-        )
-    console.print(table)
+    console.print(yaml.dump(_runtime_status(), default_flow_style=False), end="")
 
 
 def _build_monitor_display(log_lines: list[str]):

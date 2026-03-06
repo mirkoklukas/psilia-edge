@@ -19,7 +19,7 @@
 | 12 | Systemd autostart service | ⬜ |
 | 13 | Write SSH config (managed psilia-edge section) | ✅ |
 | 14 | Write laptop config (~/.psilia/config.yaml) | ✅ |
-| 15 | Write Jetson config (/opt/psilia/config.yaml) | ✅ |
+| 15 | Write Jetson config (/opt/psilia/runtime_config.yaml) | ✅ |
 
 ## Mode 2: Base Layer (runtime)
 

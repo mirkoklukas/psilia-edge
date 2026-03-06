@@ -4,6 +4,11 @@ Developer notes:
 - Be explicit at every step about what gets written or changed — on the Jetson,
   on the laptop, or in config files. Tighten later once the UX is proven.
 - Keep step order and numbers in sync with design-docs/design.md § psilia setup.
+- Each step returns a dict with its runtime_config contribution (or {} if none).
+  The runner merges all contributions and writes runtime_config.yaml at the end.
+- TODO: consider splitting out a `runtime_setup` module (psilia_edge/runtime/setup.py)
+  for the Jetson-side steps (dirs, clone, ROS, Docker, image, systemd, write config).
+  This file would then only own the SSH orchestration and laptop-side steps (pair, sync).
 """
 
 from __future__ import annotations
@@ -31,14 +36,14 @@ _JETSON_DIRS = [
 # ── step 1: SSD ───────────────────────────────────────────────────────────────
 
 
-def _step_ssd(conn: JetsonConn | LocalRunner) -> str:
+def _step_ssd(conn: JetsonConn | LocalRunner) -> dict:
     console.rule("[bold]Step 1 — Storage / SSD")
     console.print("  Detects available drives and configures the data directory.")
     _stub("detect SSD, confirm mount point, configure /etc/fstab")
     mount = "/ssd/"
     console.print(f"  [dim]Defaulting to mount point:[/dim] [bold]{mount}[/bold]")
     console.print(f"  [dim]Data will be stored at:[/dim]   [bold]{mount}psilia/data/[/bold]")
-    return mount
+    return {"storage": {"mount": mount, "data_path": "/ssd/psilia/data/"}}
 
 
 # ── step 2: create dirs ───────────────────────────────────────────────────────
@@ -211,7 +216,7 @@ def _step_build_image(conn: JetsonConn | LocalRunner) -> None:
 # ── step 7: network ───────────────────────────────────────────────────────────
 
 
-def _step_network(conn: JetsonConn | LocalRunner, name: str) -> tuple[str, str]:
+def _step_network(conn: JetsonConn | LocalRunner, name: str) -> dict:
     from psilia_edge.network.hotspot import create_hotspot, find_active_hotspot
     from psilia_edge.network.probe import list_interfaces
 
@@ -242,13 +247,13 @@ def _step_network(conn: JetsonConn | LocalRunner, name: str) -> tuple[str, str]:
     if existing_hotspot:
         _ok(f"Existing hotspot found: [bold]{existing_hotspot}[/bold]")
         if not Confirm.ask("  Replace it?", default=False):
-            console.print("  [dim]Keeping existing hotspot.[/dim]")
-            return existing_hotspot, ""
+            console.print("  [dim]Keeping existing hotspot — config unchanged.[/dim]")
+            return {}
 
     if iface is None:
         console.print("  [yellow]⚠[/yellow]  No wifi interface found — skipping network setup.")
         console.print("  [dim]Connect a USB wifi dongle and re-run 'psilia setup'.[/dim]")
-        return f"{name}-ap", ""
+        return {}
     elif iface.is_usb_wifi:
         _ok(f"USB wifi dongle detected: [bold]{iface.name}[/bold]")
     else:
@@ -277,20 +282,21 @@ def _step_network(conn: JetsonConn | LocalRunner, name: str) -> tuple[str, str]:
         _fail(f"Failed to create hotspot: {err}")
         console.print("  [dim]Configure manually with nmcli.[/dim]")
 
-    return ssid, password
+    return {"hotspot": {"ssid": ssid, "password": password}}
 
 
 # ── step 8: camera ───────────────────────────────────────────────────────────
 
 
-def _step_camera(conn: JetsonConn | LocalRunner) -> None:
+def _step_camera(conn: JetsonConn | LocalRunner) -> dict:
     console.rule("[bold]Step 8 — Camera (optional)")
     if not Confirm.ask("  Detect and configure connected camera now?", default=False):
         console.print(
             "  [dim]Skipped — configure later with 'psilia config camera'.[/dim]"
         )
-        return
+        return {}
     _stub("detect USB stereo camera on Jetson")
+    return {}
 
 
 # ── step 9: systemd ──────────────────────────────────────────────────────────
@@ -312,61 +318,30 @@ def _step_systemd(conn: JetsonConn | LocalRunner) -> bool:
     return autostart
 
 
-# ── step 10: write Jetson config ─────────────────────────────────────────────
+# ── step 10: write runtime config ────────────────────────────────────────────
 
 
-def _step_write_jetson_config(
-    conn: JetsonConn | LocalRunner,
-    mount: str,
-    autostart: bool,
-    hotspot_ssid: str,
-    hotspot_password: str,
-    camera: str | None,
-) -> None:
-    console.rule("[bold]Step 10 — Jetson Config")
-    jetson_config = {
-        "storage": {
-            "mount": mount,
-            "data_path": "/ssd/psilia/data/",
-        },
-        "runtime": {
-            "image": "psilia/runtime:latest",
-            "ros_workspace": "/ssd/psilia/ros/",
-            "autostart": autostart,
-        },
-        "camera": {
-            "type": camera,
-        },
-        "hotspot": {
-            "ssid": hotspot_ssid,
-            "password": hotspot_password,
-        },
-    }
-    config_yaml = yaml.dump(jetson_config, default_flow_style=False)
-    tmp = "/tmp/_psilia_jetson_config.yaml"
+def _write_runtime_config(conn: JetsonConn | LocalRunner, runtime_config: dict) -> None:
+    console.rule("[bold]Step 10 — Runtime Config")
+    config_yaml = yaml.dump(runtime_config, default_flow_style=False)
+    tmp = "/tmp/_psilia_runtime_config.yaml"
 
     if isinstance(conn, LocalRunner):
-        with console.status("  Writing Jetson config…"):
+        with console.status("  Writing runtime config…"):
             Path(tmp).write_text(config_yaml)
-            rc, _, err = conn.sudo(f"mkdir -p /opt/psilia && cp {tmp} /opt/psilia/config.yaml")
+            rc, _, err = conn.sudo(f"mkdir -p /opt/psilia && cp {tmp} /opt/psilia/runtime_config.yaml")
             conn.run(f"rm -f {tmp}")
     else:
-        with console.status("  Writing Jetson config…"):
-            # Write to /tmp as current user (no sudo), then sudo-copy to /opt/psilia/
+        with console.status("  Writing runtime config…"):
             rc, _, err = conn.run(f"cat > {tmp}", stdin_data=config_yaml)
             if rc == 0:
-                rc, _, err = conn.sudo(f"cp {tmp} /opt/psilia/config.yaml")
+                rc, _, err = conn.sudo(f"cp {tmp} /opt/psilia/runtime_config.yaml")
                 conn.run(f"rm -f {tmp}")
 
     if rc != 0:
-        _fail(f"Failed to write Jetson config: {err.strip()}")
+        _fail(f"Failed to write runtime config: {err.strip()}")
     else:
-        _ok("Jetson config written to /opt/psilia/config.yaml")
-        console.print(f"  [dim]  storage.mount:    {mount}[/dim]")
-        console.print(f"  [dim]  runtime.image:    psilia/runtime:latest[/dim]")
-        console.print(f"  [dim]  runtime.autostart: {autostart}[/dim]")
-        console.print(f"  [dim]  hotspot.ssid:     {hotspot_ssid}[/dim]")
-        console.print(f"  [dim]  camera.type:      {camera}[/dim]")
+        _ok("Runtime config written to /opt/psilia/runtime_config.yaml")
 
 
 # ── entry points ──────────────────────────────────────────────────────────────
@@ -407,19 +382,22 @@ def run_setup_remote(device: str) -> None:
         conn._password = Prompt.ask("  sudo password for Jetson", password=True)
 
     with conn:
-        mount = _step_ssd(conn)
+        runtime_config: dict = {
+            "runtime": {
+                "image": "psilia/runtime:latest",
+                "ros_workspace": "/ssd/psilia/ros/",
+            }
+        }
+        runtime_config |= _step_ssd(conn)
         _step_create_dirs(conn)
         _step_clone(conn)
         _step_copy_ros(conn)
         _step_docker(conn)
         _step_build_image(conn)
-        hotspot_ssid, hotspot_password = _step_network(conn, device)
-        _step_camera(conn)
-        autostart = _step_systemd(conn)
-        _step_write_jetson_config(
-            conn, mount, autostart,
-            hotspot_ssid=hotspot_ssid, hotspot_password=hotspot_password, camera=None,
-        )
+        runtime_config |= _step_network(conn, device)
+        runtime_config |= _step_camera(conn)
+        runtime_config["runtime"]["autostart"] = _step_systemd(conn)
+        _write_runtime_config(conn, runtime_config)
         sync_device_config(device, conn)
 
     console.print(
@@ -449,19 +427,22 @@ def run_setup_local() -> None:
         )
     )
 
-    mount = _step_ssd(runner)
+    runtime_config: dict = {
+        "runtime": {
+            "image": "psilia/runtime:latest",
+            "ros_workspace": "/ssd/psilia/ros/",
+        }
+    }
+    runtime_config |= _step_ssd(runner)
     _step_create_dirs(runner)
     _step_clone(runner)
     _step_copy_ros(runner)
     _step_docker(runner)
     _step_build_image(runner)
-    hotspot_ssid, hotspot_password = _step_network(runner, name)
-    _step_camera(runner)
-    autostart = _step_systemd(runner)
-    _step_write_jetson_config(
-        runner, mount, autostart,
-        hotspot_ssid=hotspot_ssid, hotspot_password=hotspot_password, camera=None,
-    )
+    runtime_config |= _step_network(runner, name)
+    runtime_config |= _step_camera(runner)
+    runtime_config["runtime"]["autostart"] = _step_systemd(runner)
+    _write_runtime_config(runner, runtime_config)
 
     console.print(
         Panel(
