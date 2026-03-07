@@ -202,7 +202,7 @@ def _step_build_image(conn, base: str) -> None:
     ui.detail("source", f"{base}/psilia-edge/ros/Dockerfile")
     with console.status("  Building Docker image…"):
         rc, _, err = conn.run(
-            f"docker build -t psilia/runtime:latest {base}/psilia-edge/ros"
+            f"docker build --network=host -t psilia/runtime:latest {base}/psilia-edge/ros"
         )
     if rc != 0:
         ui.fail(f"Docker build failed: {err.strip()}")
