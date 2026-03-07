@@ -22,6 +22,28 @@ docker build --network=host -t psilia/runtime:latest /ssd/psilia/psilia-edge/ros
 
 ---
 
+## Hotspot not visible as available network
+
+**Symptom:** `psilia status` shows hotspot as active but the SSID doesn't appear on other devices.
+
+**Cause:** Some USB wifi dongles activate in `managed` mode on the first `nmcli connection up`,
+even though AP mode is supported. The interface reports as connected but isn't broadcasting.
+
+**Verify:**
+```bash
+iw dev    # should show "type AP" — if it shows "type managed", the hotspot isn't broadcasting
+```
+
+**Fix:** Cycle the connection:
+```bash
+sudo nmcli connection down <ssid>-Hotspot
+sudo nmcli connection up   <ssid>-Hotspot
+```
+
+This is now handled automatically in `create_hotspot()` — the fix is in place for future setups.
+
+---
+
 ## Debugging: container exits immediately after `psilia start`
 
 If `docker ps` shows no running container after starting the runtime, the container
