@@ -21,9 +21,23 @@ app = FastAPI(title="Psilia Edge", docs_url=None, redoc_url=None)
 
 @app.get("/api/status")
 async def api_status() -> JSONResponse:
-    from psilia_edge.runtime.status import _runtime_status
+    from psilia_edge.runtime.status import runtime_status
 
-    return JSONResponse(_runtime_status())
+    return JSONResponse(runtime_status())
+
+
+@app.post("/api/spatial/start")
+async def api_spatial_start() -> JSONResponse:
+    from psilia_edge.runtime.core import start_spatial_layer
+
+    return JSONResponse(start_spatial_layer())
+
+
+@app.post("/api/spatial/stop")
+async def api_spatial_stop() -> JSONResponse:
+    from psilia_edge.runtime.core import stop_spatial_layer
+
+    return JSONResponse(stop_spatial_layer())
 
 
 # ── Static files (catch-all, must come last) ─────────────────────────────────

@@ -45,7 +45,7 @@ def _runtime_section() -> dict:
 
     pid = get_pid()
     running = pid is not None
-    section: dict = {"status": "running" if running else "offline"}
+    section: dict = {"status": "[green]running[/green]" if running else "[red]offline[/red]"}
     if running:
         section["uptime"] = _process_uptime(pid)
         section["url"] = f"http://{socket.gethostname().split('.')[0]}.local:8080"
@@ -61,7 +61,7 @@ def _hotspot_section() -> dict:
     con_name = f"{ssid}-Hotspot" if ssid else None
     active = hotspot_is_active(con_name) if con_name else False
 
-    section: dict = {"active": active}
+    section: dict = {"active": "[green]yes[/green]" if active else "[dim]no[/dim]"}
     if active:
         if ssid:
             section["ssid"] = ssid
@@ -75,8 +75,8 @@ def _sensors_section() -> dict:
     camera_type = cfg.get("type")
     return {
         "camera": {
-            "status": "connected" if camera_type else "not_detected",
-            "model": camera_type,
+            "status": "[green]connected[/green]" if camera_type else "[dim]not detected[/dim]",
+            "model": camera_type or "[dim]—[/dim]",
         }
     }
 
@@ -104,11 +104,35 @@ def _storage_section() -> dict:
     return section
 
 
+def _spatial_section() -> dict:
+    from psilia_edge.runtime.docker import container_status, is_docker_running, ros_nodes, ros_topics
+
+    if not is_docker_running():
+        return {"daemon": "[red]offline[/red]"}
+
+    status = container_status()
+    color = "green" if status == "running" else "yellow" if status == "exited" else "dim"
+    section: dict = {
+        "daemon": "[green]running[/green]",
+        "container": f"[{color}]{status}[/{color}]",
+    }
+
+    if status == "running":
+        nodes = ros_nodes()
+        topics = ros_topics()
+        if nodes is not None:
+            section["nodes"] = nodes
+        if topics is not None:
+            section["topics"] = topics
+
+    return section
+
+
 def runtime_status() -> dict:
     return {
         "runtime": _runtime_section(),
+        "spatial": _spatial_section(),
         "hotspot": _hotspot_section(),
         "sensors": _sensors_section(),
         "storage": _storage_section(),
-        "runtime_config": _read_runtime_config(),
     }

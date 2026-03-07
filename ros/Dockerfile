@@ -19,6 +19,9 @@ RUN apt-get update && apt-get install -y \
 # Expected layout: /ssd/psilia/ros/src/psilia_runtime/
 # The entrypoint runs colcon build on startup (incremental after first build).
 
+# Make ROS available to all login shells (e.g. docker exec bash -l)
+RUN echo "source /opt/ros/humble/setup.bash" > /etc/profile.d/ros_setup.sh
+
 # Entrypoint: build workspace, source, and launch
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
