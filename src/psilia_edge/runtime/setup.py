@@ -400,8 +400,6 @@ def run_setup_local(base: str | None = None) -> None:
 
 def run_update_local(base: str) -> None:
     """Pull latest repo and rebuild Docker image locally (runs on the Jetson)."""
-    import shutil as _shutil
-
     runner = LocalRunner()
     rc, out, _ = runner.run("hostname")
     name = out.strip() or "psilia-jetson"
@@ -412,10 +410,9 @@ def run_update_local(base: str) -> None:
     _step_copy_ros(runner, base)
 
     # Clear colcon build cache so any setup.py changes are picked up
+    # (dirs may be owned by root if built inside Docker)
     for d in ["build", "install", "log"]:
-        cache = Path(f"{base}/ros/{d}")
-        if cache.exists():
-            _shutil.rmtree(cache)
+        runner.sudo(f"rm -rf {base}/ros/{d}")
     ui.ok("Colcon build cache cleared")
 
     _step_build_image(runner, base)
