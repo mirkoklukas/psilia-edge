@@ -143,7 +143,18 @@ def create_hotspot(
         return False, err or "nmcli connection add failed"
 
     rc, _, err = _run(["nmcli", "connection", "up", con_name], runner)
-    return (True, "") if rc == 0 else (False, err or "nmcli connection up failed")
+    if rc != 0:
+        return False, err or "nmcli connection up failed"
+
+    # Some drivers activate in managed mode on first up — cycle to ensure AP mode.
+    _, iw_out, _ = _run(["iw", "dev", ifname, "info"])
+    if "type AP" not in iw_out:
+        _run(["nmcli", "connection", "down", con_name], runner)
+        rc, _, err = _run(["nmcli", "connection", "up", con_name], runner)
+        if rc != 0:
+            return False, err or "nmcli connection up failed on retry"
+
+    return True, ""
 
 
 def bring_up_hotspot(
