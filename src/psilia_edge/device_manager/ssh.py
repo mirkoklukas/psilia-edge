@@ -143,7 +143,7 @@ class LocalRunner:
         shutil.copytree(str(local), remote, dirs_exist_ok=True)
 
 
-def _ssh_on_device(device: str, *args: str, replace_process: bool = False) -> None:
+def ssh_on_device(device: str, *args: str, replace_process: bool = False) -> None:
     """Run `psilia <args>` on a registered device over SSH.
 
     If replace_process=True, replaces the current process via execvp (use for

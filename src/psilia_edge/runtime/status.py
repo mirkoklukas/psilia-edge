@@ -104,7 +104,7 @@ def _storage_section() -> dict:
     return section
 
 
-def _runtime_status() -> dict:
+def runtime_status() -> dict:
     return {
         "runtime": _runtime_section(),
         "hotspot": _hotspot_section(),

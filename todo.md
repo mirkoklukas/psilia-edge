@@ -16,7 +16,7 @@
 | 3  | SSH keypair — generate RSA-4096, install pubkey on Jetson | ✅ |
 | 4  | Write SSH config (managed psilia-edge section) | ✅ |
 | 5  | Register device (~/.psilia/config.yaml) | ✅ |
-| 6  | SSD — detect drives, confirm mount point, configure /etc/fstab | ⬜ |
+| 6  | Install path — prompt for base directory, derive all paths from it | ✅ |
 | 7  | Create dirs — /opt/psilia, /ssd/psilia/ros/src, /ssd/psilia/data | ✅ |
 | 8  | Clone psilia-edge repo + pip install -e . | ✅ |
 | 9  | Copy ROS package (psilia_runtime) to Jetson workspace | ✅ |

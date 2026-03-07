@@ -1,7 +1,7 @@
-"""Runtime CLI command helpers (start, stop, status, monitor).
+"""CLI command implementations for the runtime (base layer).
 
-These are called from psilia_edge.cli — the CLI commands own argument parsing
-and the if-device branching; these functions contain the actual logic.
+Called from psilia_edge.cli — the CLI commands own argument parsing
+and device branching; these functions contain the actual logic.
 """
 
 from __future__ import annotations
@@ -10,26 +10,13 @@ import socket
 import time
 
 import typer
-import yaml
 
-from psilia_edge.runtime.status import _runtime_status
-from psilia_edge.ui import _header, _yaml, console
-from rich.pretty import pprint
-
-def _require_runtime_host(device_hint: str) -> None:
-    """Exit with a clear message if not running on a runtime host (Jetson)."""
-    from psilia_edge.runtime.core import is_runtime_host
-
-    if not is_runtime_host():
-        console.print(
-            f"[red]This command only runs on a Jetson.[/red]\n"
-            f"  To target a registered device: [bold]psilia {device_hint}[/bold]"
-        )
-        raise typer.Exit(1)
+from psilia_edge.runtime.status import runtime_status
+from psilia_edge import ui
+from psilia_edge.ui import console
 
 
-
-def _base_start(host: str, port: int, foreground: bool) -> None:
+def base_start(host: str, port: int, foreground: bool) -> None:
     from psilia_edge.runtime.daemon import LOG_FILE, is_running, start_daemon
     from psilia_edge.runtime.server import serve
 
@@ -59,10 +46,10 @@ def _base_start(host: str, port: int, foreground: bool) -> None:
     if lan_ip:
         console.print(f"           [bold]http://{lan_ip}:{port}[/bold]  [dim](always works)[/dim]")
     console.print(f"  Logs:    {LOG_FILE}")
-    console.print("  Monitor: [bold]psilia monitor[/bold]")
+    console.print("  Attach:  [bold]psilia attach[/bold]")
 
 
-def _base_stop() -> None:
+def base_stop() -> None:
     from psilia_edge.runtime.daemon import stop_daemon
 
     if stop_daemon():
@@ -71,16 +58,12 @@ def _base_stop() -> None:
         console.print("[dim]Not running.[/dim]")
 
 
-def _base_status() -> None:
-    import yaml
-    from psilia_edge.runtime.status import _runtime_status
-    from psilia_edge.ui import _header
-
-    _header("Runtime → [bold]Status[/bold]", "Current status of the runtime, connected devices, etc.")
-    _yaml(_runtime_status())
+def base_status() -> None:
+    # ui.header("Runtime → [bold]Status[/bold]", "Current status of the runtime, connected devices, etc.")
+    ui.print_tree(runtime_status(), label="Runtime Status")
 
 
-def _build_monitor_display(log_lines: list[str]):
+def build_monitor_display(log_lines: list[str]):
     from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
@@ -98,3 +81,5 @@ def _build_monitor_display(log_lines: list[str]):
     grid.add_row(Panel(log_text, title="log", expand=True, border_style="dim"))
 
     return grid
+
+

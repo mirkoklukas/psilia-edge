@@ -44,8 +44,8 @@ def debug():
 
 
 def _debug_runtime_host() -> None:
-    from psilia_edge.runtime.core import RUNTIME_CONFIG_PATH as JETSON_CONFIG_PATH
-    _print_file(JETSON_CONFIG_PATH)
+    from psilia_edge.runtime.core import RUNTIME_CONFIG_PATH
+    _print_file(RUNTIME_CONFIG_PATH)
 
 
 def _debug_device_manager() -> None:
@@ -84,22 +84,68 @@ def pair():
     run_pair_wizard()
 
 
-# def setup(device: Optional[str] = typer.Argument(None, help="Registered device name")):
+_SETUP_SCRIPT_URL = "https://raw.githubusercontent.com/mirkoklukas/psilia-edge/main/scripts/setup.sh"
+
+
 @app.command(rich_help_panel="Device Management")
 def setup(device: Annotated[str, typer.Argument(help="Registered device name")]):
-    """Bootstrap a Jetson device."""
-    # TODO: eventually we may want to support local setup from the laptop as well.
-    # But for that, we'd need to first install psilia_edge on the device. So probably there will 
-    # be an install script that installs psilia_edge and then calls this setup command locally.
-    if device:
-        from psilia_edge.device_manager.setup import run_setup_remote
-        run_setup_remote(device)
-    else:
-        console.print(
-            "[red]No device specified.[/red]\n"
-            "  On a laptop: [bold]psilia setup <device>[/bold]\n"
-            "  Run [bold]psilia devices[/bold] to see registered devices."
-        )
+    """Bootstrap a Jetson device over SSH by running setup.sh on the device."""
+    import os
+    import shlex
+    from rich.prompt import Prompt
+
+    config = None
+    try:
+        from psilia_edge.device_manager.config import read_config
+        config = read_config()
+    except Exception:
+        pass
+
+    if config and device not in config.get("devices", {}):
+        console.print(f"[red]Device '{device}' not registered.[/red] Run 'psilia pair' first.")
+        raise typer.Exit(1)
+
+    install_dir = Prompt.ask("  Install directory on device", default="/ssd/psilia")
+    cmd = f"curl -fsSL {_SETUP_SCRIPT_URL} | bash -s -- --install-dir {shlex.quote(install_dir)}"
+    ssh_argv = ["ssh", "-t", device, "bash", "-lc", f"'{cmd}'"]
+    os.execvp("ssh", ssh_argv)
+
+
+@app.command(rich_help_panel="Device Management")
+def update(device: Annotated[str, typer.Argument(help="Registered device name")]):
+    """Pull latest psilia-edge and rebuild the Docker image on a device."""
+    from psilia_edge.device_manager.config import read_config
+    from psilia_edge.device_manager.ssh import SSHError, connect
+    from psilia_edge.runtime.setup import _step_pull, _step_build_image
+
+    config = read_config()
+    devices = config.get("devices", {})
+    if device not in devices:
+        console.print(f"[red]Device '{device}' not registered.[/red] Run 'psilia pair' first.")
+        raise typer.Exit(1)
+
+    dev = devices[device]
+    host, user, key = dev["host"], dev["user"], dev.get("key")
+    base = dev.get("install_dir", "/ssd/psilia")
+
+    from psilia_edge import ui
+    ui.header(f"psilia update — {device}", f"[dim]Updating over SSH as {user}@{host}[/dim]")
+    try:
+        with console.status("  Connecting…"):
+            conn = connect(host, user=user, key=key)
+    except SSHError as exc:
+        console.print(f"[red]SSH connection failed:[/red] {exc}")
+        raise typer.Exit(1)
+
+    with conn:
+        if not _step_pull(conn, base):
+            raise typer.Exit(1)
+        _step_build_image(conn, base)
+
+    ui.done(
+        f"{device} updated.",
+        f"Run [bold]psilia start {device}[/bold] to restart the runtime.",
+    )
 
 
 @app.command(rich_help_panel="Device Management")
@@ -146,14 +192,15 @@ def start(
     foreground: bool = typer.Option(False, "--foreground", "-f", help="Run in foreground", hidden=True),
 ):
     """Start the runtime. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.commands import _base_start, _require_runtime_host
-    from psilia_edge.device_manager.ssh import _ssh_on_device
+    from psilia_edge.runtime.cli import base_start
+    from psilia_edge.runtime.core import require_runtime_host
+    from psilia_edge.device_manager.ssh import ssh_on_device
 
     if device:
-        _ssh_on_device(device, "start")
+        ssh_on_device(device, "start")
     else:
-        _require_runtime_host("start <device>")
-        _base_start(host=host, port=port, foreground=foreground)
+        require_runtime_host("start <device>")
+        base_start(host=host, port=port, foreground=foreground)
 
 
 @app.command(rich_help_panel="Runtime")
@@ -161,14 +208,15 @@ def stop(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
     """Stop the runtime. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.commands import _base_stop, _require_runtime_host
-    from psilia_edge.device_manager.ssh import _ssh_on_device
+    from psilia_edge.runtime.cli import base_stop
+    from psilia_edge.runtime.core import require_runtime_host
+    from psilia_edge.device_manager.ssh import ssh_on_device
 
     if device:
-        _ssh_on_device(device, "stop")
+        ssh_on_device(device, "stop")
     else:
-        _require_runtime_host("stop <device>")
-        _base_stop()
+        require_runtime_host("stop <device>")
+        base_stop()
 
 
 @app.command(rich_help_panel="Runtime")
@@ -176,30 +224,32 @@ def status(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
     """Show runtime status. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.commands import _base_status, _require_runtime_host
-    from psilia_edge.device_manager.ssh import _ssh_on_device
+    from psilia_edge.runtime.cli import base_status
+    from psilia_edge.runtime.core import require_runtime_host
+    from psilia_edge.device_manager.ssh import ssh_on_device
 
     if device:
-        _ssh_on_device(device, "status")
+        ssh_on_device(device, "status")
     else:
-        _require_runtime_host("status <device>")
-        _base_status()
+        require_runtime_host("status <device>")
+        base_status()
 
 
-@app.command("monitor", rich_help_panel="Runtime")
-def monitor(
+@app.command("attach", rich_help_panel="Runtime")
+def attach(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
-    """Live log view. Ctrl-C to detach. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.commands import _build_monitor_display, _require_runtime_host
+    """Attach to the running daemon log. Ctrl-C to detach. With <device>: SSH wrapper for a registered device."""
+    from psilia_edge.runtime.cli import build_monitor_display
+    from psilia_edge.runtime.core import require_runtime_host
     from psilia_edge.runtime.daemon import is_running, read_log_tail
-    from psilia_edge.device_manager.ssh import _ssh_on_device
+    from psilia_edge.device_manager.ssh import ssh_on_device
 
     if device:
-        _ssh_on_device(device, "monitor", replace_process=True)
+        ssh_on_device(device, "attach", replace_process=True)
         return
 
-    _require_runtime_host("monitor <device>")
+    require_runtime_host("attach <device>")
 
     if not is_running():
         console.print("[yellow]Base layer is not running.[/yellow] Start it with: psilia start")
@@ -209,7 +259,7 @@ def monitor(
     try:
         with Live(refresh_per_second=2, screen=False) as live:
             while True:
-                live.update(_build_monitor_display(read_log_tail(30)))
+                live.update(build_monitor_display(read_log_tail(30)))
                 time.sleep(0.5)
     except KeyboardInterrupt:
         console.print("\n[dim]Detached. Daemon is still running.[/dim]")

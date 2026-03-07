@@ -14,7 +14,8 @@ import paramiko
 from rich.prompt import Prompt
 
 from psilia_edge.device_manager.ssh import JetsonConn, SSHError, connect
-from psilia_edge.ui import _fail, _ok, _warn, _info, _item, _detail, _section_header, _header, _done, console
+from psilia_edge import ui
+from psilia_edge.ui import console
 
 
 _DEFAULT_DEVICE_NAME = "psilia-jetson"
@@ -27,20 +28,20 @@ _SSH_SECTION_END = "# <<< psilia-edge"
 
 
 def _step_connect() -> JetsonConn | None:
-    _section_header("Step 1 — Connect")
+    ui.section_header("Step 1 — Connect")
 
     target_ip = Prompt.ask("  Host (IP or hostname)")
     user = Prompt.ask("  Username")
     password = Prompt.ask("  Password", default="", password=True)
 
-    _info(f"Connecting as [bold]{user}@{target_ip}[/bold]…")
+    ui.info(f"Connecting as [bold]{user}@{target_ip}[/bold]…")
     try:
         with console.status("  Connecting over SSH…"):
             conn = connect(target_ip, user=user, password=password or None)
-        _ok(f"Connected to {target_ip}")
+        ui.ok(f"Connected to {target_ip}")
         return conn
     except SSHError as exc:
-        _fail(str(exc))
+        ui.fail(str(exc))
         return None
 
 
@@ -48,23 +49,23 @@ def _step_connect() -> JetsonConn | None:
 
 
 def _step_device_name(conn: JetsonConn) -> str:
-    _section_header("Step 2 — Device Name")
-    _info("[dim]Changing the name will update the Jetson hostname and /etc/hosts.[/dim]")
+    ui.section_header("Step 2 — Device Name")
+    ui.info("[dim]Changing the name will update the Jetson hostname and /etc/hosts.[/dim]")
     _, current, _ = conn.run("hostname")
     current = current.strip()
     if current:
-        _info(f"Current hostname: [bold]{current}[/bold]")
+        ui.info(f"Current hostname: [bold]{current}[/bold]")
     name = Prompt.ask("  Device name", default=current or _DEFAULT_DEVICE_NAME)
     if name == current:
-        _ok(f"Hostname unchanged: '{name}'")
+        ui.ok(f"Hostname unchanged: '{name}'")
         return name
     with console.status(f"  Setting hostname to '{name}'…"):
         rc, _, err = conn.sudo(f"hostnamectl set-hostname {name}")
     if rc != 0:
-        _fail(f"Failed to set hostname: {err.strip()}")
+        ui.fail(f"Failed to set hostname: {err.strip()}")
     else:
         conn.sudo(f"sed -i 's/^127\\.0\\.1\\.1.*/127.0.1.1\\t{name}/' /etc/hosts")
-        _ok(f"Hostname set to '{name}'")
+        ui.ok(f"Hostname set to '{name}'")
     return name
 
 
@@ -72,7 +73,7 @@ def _step_device_name(conn: JetsonConn) -> str:
 
 
 def _step_ssh_keypair(conn: JetsonConn, name: str) -> Path:
-    _section_header("Step 3 — SSH Keypair")
+    ui.section_header("Step 3 — SSH Keypair")
     key_dir = Path.home() / ".psilia" / "keys"
     key_dir.mkdir(parents=True, exist_ok=True)
     key_path = key_dir / name
@@ -89,8 +90,8 @@ def _step_ssh_keypair(conn: JetsonConn, name: str) -> Path:
             f"echo '{pubkey_str}' >> ~/.ssh/authorized_keys"
             f" && chmod 600 ~/.ssh/authorized_keys"
         )
-    _ok(f"Keypair saved to {key_path}")
-    _ok(f"Public key installed on Jetson (~/.ssh/authorized_keys)")
+    ui.ok(f"Keypair saved to {key_path}")
+    ui.ok(f"Public key installed on Jetson (~/.ssh/authorized_keys)")
     return key_path
 
 
@@ -109,7 +110,7 @@ def _remove_device_hosts(section: str, name: str) -> str:
 
 
 def _step_write_ssh_config(name: str, key_path: Path, user: str) -> None:
-    _section_header("Step 4 — SSH Config")
+    ui.section_header("Step 4 — SSH Config")
 
     new_block = (
         f"Host {name}\n"
@@ -154,41 +155,41 @@ def _step_write_ssh_config(name: str, key_path: Path, user: str) -> None:
         )
 
     _SSH_CONFIG_PATH.write_text(new_file)
-    _ok(f"SSH config updated ({_SSH_CONFIG_PATH})")
-    _item(f"Host {name}         → {name}.local")
-    _item(f"Host {name}-hotspot  → 10.42.0.1")
-    _detail("connect with", f"ssh {name}")
+    ui.ok(f"SSH config updated ({_SSH_CONFIG_PATH})")
+    ui.item(f"Host {name}         → {name}.local")
+    ui.item(f"Host {name}-hotspot  → 10.42.0.1")
+    ui.detail("connect with", f"ssh {name}")
 
 
 # ── step 5: register device ───────────────────────────────────────────────────
 
 
 def _step_register_device(name: str, user: str, key_path: Path) -> None:
-    _section_header("Step 5 — Register Device")
+    ui.section_header("Step 5 — Register Device")
     from psilia_edge.device_manager.config import register_device
 
     register_device(name=name, host=f"{name}.local", user=user, key_path=key_path)
 
     from psilia_edge.device_manager.core import CONFIG_PATH
-    _ok(f"Device registered in {CONFIG_PATH}")
-    _detail("name", name)
-    _detail("host", f"{name}.local")
-    _detail("user", user)
-    _detail("key",  str(key_path))
+    ui.ok(f"Device registered in {CONFIG_PATH}")
+    ui.detail("name", name)
+    ui.detail("host", f"{name}.local")
+    ui.detail("user", user)
+    ui.detail("key",  str(key_path))
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
 
 def run_pair_wizard() -> None:
-    _header(
+    ui.header(
         "Pair Wizard", 
         "[dim]Connects to a Jetson and registers it on this laptop.[/dim]")
 
     # Step 1 — connect (Path A or B)
     conn = _step_connect()
     if conn is None:
-        _warn("Aborted — could not connect.")
+        ui.warn("Aborted — could not connect.")
         return
 
     with conn:
@@ -204,7 +205,7 @@ def run_pair_wizard() -> None:
         # Step 5 — register device (~/.psilia/config.yaml, connection info only)
         _step_register_device(name, conn.user, key_path)
 
-    _done(
+    ui.done(
         f"{name} paired.",
         f"Run [bold]psilia setup {name}[/bold] to bootstrap the device.",
     )

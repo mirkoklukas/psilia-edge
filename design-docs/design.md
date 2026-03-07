@@ -63,14 +63,14 @@ psilia pull <device>        laptop     Sync recordings Jetson → laptop
 psilia start                jetson     Start base layer + ROS layer
 psilia stop                 jetson     Stop base layer + ROS layer
 psilia status               jetson     Show local runtime status
-psilia monitor              jetson     Live log view. Ctrl-C to detach (does not stop the daemon).
+psilia attach               jetson     Attach to daemon log. Ctrl-C to detach (does not stop the daemon).
 psilia autostart on/off     jetson     Configure systemd autostart on boot
 
 # Runtime Wrapper
 psilia start <device>            laptop     [ssh wrapper] Start runtime on a registered device
 psilia stop <device>             laptop     [ssh wrapper] Stop runtime on a registered device
 psilia status <device>           laptop     [ssh wrapper] Show runtime status of registered device
-psilia monitor <device>          laptop     [ssh wrapper] Live log view. Ctrl-C to detach (does not stop the daemon).
+psilia attach <device>           laptop     [ssh wrapper] Attach to daemon log. Ctrl-C to detach (does not stop the daemon).
 psilia autostart <device> on/off laptop     [ssh wrapper] Configure autostart on a registered device
 ```
 
@@ -195,7 +195,7 @@ SSH wrapper for `psilia setup` on the Jetson. Bootstraps the device, then automa
 
 > Note: keep step order in sync with `src/psilia_edge/setup/__init__.py`.
 
-1. **Detect and set up SSD** — detects available drives, confirms mount point (default: `/ssd/`). Explicit confirmation before any formatting. Falls back to eMMC with a storage warning.
+1. **Install path** — prompt for the base installation directory (default: `/ssd/psilia`). Falls back to `/opt/psilia` on eMMC with a storage warning. All paths are derived from this.
 2. **Create directory structure** — `/opt/psilia/` on eMMC (config only), `/ssd/psilia/ros/src/`, `/ssd/psilia/data/recordings/` on the SSD.
 3. **Install `psilia-edge`** — clone the repo to `/ssd/psilia/psilia-edge/` and `pip install -e .`. Until the repo is public, copies `~/.git-credentials` from the laptop to authenticate, then removes it.
 4. **Populate ROS workspace** — copy `psilia_runtime` from the cloned repo into `/ssd/psilia/ros/src/psilia_runtime/`. Intentionally kept separate from the repo clone so users can edit nodes directly.
@@ -237,6 +237,32 @@ devices:
 ```
 
 `sync_device_config` is an internal function, callable independently if the Jetson config changes later (e.g. after camera setup).
+
+---
+
+### `bootstrap.sh` — Local Setup (no laptop required)
+
+For cases where the user has direct access to the Jetson (monitor + keyboard, or already SSH'd in) and does not want to go through the laptop pair + setup flow.
+
+The user navigates to the intended install parent directory and runs a one-liner:
+
+```bash
+cd /ssd
+curl -fsSL https://raw.githubusercontent.com/mirkoklukas/psilia-edge/main/scripts/bootstrap.sh | bash
+```
+
+**What the script does:**
+
+1. Creates the directory structure under `./psilia/` (skips any that already exist):
+   - `psilia/psilia-edge/` — repo clone
+   - `psilia/ros/src/` — ROS colcon workspace
+   - `psilia/data/recordings/` — MCAP recordings
+2. Clones the repo into `psilia/psilia-edge/` (or pulls if already cloned).
+3. `pip install -e psilia/psilia-edge` — makes the `psilia` command available.
+4. Creates `/opt/psilia/` and an empty `runtime_config.yaml` (requires sudo). This marks the machine as a runtime host immediately.
+5. Calls `psilia setup --base $(pwd)/psilia` — runs the full setup wizard, skipping the install path prompt since the path is already known.
+
+The install path step is skipped (paths are pre-set from `--base`). All other setup steps run as normal.
 
 ---
 
