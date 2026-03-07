@@ -1,3 +1,11 @@
+# Naming convention:
+#   function   — CLI command (registered with @app.command)
+#   _function  — helper (returns data, wraps logic, not a command itself)
+#
+# When calling into runtime/cli.py:
+#   no leading underscore → acts as a command (owns output, side effects)
+#   leading underscore    → helper (returns a value or renderable we use here)
+
 from pathlib import Path
 from typing import Optional, Annotated
 

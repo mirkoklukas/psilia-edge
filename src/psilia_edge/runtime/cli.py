@@ -2,6 +2,11 @@
 
 Calls core functions and displays results. No logic lives here.
 
+Naming convention:
+  function   — acts as a CLI command (owns output and side effects,
+               called directly from cli.py command handlers)
+  _function  — helper (returns a value or renderable, no direct output)
+
 TODO: Define a typer sub-app here (e.g. `app = typer.Typer(...)`) with
       base/spatial start/stop commands, then import and mount it in cli.py
       via `app.add_typer(runtime_app, name="runtime")` or similar.
