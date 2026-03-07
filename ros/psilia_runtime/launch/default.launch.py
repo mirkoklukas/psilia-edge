@@ -10,6 +10,13 @@ def generate_launch_description():
         output="screen",
     )
 
+    status_node = Node(
+        package="psilia_runtime",
+        executable="status_node",
+        name="status_node",
+        output="screen",
+    )
+
     # depth_node = Node(
     #     package="psilia_runtime",
     #     executable="depth_node",
@@ -41,5 +48,6 @@ def generate_launch_description():
 
     return LaunchDescription([
         mock_node,
+        status_node,
         rosbridge,
     ])

@@ -15,6 +15,7 @@ setup(
     entry_points={
         "console_scripts": [
             "mock_node = psilia_runtime.nodes.mock_node:main",
+            "status_node = psilia_runtime.nodes.status_node:main",
             "depth_node = psilia_runtime.nodes.depth_node:main",
             "pose_node = psilia_runtime.nodes.pose_node:main",
         ],
