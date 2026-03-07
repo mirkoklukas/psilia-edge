@@ -77,9 +77,8 @@ def base_stop() -> None:
         console.print("[dim]Not running.[/dim]")
 
 
-def base_status() -> None:
+def status() -> None:
     from psilia_edge.runtime.status import runtime_status
-
     ui.print_tree(runtime_status(), label="Runtime Status")
 
 
@@ -114,21 +113,18 @@ def spatial_stop() -> None:
         ui.ok("Spatial runtime stopped.")
 
 
-def build_monitor_display(log_lines: list[str]):
-    from rich.panel import Panel
-    from rich.table import Table
-    from rich.text import Text
-    from psilia_edge.runtime.daemon import is_running
+def live_view() -> None:
+    """Live status display. Runs until Ctrl-C."""
+    import time
+    from rich.live import Live
+    from psilia_edge import ui
+    from psilia_edge.runtime.status import live_status
 
-    grid = Table.grid(padding=(0, 1))
-    grid.add_column()
-
-    running = is_running()
-    svc = Text("● psilia base layer  ")
-    svc.append("running" if running else "stopped", style="green" if running else "red")
-    grid.add_row(Panel(svc, expand=True, border_style="cyan"))
-
-    log_text = Text("\n".join(log_lines), style="dim", overflow="fold")
-    grid.add_row(Panel(log_text, title="log", expand=True, border_style="dim"))
-
-    return grid
+    console.print("Live view  [dim]Ctrl-C to detach[/dim]\n")
+    try:
+        with Live(refresh_per_second=1, screen=False) as live:
+            while True:
+                live.update(ui.build_tree(live_status(), label="status"))
+                time.sleep(1.0)
+    except KeyboardInterrupt:
+        console.print("\n[dim]Detached.[/dim]")

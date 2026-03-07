@@ -1,10 +1,8 @@
-import time
 from pathlib import Path
 from typing import Optional, Annotated
 
 import typer
 from rich.console import Console
-from rich.live import Live
 from rich.padding import Padding
 
 
@@ -201,7 +199,7 @@ def status(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
     """Show runtime status. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.cli import base_status
+    from psilia_edge.runtime.cli import status
     from psilia_edge.runtime.core import require_runtime_host
     from psilia_edge.device_manager.ssh import ssh_on_device
 
@@ -209,17 +207,17 @@ def status(
         ssh_on_device(device, "status")
     else:
         require_runtime_host("status <device>")
-        base_status()
+        status()
 
 
 @app.command("attach", rich_help_panel="Runtime")
 def attach(
     device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
 ):
-    """Attach to the running daemon log. Ctrl-C to detach. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.cli import build_monitor_display
+    """Live status view. Ctrl-C to detach. With <device>: SSH wrapper for a registered device."""
+    from psilia_edge.runtime.cli import live_view
     from psilia_edge.runtime.core import require_runtime_host
-    from psilia_edge.runtime.daemon import is_running, read_log_tail
+    from psilia_edge.runtime.daemon import is_running
     from psilia_edge.device_manager.ssh import ssh_on_device
 
     if device:
@@ -232,14 +230,7 @@ def attach(
         console.print("[yellow]Base layer is not running.[/yellow] Start it with: psilia start")
         raise typer.Exit(1)
 
-    console.print("Monitoring psilia base layer  [dim]Ctrl-C to detach[/dim]\n")
-    try:
-        with Live(refresh_per_second=2, screen=False) as live:
-            while True:
-                live.update(build_monitor_display(read_log_tail(30)))
-                time.sleep(0.5)
-    except KeyboardInterrupt:
-        console.print("\n[dim]Detached. Daemon is still running.[/dim]")
+    live_view()
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #

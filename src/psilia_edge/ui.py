@@ -127,15 +127,15 @@ def _yaml2(d) -> None:
     )
 
 
-def print_tree(
-        d: dict, 
-        label: str = "", 
-        key_style: str = "cyan", 
+def build_tree(
+        d: dict,
+        label: str = "",
+        key_style: str = "cyan",
         value_style: str = "normal",
         label_style: str = "magenta",
         guide_style: str = "dim cyan",
-    ) -> None:
-    """Display a nested dict as a Rich Tree."""
+    ):
+    """Build and return a Rich Tree from a nested dict (without printing)."""
     from rich.tree import Tree
 
     def _add(node, d: dict) -> None:
@@ -153,11 +153,22 @@ def print_tree(
             else:
                 node.add(f"[{key_style}]{key}:[/{key_style}] [{value_style}]{value}[/{value_style}]")
 
-    # tree = Tree(f"[{label_style}]{label}[/{label_style}]", guide_style=guide_style)
-    tree = Tree(Padding(label, (0,0,1,0), style=label_style, expand=False), guide_style=guide_style)
+    tree = Tree(Padding(label, (0, 0, 1, 0), style=label_style, expand=False), guide_style=guide_style)
     _add(tree, d)
+    return Padding(tree, (2, 2))
 
-    console.print(Padding(tree,(2,2)))
+
+def print_tree(
+        d: dict,
+        label: str = "",
+        key_style: str = "cyan",
+        value_style: str = "normal",
+        label_style: str = "magenta",
+        guide_style: str = "dim cyan",
+    ) -> None:
+    """Display a nested dict as a Rich Tree."""
+    console.print(build_tree(d, label=label, key_style=key_style, value_style=value_style,
+                              label_style=label_style, guide_style=guide_style))
 
 
 def print_yaml(d: dict, key_color="") -> None:
