@@ -1,6 +1,10 @@
 """CLI presentation layer for runtime commands.
 
 Calls core functions and displays results. No logic lives here.
+
+TODO: Define a typer sub-app here (e.g. `app = typer.Typer(...)`) with
+      base/spatial start/stop commands, then import and mount it in cli.py
+      via `app.add_typer(runtime_app, name="runtime")` or similar.
 """
 
 from __future__ import annotations
