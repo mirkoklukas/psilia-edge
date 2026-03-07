@@ -166,38 +166,8 @@ def update(device: Optional[str] = typer.Argument(None, help="Registered device 
         run_update_local(base=base)
         return
 
-    from psilia_edge.device_manager.config import read_config
-    from psilia_edge.device_manager.ssh import SSHError, connect
-    from psilia_edge.runtime.setup import _step_pull, _step_build_image
-
-    config = read_config()
-    devices = config.get("devices", {})
-    if device not in devices:
-        console.print(f"[red]Device '{device}' not registered.[/red] Run 'psilia pair' first.")
-        raise typer.Exit(1)
-
-    dev = devices[device]
-    host, user, key = dev["host"], dev["user"], dev.get("key")
-    base = dev.get("install_dir", "/ssd/psilia")
-
-    from psilia_edge import ui
-    ui.header(f"psilia update — {device}", f"[dim]Updating over SSH as {user}@{host}[/dim]")
-    try:
-        with console.status("  Connecting…"):
-            conn = connect(host, user=user, key=key)
-    except SSHError as exc:
-        console.print(f"[red]SSH connection failed:[/red] {exc}")
-        raise typer.Exit(1)
-
-    with conn:
-        if not _step_pull(conn, base):
-            raise typer.Exit(1)
-        _step_build_image(conn, base)
-
-    ui.done(
-        f"{device} updated.",
-        f"Run [bold]psilia start {device}[/bold] to restart the runtime.",
-    )
+    from psilia_edge.device_manager.ssh import ssh_on_device
+    ssh_on_device(device, "update")
 
 
 @app.command(rich_help_panel="Device Management")
