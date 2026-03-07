@@ -19,3 +19,15 @@ In that case, build with `--network=host` to bypass bridge networking entirely:
 ```bash
 docker build --network=host -t psilia/runtime:latest /ssd/psilia/psilia-edge/ros/
 ```
+
+---
+
+## Debugging: container exits immediately after `psilia start`
+
+If `docker ps` shows no running container after starting the runtime, the container
+likely exited due to an entrypoint error (e.g. `colcon build` failure).
+
+```bash
+docker ps -a                  # confirm container is in exited state
+docker logs psilia-runtime    # see why it stopped
+```
