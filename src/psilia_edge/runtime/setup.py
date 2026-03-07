@@ -53,6 +53,7 @@ def _step_create_dirs(conn, base: str) -> None:
     ui.section_header("Step 2 — Directory Structure")
     for d in dirs:
         ui.item(d)
+    ui.info("[dim]sudo needed to create system directories (/opt/psilia)[/dim]")
     with console.status("  Creating directories…"):
         rc, _, err = conn.sudo(f"mkdir -p {' '.join(dirs)}")
     if rc != 0:
@@ -187,6 +188,7 @@ def _step_docker(conn) -> None:
         ui.fail(f"Docker install failed: {err.strip()}")
         return
 
+    ui.info("[dim]sudo needed to add user to docker group[/dim]")
     conn.sudo(f"usermod -aG docker {conn.user}")
     _, ver, _ = conn.run("docker --version")
     ui.ok(f"Docker installed ({ver.strip()})")
@@ -316,6 +318,7 @@ def _write_runtime_config(conn, runtime_config: dict) -> None:
     tmp = "/tmp/_psilia_runtime_config.yaml"
 
     if isinstance(conn, LocalRunner):
+        ui.info("[dim]sudo needed to write to /opt/psilia/[/dim]")
         with console.status("  Writing runtime config…"):
             Path(tmp).write_text(config_yaml)
             rc, _, err = conn.sudo(f"cp {tmp} /opt/psilia/runtime_config.yaml")
