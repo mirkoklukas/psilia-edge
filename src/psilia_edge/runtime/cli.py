@@ -38,6 +38,11 @@ def runtime_start(host: str, port: int, foreground: bool) -> None:
     with console.status("Starting runtime…"):
         result = start_runtime(host=host, port=port)
 
+    console.print(
+        "\n  [dim]psilia status [device][/dim]   — check runtime status"
+        "\n  [dim]psilia attach [device][/dim]   — live view"
+        "\n  [dim]psilia stop   [device][/dim]   — stop the runtime\n"
+    )
     ui.print_tree(result, label="runtime")
 
 

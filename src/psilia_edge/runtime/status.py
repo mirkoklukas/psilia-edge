@@ -136,7 +136,7 @@ def ros_latest_status() -> dict | None:
     import json
     from psilia_edge.runtime.docker import _ros_exec
 
-    lines = _ros_exec("ros2 topic echo /psilia/status --once --no-daemon 2>/dev/null")
+    lines = _ros_exec("ros2 topic echo /psilia/status --once 2>/dev/null")
     if not lines:
         return None
     # ros2 topic echo outputs:  data: '{"status": "ok", ...}'
