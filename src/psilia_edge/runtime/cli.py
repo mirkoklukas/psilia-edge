@@ -126,15 +126,23 @@ def spatial_stop() -> None:
 def live_view() -> None:
     """Live status display. Runs until Ctrl-C."""
     import time
+    from rich.console import Group
     from rich.live import Live
+    from rich.panel import Panel
+    from rich.text import Text
     from psilia_edge import ui
     from psilia_edge.runtime.status import live_status
+    from psilia_edge.runtime.daemon import read_log_tail
 
     console.print("Live view  [dim]Ctrl-C to detach[/dim]\n")
     try:
         with Live(refresh_per_second=1, screen=False) as live:
             while True:
-                live.update(ui.build_tree(live_status(), label="status"))
+                log = Text("\n".join(read_log_tail(5)), style="dim", overflow="fold")
+                live.update(Group(
+                    ui.build_tree(live_status(), label="status"),
+                    Panel(log, title="log", border_style="dim"),
+                ))
                 time.sleep(1.0)
     except KeyboardInterrupt:
         console.print("\n[dim]Detached.[/dim]")
