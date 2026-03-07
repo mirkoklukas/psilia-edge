@@ -5,7 +5,7 @@
 **/.ipynb_checkpoints
 **/.DS_Store
 docs/*
-!docs/known-issues.md
+!docs/*.md
 __pycache__/
 
 .venv/
