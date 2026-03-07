@@ -410,7 +410,8 @@ def run_update_local(base: str) -> None:
     _step_copy_ros(runner, base)
 
     # Clear colcon build cache so any setup.py changes are picked up
-    # (dirs may be owned by root if built inside Docker)
+    # (dirs are owned by root because they were created inside Docker)
+    ui.info("[dim]sudo needed to remove Docker-owned build cache[/dim]")
     for d in ["build", "install", "log"]:
         runner.sudo(f"rm -rf {base}/ros/{d}")
     ui.ok("Colcon build cache cleared")
