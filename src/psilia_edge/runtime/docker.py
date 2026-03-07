@@ -86,3 +86,5 @@ def ros_nodes() -> list[str] | None:
 def ros_topics() -> list[str] | None:
     """Return list of active ROS topics, or None if unavailable."""
     return _ros_exec("ros2 topic list")
+
+

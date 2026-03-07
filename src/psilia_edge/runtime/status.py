@@ -128,6 +128,37 @@ def _spatial_section() -> dict:
     return section
 
 
+def ros_latest_status() -> dict | None:
+    """Return the latest /psilia/status ROS message as a dict, or None if unavailable.
+
+    Blocks until a message arrives (up to ~1s for a 1 Hz topic).
+    """
+    import json
+    from psilia_edge.runtime.docker import _ros_exec
+
+    lines = _ros_exec("ros2 topic echo /psilia/status --once --no-daemon 2>/dev/null")
+    if not lines:
+        return None
+    # ros2 topic echo outputs:  data: '{"status": "ok", ...}'
+    for line in lines:
+        if line.startswith("data:"):
+            raw = line[len("data:"):].strip().strip("'\"")
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                return None
+    return None
+
+
+def live_status() -> dict:
+    """Snapshot of time-sensitive status for the live view."""
+    return {
+        "runtime": _runtime_section(),
+        "spatial": _spatial_section(),
+        "ros": ros_latest_status(),
+    }
+
+
 def runtime_status() -> dict:
     return {
         "runtime": _runtime_section(),
