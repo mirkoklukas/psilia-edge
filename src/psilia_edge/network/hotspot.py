@@ -40,7 +40,7 @@ def hotspot_is_active(
     con_name: str = HOTSPOT_CON_NAME,
     runner: Runner = subprocess.run,
 ) -> bool:
-    """Return True if the hotspot is currently up."""
+    """Return True if the hotspot connection profile is active (per nmcli)."""
     rc, out, _ = _run(
         ["nmcli", "-t", "-f", "NAME,STATE", "connection", "show", "--active"],
         runner,
@@ -52,6 +52,34 @@ def hotspot_is_active(
         if parts[0] == con_name and len(parts) > 1:
             return True
     return False
+
+
+def hotspot_is_broadcasting(
+    con_name: str = HOTSPOT_CON_NAME,
+    runner: Runner = subprocess.run,
+) -> bool:
+    """Return True if the hotspot is actually broadcasting in AP mode.
+
+    nmcli can report a connection as active while the interface is still in
+    managed mode — this checks iw dev to confirm the radio is in AP mode.
+    """
+    # Get the device associated with the active connection
+    rc, out, _ = _run(
+        ["nmcli", "-t", "-f", "NAME,DEVICE", "connection", "show", "--active"],
+        runner,
+    )
+    if rc != 0:
+        return False
+    device = None
+    for line in out.splitlines():
+        parts = line.split(":")
+        if parts[0] == con_name and len(parts) > 1:
+            device = parts[1].strip()
+            break
+    if not device:
+        return False
+    _, iw_out, _ = _run(["iw", "dev", device, "info"])
+    return "type AP" in iw_out
 
 
 def find_active_hotspot(

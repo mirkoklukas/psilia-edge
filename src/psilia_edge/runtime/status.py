@@ -54,12 +54,12 @@ def _runtime_section() -> dict:
 
 
 def _hotspot_section() -> dict:
-    from psilia_edge.network.hotspot import hotspot_is_active
+    from psilia_edge.network.hotspot import hotspot_is_broadcasting
 
     cfg = _read_runtime_config().get("hotspot", {})
     ssid = cfg.get("ssid")
     con_name = f"{ssid}-Hotspot" if ssid else None
-    active = hotspot_is_active(con_name) if con_name else False
+    active = hotspot_is_broadcasting(con_name) if con_name else False
 
     section: dict = {"active": "[green]yes[/green]" if active else "[dim]no[/dim]"}
     if active:
