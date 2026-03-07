@@ -152,8 +152,20 @@ def setup(device: Annotated[str, typer.Argument(help="Registered device name")])
 
 
 @app.command(rich_help_panel="Device Management")
-def update(device: Annotated[str, typer.Argument(help="Registered device name")]):
-    """Pull latest psilia-edge and rebuild the Docker image on a device."""
+def update(device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)")):
+    """Pull latest psilia-edge and rebuild the Docker image. With <device>: SSH wrapper for a registered device."""
+    from psilia_edge.runtime.core import is_runtime_host
+
+    if not device:
+        if not is_runtime_host():
+            console.print("[red]No device specified.[/red] Run 'psilia update <device>' from your laptop.")
+            raise typer.Exit(1)
+        from psilia_edge.runtime.setup import run_update_local
+        from psilia_edge.runtime.status import _read_runtime_config
+        base = _read_runtime_config().get("storage", {}).get("base", "/ssd/psilia")
+        run_update_local(base=base)
+        return
+
     from psilia_edge.device_manager.config import read_config
     from psilia_edge.device_manager.ssh import SSHError, connect
     from psilia_edge.runtime.setup import _step_pull, _step_build_image
