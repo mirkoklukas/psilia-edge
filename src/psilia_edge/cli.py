@@ -11,51 +11,6 @@ from rich.padding import Padding
 console = Console()
 
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
-base_app = typer.Typer(help="Manage the base layer (daemon + web server)")
-spatial_app = typer.Typer(help="Manage the Spatial Runtime (ROS nodes)")
-
-app.add_typer(base_app, name="base", hidden=True)
-app.add_typer(spatial_app, name="spatial")
-
-
-@base_app.command("start")
-def base_start_cmd(
-    host: str = typer.Option("0.0.0.0", hidden=True),
-    port: int = typer.Option(8080, hidden=True),
-    foreground: bool = typer.Option(False, "--foreground", "-f", hidden=True),
-):
-    """Start the base layer only (daemon + web server)."""
-    from psilia_edge.runtime.cli import base_start
-    from psilia_edge.runtime.core import require_runtime_host
-    require_runtime_host("base start")
-    base_start(host=host, port=port, foreground=foreground)
-
-
-@base_app.command("stop")
-def base_stop_cmd():
-    """Stop the base layer only."""
-    from psilia_edge.runtime.cli import base_stop
-    from psilia_edge.runtime.core import require_runtime_host
-    require_runtime_host("base stop")
-    base_stop()
-
-
-@spatial_app.command("start")
-def spatial_start():
-    """Start the spatial runtime (ROS Docker container)."""
-    from psilia_edge.runtime.cli import spatial_start as _spatial_start
-    from psilia_edge.runtime.core import require_runtime_host
-    require_runtime_host("spatial start")
-    _spatial_start()
-
-
-@spatial_app.command("stop")
-def spatial_stop():
-    """Stop the spatial runtime (ROS Docker container)."""
-    from psilia_edge.runtime.cli import spatial_stop as _spatial_stop
-    from psilia_edge.runtime.core import require_runtime_host
-    require_runtime_host("spatial stop")
-    _spatial_stop()
 
 
 # ── print helper commands ─────────────────────────────────────────────────────
