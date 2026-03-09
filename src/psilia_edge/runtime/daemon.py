@@ -6,19 +6,11 @@ import os
 import shutil
 import signal
 import subprocess
-from pathlib import Path
 
+from psilia_edge.runtime.config import LOG_DIR, RUN_DIR
 
-def _runtime_dir() -> Path:
-    """Return a writable runtime dir for the current (real) user."""
-    user = os.environ.get("SUDO_USER") or os.environ.get("USER", "root")
-    d = Path(f"/tmp/psilia-edge-{user}")
-    d.mkdir(exist_ok=True)
-    return d
-
-
-PID_FILE = _runtime_dir() / "psilia-edge.pid"
-LOG_FILE = _runtime_dir() / "psilia-edge.log"
+PID_FILE = RUN_DIR / "psilia-edge.pid"
+LOG_FILE = LOG_DIR / "psilia-edge.log"
 
 
 def get_pid() -> int | None:

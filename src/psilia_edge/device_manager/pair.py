@@ -155,7 +155,7 @@ def _step_register_device(name: str, user: str, key_path: Path) -> None:
 
     register_device(name=name, host=f"{name}.local", user=user, key_path=key_path)
 
-    from psilia_edge.device_manager.core import CONFIG_PATH
+    from psilia_edge.device_manager.config import CONFIG_PATH
 
     ui.ok(f"Device registered in {CONFIG_PATH}")
     ui.detail("name", name)

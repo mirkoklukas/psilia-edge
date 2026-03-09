@@ -6,9 +6,8 @@ import os
 import shutil
 import socket
 import time
-from pathlib import Path
 
-import yaml
+from psilia_edge.runtime.config import read_runtime_config
 
 
 def _format_uptime(seconds: float) -> str:
@@ -30,16 +29,6 @@ def _process_uptime(pid: int) -> str | None:
         return None
 
 
-def _read_runtime_config() -> dict:
-    path = Path("/opt/psilia/runtime_config.yaml")
-    if not path.exists():
-        return {}
-    try:
-        return yaml.safe_load(path.read_text()) or {}
-    except yaml.YAMLError:
-        return {}
-
-
 def _runtime_section() -> dict:
     from psilia_edge.runtime.daemon import LOG_FILE, get_pid
 
@@ -58,7 +47,7 @@ def _runtime_section() -> dict:
 def _hotspot_section() -> dict:
     from psilia_edge.network.hotspot import hotspot_is_broadcasting
 
-    cfg = _read_runtime_config().get("hotspot", {})
+    cfg = read_runtime_config().get("hotspot", {})
     ssid = cfg.get("ssid")
     con_name = f"{ssid}-Hotspot" if ssid else None
     active = hotspot_is_broadcasting(con_name) if con_name else False
@@ -73,7 +62,7 @@ def _hotspot_section() -> dict:
 
 
 def _sensors_section() -> dict:
-    cfg = _read_runtime_config().get("camera", {})
+    cfg = read_runtime_config().get("camera", {})
     camera_type = cfg.get("type")
     return {
         "camera": {
@@ -86,10 +75,11 @@ def _sensors_section() -> dict:
 
 
 def _storage_section() -> dict:
-    cfg = _read_runtime_config().get("storage", {})
-    mount = cfg.get("mount", "/ssd")
-    data_path = cfg.get("data_path", "/ssd/psilia/data")
-    recordings_path = Path(data_path) / "recordings"
+    from psilia_edge.runtime.config import get_data_dir
+
+    cfg = read_runtime_config()
+    mount = cfg.get("runtime", {}).get("mount", "/ssd")
+    recordings_path = get_data_dir() / "recordings"
 
     section: dict = {
         "mount": mount,

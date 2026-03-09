@@ -66,7 +66,7 @@ def _debug_runtime_host() -> None:
 
 
 def _debug_device_manager() -> None:
-    from psilia_edge.device_manager.core import CONFIG_PATH
+    from psilia_edge.device_manager.config import CONFIG_PATH
     from psilia_edge.device_manager.pair import (
         _SSH_CONFIG_PATH,
         _SSH_SECTION_END,

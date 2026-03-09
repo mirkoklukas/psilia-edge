@@ -6,7 +6,9 @@ from pathlib import Path
 
 import yaml
 
-from psilia_edge.device_manager.core import CONFIG_PATH
+CONFIG_PATH = Path.home() / ".psilia" / "config.yaml"
+KEYS_DIR = Path.home() / ".psilia" / "keys"
+DATA_DIR = Path.home() / "psilia-data"
 
 
 def read_config() -> dict:
@@ -59,10 +61,10 @@ def sync_device_config(device: str, conn) -> None:
     config = read_config()
     dev = config.setdefault("devices", {}).setdefault(device, {})
 
-    storage = jetson_cfg.get("storage", {})
-    if data_path := storage.get("data_path"):
-        # data_path in Jetson config is /ssd/psilia/data/ — recordings live one level deeper
-        dev["data_path"] = data_path.rstrip("/") + "/recordings"
+    runtime = jetson_cfg.get("runtime", {})
+    if data_dir := runtime.get("data_dir"):
+        # data_dir in Jetson config is /ssd/psilia/data — recordings live one level deeper
+        dev["data_path"] = data_dir.rstrip("/") + "/recordings"
 
     hotspot = jetson_cfg.get("hotspot", {})
     if ssid := hotspot.get("ssid"):

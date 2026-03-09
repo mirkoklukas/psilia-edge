@@ -64,19 +64,17 @@ def start(
     from psilia_edge.runtime.core import start_runtime
 
     if is_running():
-        console.print("[yellow]Already running.[/yellow] Use `psilia stop` first.")
+        ui.warn("[yellow]Already running.[/yellow].")
         raise typer.Exit(1)
 
     ui.header(["Runtime", "Start"])
 
-    with console.status("Starting runtime…"):
+    with ui.status("Starting runtime…"):
         result = start_runtime(host=host, port=port)
 
-    console.print(
-        "\n  [dim]psilia status [device][/dim]   — check runtime status"
-        "\n  [dim]psilia attach [device][/dim]   — live view"
-        "\n  [dim]psilia stop   [device][/dim]   — stop the runtime\n"
-    )
+    ui.detail("check runtime status", "psilia runtime status \[device]")
+    ui.detail("live view", "psilia runtime attach \[device]")
+    ui.detail("stop runtime", "psilia runtime stop \[device]")
     ui.print_tree(result, label="runtime")
 
 
@@ -85,8 +83,13 @@ def start(
 def stop() -> None:
     """Stop spatial layer then base layer."""
     from psilia_edge.runtime.core import stop_runtime
+    from psilia_edge.runtime.daemon import is_running
 
-    with console.status("Stopping runtime…"):
+    if not is_running():
+        ui.warn("[yellow]Nothing running.[/yellow]")
+        raise typer.Exit(1)
+
+    with ui.status("Stopping runtime…"):
         result = stop_runtime()
 
     ui.header(["Runtime", "Stop"])

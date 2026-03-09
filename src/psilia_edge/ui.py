@@ -340,6 +340,8 @@ def _demo() -> None:
     console.print(r)
     console.print(type(r))
 
+    detail("check runtime status", "psilia runtime status \[device]")
+
 
 if __name__ == "__main__":
     _demo()

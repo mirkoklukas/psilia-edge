@@ -89,18 +89,30 @@ info "Copying psilia_runtime into ROS workspace…"
 cp -r "$REPO_DIR/ros/psilia_runtime" "$INSTALL_DIR/ros/src/psilia_runtime"
 ok "psilia_runtime ready at $INSTALL_DIR/ros/src/psilia_runtime"
 
-# ── /opt/psilia (requires sudo) ───────────────────────────────────────────────
+# ── system directories (requires sudo) ───────────────────────────────────────
 
-info "Creating /opt/psilia/ and writing runtime config (requires sudo)…"
-sudo mkdir -p /opt/psilia
-sudo tee /opt/psilia/runtime_config.yaml > /dev/null <<EOF
-storage:
-  base: $INSTALL_DIR
-  data_path: $INSTALL_DIR/data
+info "Creating system directories (requires sudo)…"
+PSILIA_USER="${SUDO_USER:-$(whoami)}"
+
+sudo mkdir -p /etc/psilia
+sudo chown "$PSILIA_USER:$PSILIA_USER" /etc/psilia
+
+sudo mkdir -p /run/psilia
+sudo chown "$PSILIA_USER:$PSILIA_USER" /run/psilia
+
+sudo mkdir -p /var/log/psilia
+sudo chown "$PSILIA_USER:$PSILIA_USER" /var/log/psilia
+
+ok "System directories ready (/etc/psilia, /run/psilia, /var/log/psilia)"
+
+info "Writing runtime config…"
+cat > /etc/psilia/runtime_config.yaml <<EOF
 runtime:
-  ros_workspace: $INSTALL_DIR/ros
+  base_dir: $INSTALL_DIR
+  ros_dir: $INSTALL_DIR/ros
+  data_dir: $INSTALL_DIR/data
 EOF
-ok "/opt/psilia/runtime_config.yaml written"
+ok "/etc/psilia/runtime_config.yaml written"
 
 # ── run setup wizard ──────────────────────────────────────────────────────────
 

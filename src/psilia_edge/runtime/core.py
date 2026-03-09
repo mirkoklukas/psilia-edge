@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import socket
 import time
-from pathlib import Path
 
-RUNTIME_CONFIG_PATH = Path("/opt/psilia/runtime_config.yaml")
+from psilia_edge.runtime.config import RUNTIME_CONFIG_PATH
 
 
 def is_runtime_host() -> bool:
@@ -66,16 +65,15 @@ def stop_base_layer() -> dict:
 def start_spatial_layer() -> dict:
     """Start the ROS Docker container. Returns a result dict."""
     from psilia_edge.runtime.docker import is_docker_running, start_container
-    from psilia_edge.runtime.status import _read_runtime_config
+    from psilia_edge.runtime.config import get_ros_dir, read_runtime_config
 
     if not is_docker_running():
         return {"status": "error", "error": "Docker daemon is not running."}
 
-    cfg = _read_runtime_config()
+    cfg = read_runtime_config()
     image = cfg.get("runtime", {}).get("image", "psilia/runtime:latest")
-    ros_workspace = cfg.get("runtime", {}).get("ros_workspace", "/ssd/psilia/ros")
 
-    return start_container(image=image, ros_workspace=ros_workspace)
+    return start_container(image=image, ros_workspace=str(get_ros_dir()))
 
 
 def stop_spatial_layer() -> dict:

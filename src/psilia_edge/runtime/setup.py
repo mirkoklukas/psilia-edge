@@ -11,7 +11,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import yaml
 from rich.prompt import Prompt
 
 from psilia_edge.utils import run, run_streamed, sudo
@@ -196,21 +195,13 @@ def _step_systemd() -> bool:
     return autostart
 
 
-def _write_runtime_config(runtime_config: dict) -> None:
-    ui.title("Step 10 — Runtime Config")
-    config_yaml = yaml.dump(runtime_config, default_flow_style=False)
-    tmp = "/tmp/_psilia_runtime_config.yaml"
+def _step_write_runtime_config(runtime_config: dict) -> None:
+    from psilia_edge.runtime.config import RUNTIME_CONFIG_PATH, write_runtime_config
 
-    ui.fyi("sudo needed to write to /opt/psilia/")
+    ui.title("Runtime Config")
     with ui.status("Writing runtime config…"):
-        Path(tmp).write_text(config_yaml)
-        rc, _, err = sudo(f"cp {tmp} /opt/psilia/runtime_config.yaml")
-        run(f"rm -f {tmp}")
-
-    if rc != 0:
-        ui.fail(f"Failed to write runtime config: {err.strip()}")
-    else:
-        ui.ok("Runtime config written to /opt/psilia/runtime_config.yaml")
+        write_runtime_config(runtime_config)
+    ui.ok(f"Runtime config written to {RUNTIME_CONFIG_PATH}")
 
 
 def _step_pull(base: str) -> bool:
@@ -253,10 +244,10 @@ def run_setup() -> None:
         "[dim]Starting fresh and setting up {name}. This includes ...[/dim]",
     )
 
-    runtime_config = (
-        yaml.safe_load(Path("/opt/psilia/runtime_config.yaml").read_text()) or {}
-    )
-    base = runtime_config.get("storage", {}).get("base", _DEFAULT_INSTALL_DIR)
+    from psilia_edge.runtime.config import read_runtime_config
+
+    runtime_config = read_runtime_config()
+    base = runtime_config.get("runtime", {}).get("base_dir", _DEFAULT_INSTALL_DIR)
     runtime_config.setdefault("runtime", {})["image"] = "psilia/runtime:latest"
 
     _step_docker()
@@ -264,7 +255,7 @@ def run_setup() -> None:
     runtime_config |= _step_network(name)
     runtime_config |= _step_camera()
     runtime_config["runtime"]["autostart"] = _step_systemd()
-    _write_runtime_config(runtime_config)
+    _step_write_runtime_config(runtime_config)
 
     ui.done(
         f"{name} set up.",
@@ -279,10 +270,10 @@ def run_update() -> None:
     name = name.strip()
     ui.header(["Runtime", "Update {name}"])
 
-    runtime_config = (
-        yaml.safe_load(Path("/opt/psilia/runtime_config.yaml").read_text()) or {}
-    )
-    base = runtime_config.get("storage", {}).get("base", _DEFAULT_INSTALL_DIR)
+    from psilia_edge.runtime.config import read_runtime_config
+
+    runtime_config = read_runtime_config()
+    base = runtime_config.get("runtime", {}).get("base_dir", _DEFAULT_INSTALL_DIR)
 
     if not _step_pull(base):
         return
@@ -329,7 +320,7 @@ def _step_install_path(conn) -> dict:
     ui.detail("repo", f"[bold]{base}/psilia-edge[/bold]")
     ui.detail("ros", f"[bold]{base}/ros[/bold]")
     ui.detail("data", f"[bold]{data_path}/recordings[/bold]")
-    return {"storage": {"base": base, "data_path": data_path}}
+    return {"runtime": {"base_dir": base, "data_dir": data_path}}
 
 
 # NOTE: unused — handled by bootstrap.sh)
