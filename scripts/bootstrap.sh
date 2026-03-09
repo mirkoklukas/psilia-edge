@@ -43,9 +43,9 @@ EOF
 )
 header() { echo "$HEADER"; }
 title() { echo "$1 → $2"; }
-ok()   { echo "  ✓ $1"; }
-info() { echo "  $1"; }
-fail() { echo "  ✗ $1" >&2; exit 1; }
+ok()   { echo "✓ $1"; }
+info() { echo "$1"; }
+fail() { echo "✗ $1" >&2; exit 1; }
 
 # ── preflight ─────────────────────────────────────────────────────────────────
 echo ""

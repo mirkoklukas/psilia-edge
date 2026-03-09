@@ -108,9 +108,9 @@ def bootstrap(device: Annotated[str, typer.Argument(help="Registered device name
     """Bootstrap a Jetson over SSH: runs bootstrap.sh on the device."""
     import os
     import shlex
-    from rich.prompt import Prompt
+    from psilia_edge.ui import ask
 
-    install_dir = Prompt.ask("  Install directory on device", default="/ssd/psilia")
+    install_dir = ask("Install directory on device", default="/ssd/psilia")
     cmd = f"curl -fsSL {_BOOTSTRAP_SCRIPT_URL} | bash -s -- --install-dir {shlex.quote(install_dir)}"
     ssh_argv = ["ssh", "-t", device, "bash", "-lc", f"'{cmd}'"]
     os.execvp("ssh", ssh_argv)
