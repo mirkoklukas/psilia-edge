@@ -154,7 +154,7 @@ def _step_network(name: str) -> dict:
     ui.detail("password", f"[bold]{password}[/bold]")
     ui.detail("ip", "[bold]10.42.0.1[/bold] (fixed, Jetson side)")
 
-    with console.status("  Creating hotspot…"):
+    with ui.status("  Creating hotspot…"):
         ok_result, err = create_hotspot(
             ifname=iface.name,
             password=password,
@@ -268,7 +268,7 @@ def run_setup() -> None:
 
     ui.done(
         f"{name} set up.",
-        "Run [bold]psilia start[/bold] to launch the spatial runtime.",
+        "Run [bold]psilia runtime start[/bold] to launch the spatial runtime.",
     )
 
 

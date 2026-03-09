@@ -136,6 +136,10 @@ def fail(msg: str) -> None:
     print_line(f"[red]✗[/red] {msg}")
 
 
+def error(msg: str) -> None:
+    console.print(Padding(f"{msg}", (1, PADDING_LEFT, 1, PADDING_LEFT), expand=False))
+
+
 def warn(msg: str) -> None:
     """Warning line: yellow triangle."""
     print_line(f"[yellow]⚠[/yellow] {msg}")

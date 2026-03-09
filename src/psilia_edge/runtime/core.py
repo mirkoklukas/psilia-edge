@@ -20,12 +20,12 @@ def is_runtime_host() -> bool:
 def require_runtime_host(device_hint: str) -> None:
     """Exit with a clear message if not running on a runtime host (Jetson)."""
     import typer
-    from psilia_edge.ui import console
+    from psilia_edge.ui import error
 
     if not is_runtime_host():
-        console.print(
+        error(
             f"[red]This command only runs on a Jetson.[/red]\n"
-            f"  To target a registered device: [bold]psilia {device_hint}[/bold]"
+            f"To target a registered device: [bold]psilia {device_hint}[/bold]"
         )
         raise typer.Exit(1)
 
