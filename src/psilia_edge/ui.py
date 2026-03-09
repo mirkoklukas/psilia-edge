@@ -15,9 +15,7 @@ console = Console()
 from psilia_edge import __version__ as psilia_version
 
 
-psilia_version = psilia_version.replace("alpha", "α")
-psilia_version = psilia_version.replace("beta", "β")
-
+psilia_version = "v" + psilia_version.replace("alpha", "α").replace("beta", "β")
 # ── structural ────────────────────────────────────────────────────────────────
 
 LOGO = """
@@ -41,16 +39,27 @@ HEADER_COLOR = f"""
 [cyan]  ▀                                    [/]
 """.strip("\n")
 
+HEADER_COLOR_LIGHT = f"""
+[magenta]  ▄  [/magenta]                                  
+[magenta]▚ █ ▞[/magenta]  [bold]Psilia·Edge[/bold] [not bold]{psilia_version}            [/]
+[cyan]  █[/cyan]    Spatial Runtime for Embodied AI.
+[cyan]  ▀[/cyan]                                    
+""".strip("\n")
+
 def _banner_bw() -> None:
     b = Padding(HEADER, (1,5), expand=False, style="")
     console.print(b, highlight=False)
+
+def _banner_color_light() -> None:
+    b = Padding(HEADER_COLOR_LIGHT, (1,5), expand=False, style="")
+    console.print(Padding(b, (1,1), expand=False))
 
 def _banner_color() -> None:
     b = Padding(HEADER_COLOR, (1,5), expand=False, style="on black")
     console.print(Padding(b, (1,1), expand=False))
 
 def banner() -> None:
-    _banner_bw()
+    _banner_color()
 
 
 PADDING_LEFT = 2
@@ -58,9 +67,9 @@ PADDING_LEFT = 2
 def nav_path(path:list[str], descr=None) -> None:
     title = " → ".join([*path[:-1], f"[bold]{path[-1]}[/bold]"])
     if descr is None:
-        group = Group(title)
+        group = Group(f"{title}")
     else:
-        group = Group(title, f"[dim]{descr}[/dim]")
+        group = Group(f"{title}", f"[dim]{descr}[/dim]")
     console.print(Padding(group, (0,PADDING_LEFT), style="", expand=False))
 
 HEADER_TEXT = Text()
@@ -231,7 +240,6 @@ def _demo() -> None:
     _banner_bw()
     nav_path(["Device Manager", "Pair with Device"], 
         "Pair a Jetson: connect, generate SSH keypair, register device.")
-
 
     _banner_color()
     nav_path(["Device Manager", "Pair with Device"], 
