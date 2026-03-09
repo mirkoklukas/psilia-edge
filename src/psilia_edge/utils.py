@@ -65,6 +65,28 @@ def sudo(cmd: str, stdin_data: str | None = None) -> tuple[int, str, str]:
     return result.returncode, result.stdout, result.stderr
 
 
+def run_streamed(cmd: str, prefix: str = " │ ") -> int:
+    """Run a command and stream output live to the terminal via Rich.
+
+    Each output line is printed with the given prefix. Returns the exit code.
+    stdout and stderr are merged into a single stream.
+    """
+    from rich.console import Console
+    from rich.padding import Padding
+
+    console = Console()
+
+    process = subprocess.Popen(
+        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+    for line in process.stdout:
+        line = line.rstrip()
+        console.print(Padding(f"{prefix}{line}", (0,5)))
+
+    process.wait()
+    return process.returncode
+
+
 def ssh_run(client: paramiko.SSHClient, cmd: str) -> tuple[int, str, str]:
     _, stdout, stderr = client.exec_command(cmd)
     rc = stdout.channel.recv_exit_status()

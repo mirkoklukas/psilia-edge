@@ -14,7 +14,7 @@ from pathlib import Path
 import yaml
 from rich.prompt import Confirm, Prompt
 
-from psilia_edge.utils import run, sudo
+from psilia_edge.utils import run, run_streamed, sudo
 from psilia_edge import ui
 from psilia_edge.ui import console
 
@@ -91,12 +91,11 @@ def _step_build_image(base: str) -> None:
     ui.section_header("Step 6 — Build Docker Image")
     ui.info("Building [bold]psilia/runtime:latest[/bold] — this may take a while…")
     ui.detail("source", f"{base}/psilia-edge/ros/Dockerfile")
-    with console.status("  Building Docker image…"):
-        rc, _, err = run(
-            f"docker build --network=host -t psilia/runtime:latest {base}/psilia-edge/ros"
-        )
+    rc = run_streamed(
+        f"docker build --network=host -t psilia/runtime:latest {base}/psilia-edge/ros"
+    )
     if rc != 0:
-        ui.fail(f"Docker build failed: {err.strip()}")
+        ui.fail("Docker build failed.")
     else:
         ui.ok("Docker image built: psilia/runtime:latest")
 
