@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import paramiko
+import psilia_edge.ui as ui
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #
@@ -81,7 +82,7 @@ def run_streamed(cmd: str, prefix: str = " │ ") -> int:
     )
     for line in process.stdout:
         line = line.rstrip()
-        console.print(Padding(f"{prefix}{line}", (0,5)))
+        ui.print_line(f"[dim]{prefix}{line}[/dim]")
 
     process.wait()
     return process.returncode
