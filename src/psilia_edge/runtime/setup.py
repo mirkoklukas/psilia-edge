@@ -21,7 +21,7 @@ from psilia_edge.ui import console
 _DEFAULT_INSTALL_DIR = "/ssd/psilia"
 _DEFAULT_HOTSPOT_PASSWORD = "psilia1234"
 _PSILIA_REPO_URL = "https://github.com/mirkoklukas/psilia-edge.git"
-_PSILIA_REPO_BRANCH = "main"
+_PSILIA_REPO_BRANCH = "dev"
 
 
 def _read_git_credentials(host: str) -> tuple[str, str] | None:

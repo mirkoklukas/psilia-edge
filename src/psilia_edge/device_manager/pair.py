@@ -27,7 +27,7 @@ _SSH_SECTION_END = "# <<< psilia-edge"
 
 
 def _step_connect() -> tuple[paramiko.SSHClient, str] | None:
-    ui.title("Step 1 — Connect")
+    ui.title("Connect")
 
     target_ip = Prompt.ask("  Host (IP or hostname)")
     user = Prompt.ask("  Username")
@@ -48,7 +48,7 @@ def _step_connect() -> tuple[paramiko.SSHClient, str] | None:
 
 
 def _step_ssh_keypair(client: paramiko.SSHClient, name: str) -> Path:
-    ui.title("Step 3 — SSH Keypair")
+    ui.title("SSH Keypair")
     key_dir = Path.home() / ".psilia" / "keys"
     key_dir.mkdir(parents=True, exist_ok=True)
     key_path = key_dir / name
@@ -86,7 +86,7 @@ def _remove_device_hosts(section: str, name: str) -> str:
 
 
 def _step_write_ssh_config(name: str, key_path: Path, user: str) -> None:
-    ui.title("Step 4 — SSH Config")
+    ui.title("Write SSH Config")
 
     new_block = (
         f"Host {name}\n"
@@ -150,7 +150,7 @@ def _step_write_ssh_config(name: str, key_path: Path, user: str) -> None:
 
 
 def _step_register_device(name: str, user: str, key_path: Path) -> None:
-    ui.title("Step 5 — Register Device")
+    ui.title("Register Device")
     from psilia_edge.device_manager.config import register_device
 
     register_device(name=name, host=f"{name}.local", user=user, key_path=key_path)
@@ -169,7 +169,7 @@ def _step_register_device(name: str, user: str, key_path: Path) -> None:
 
 def run_pair_wizard() -> None:
     ui.header(
-        "Pair Wizard",
+        ["Runtime Manager", "Pair Wizard"],
         "[dim]Connects to a Jetson and registers it on this laptop.[/dim]",
     )
 
@@ -189,5 +189,5 @@ def run_pair_wizard() -> None:
 
     ui.done(
         f"{name} paired.",
-        f"Run [bold]psilia setup {name}[/bold] to bootstrap the device.",
+        f"Run [bold]`psilia boostrap {name}`[/bold] to bootstrap the device.",
     )

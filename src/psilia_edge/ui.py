@@ -90,10 +90,10 @@ def header(path: list[str], descr=None) -> None:
 
 def done(msg: str, hint: str = "") -> None:
     """Success panel printed at the end of a command."""
-    lines = f"[bold green]✓  {msg}[/bold green]"
+    lines = f"[bold green]✓ {msg}[/bold green]"
     if hint:
         lines += f"\n[dim]{hint}[/dim]"
-    console.print(Padding(lines, (3, PADDING_LEFT, 2, PADDING_LEFT), expand=False))
+    console.print(Padding(lines, (1, PADDING_LEFT, 1, PADDING_LEFT), expand=False))
 
 
 def title(text: str) -> None:
