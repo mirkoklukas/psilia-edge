@@ -80,11 +80,6 @@ def run_streamed(cmd: str, prefix: str = "") -> int:
     Each output line is printed with the given prefix. Returns the exit code.
     stdout and stderr are merged into a single stream.
     """
-    from rich.console import Console
-    from rich.padding import Padding
-
-    console = Console()
-
     process = subprocess.Popen(
         cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
     )

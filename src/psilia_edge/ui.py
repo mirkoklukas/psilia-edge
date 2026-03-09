@@ -94,7 +94,7 @@ def print_line(text: str, padding_left=PADDING_LEFT) -> None:
 def ask(prompt: str, default: str = "", password: bool = False) -> str:
     """Styled user prompt."""
     from rich.prompt import Prompt
-    return Prompt.ask(f"  [dim]{prompt}[/dim]", default=default, password=password)
+    return Prompt.ask(Padding(f"[dim]{prompt}[/dim]", (0,PADDING_LEFT), expand=False), default=default, password=password)
 
 # ── status indicators ─────────────────────────────────────────────────────────
 
@@ -119,18 +119,25 @@ def stub(msg: str = "not yet implemented") -> None:
 
 # ── content helpers ───────────────────────────────────────────────────────────
 
+def status(msg: str) -> None:
+    """Status line: blue ellipsis."""
+    return console.status(Padding(f"{msg}", (0,PADDING_LEFT), style="", expand=False))
+
 def info(msg: str) -> None:
     """Indented descriptive text."""
     print_line(f"{msg}")
 
+def fyi(msg: str) -> None:
+    print_line(f"[dim](FYI: {msg})[/dim]")
+
 def item(msg: str) -> None:
     """List item with a dim arrow."""
-    print_line(f"[dim]→[/dim]  {msg}", padding_left=2*PADDING_LEFT )
+    print_line(f"[dim]→[/dim]  {msg}", padding_left=PADDING_LEFT )
 
 
 def detail(key: str, value: str) -> None:
     """Key/value config detail line."""
-    print_line(f"[dim]{key}:[/dim]  {value}", padding_left=2*PADDING_LEFT)
+    print_line(f"[dim]{key}:[/dim]  {value}", padding_left=PADDING_LEFT)
 
 def _dict(d: dict) -> None:
     """Pretty-print a dictionary with rich's pprint."""

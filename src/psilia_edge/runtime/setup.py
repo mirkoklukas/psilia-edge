@@ -52,7 +52,7 @@ def _step_copy_ros(base: str) -> None:
         ui.fail(f"psilia_runtime not found at {src} — is the repo cloned?")
         return
 
-    with console.status("  Copying psilia_runtime…"):
+    with ui.status("Copying psilia_runtime…"):
         shutil.copytree(str(src), dst, dirs_exist_ok=True)
 
     ui.ok(f"psilia_runtime copied to {dst}")
@@ -60,19 +60,19 @@ def _step_copy_ros(base: str) -> None:
 
 def _step_docker() -> None:
     ui.title("Step 5 — Docker")
-    with console.status("  Checking Docker…"):
+    with ui.status("Checking Docker…"):
         rc, ver, _ = run("docker --version")
     if rc == 0:
         ui.ok(f"Docker already installed ({ver.strip()})")
         return
 
     ui.info("Docker not found — installing…")
-    with console.status("  Downloading Docker install script…"):
+    with ui.status("Downloading Docker install script…"):
         rc, _, err = run("curl -fsSL https://get.docker.com -o /tmp/_get-docker.sh")
     if rc != 0:
         ui.fail(f"Failed to download Docker install script: {err.strip()}")
         return
-    with console.status("  Installing Docker (this may take a while)…"):
+    with ui.status("Installing Docker (this may take a while)…"):
         rc, _, err = sudo("sh /tmp/_get-docker.sh")
         run("rm -f /tmp/_get-docker.sh")
     if rc != 0:
@@ -114,7 +114,7 @@ def _step_network(name: str) -> dict:
     def sudo_runner(cmd: list[str], **_) -> subprocess.CompletedProcess:
         return subprocess.run(["sudo"] + list(cmd), capture_output=True, text=True)
 
-    with console.status("  Detecting wifi interfaces and existing hotspot…"):
+    with ui.status("Detecting wifi interfaces and existing hotspot…"):
         ifaces = list_interfaces(runner)
         wifi_ifaces = [i for i in ifaces if i.is_wifi]
         existing_hotspot = None
@@ -130,8 +130,8 @@ def _step_network(name: str) -> dict:
 
     if existing_hotspot:
         ui.ok(f"Existing hotspot found: [bold]{existing_hotspot}[/bold]")
-        if not Confirm.ask("  Replace it?", default=False):
-            console.print("  [dim]Keeping existing hotspot — config unchanged.[/dim]")
+        if not ui.ask("Replace it?", default=False):
+            ui.info("[dim]Keeping existing hotspot — config unchanged.[/dim]")
             return {}
 
     if iface is None:
@@ -198,8 +198,8 @@ def _write_runtime_config(runtime_config: dict) -> None:
     config_yaml = yaml.dump(runtime_config, default_flow_style=False)
     tmp = "/tmp/_psilia_runtime_config.yaml"
 
-    ui.info("[dim]sudo needed to write to /opt/psilia/[/dim]")
-    with console.status("  Writing runtime config…"):
+    ui.fyi("sudo needed to write to /opt/psilia/")
+    with ui.status("Writing runtime config…"):
         Path(tmp).write_text(config_yaml)
         rc, _, err = sudo(f"cp {tmp} /opt/psilia/runtime_config.yaml")
         run(f"rm -f {tmp}")
@@ -215,14 +215,14 @@ def _step_pull(base: str) -> bool:
     repo_dir = f"{base}/psilia-edge"
 
     ui.title("Step 1 — Pull Latest")
-    with console.status("  Pulling latest changes…"):
+    with ui.status("Pulling latest changes…"):
         rc, out, err = run(f"git -C {repo_dir} pull")
     if rc != 0:
         ui.fail(f"git pull failed: {err.strip()}")
         return False
     ui.ok(out.strip() or "Already up to date.")
 
-    with console.status("  Updating package…"):
+    with ui.status("Updating package…"):
         rc, _, err = run(f"pip install -e {repo_dir}")
     if rc != 0:
         ui.fail(f"pip install failed: {err.strip()}")
@@ -276,7 +276,7 @@ def run_update() -> None:
 
     # Clear colcon build cache so any setup.py changes are picked up
     # (dirs are owned by root because they were created inside Docker)
-    ui.info("[dim]sudo needed to remove Docker-owned build cache[/dim]")
+    ui.fyi("sudo needed to remove Docker-owned build cache")
     for d in ["build", "install", "log"]:
         sudo(f"rm -rf {base}/ros/{d}")
     ui.ok("Colcon build cache cleared")
@@ -317,13 +317,13 @@ def _step_create_dirs(conn, base: str) -> None:
     ui.title("Step 2 — Directory Structure")
     for d in dirs:
         ui.item(d)
-    ui.info("[dim]sudo needed to create system directories (/opt/psilia)[/dim]")
-    with console.status("  Creating directories…"):
+    ui.fyi("sudo needed to create system directories (/opt/psilia)")
+    with ui.status("Creating directories…"):
         rc, _, err = conn.sudo(f"mkdir -p {' '.join(dirs)}")
     if rc != 0:
         ui.fail(f"mkdir failed: {err.strip()}")
         return
-    with console.status("  Setting ownership…"):
+    with ui.status("Setting ownership…"):
         rc, _, err = conn.sudo(f"chown -R {conn.user} {base}")
     if rc != 0:
         ui.fail(f"chown failed: {err.strip()}")
@@ -341,14 +341,14 @@ def _step_clone(conn, base: str) -> None:
 
     rc_check, _, _ = conn.run(f"test -d {repo_dir}/.git")
     if rc_check == 0:
-        with console.status("  Pulling latest changes…"):
+        with ui.status("Pulling latest changes…"):
             rc, _, err = conn.run(pull_cmd)
         if rc != 0:
             ui.fail(f"git pull failed: {err.strip()}")
             return
         ui.ok("Repository updated")
     else:
-        with console.status(f"  Cloning psilia-edge ({_PSILIA_REPO_BRANCH})…"):
+        with ui.status(f"Cloning psilia-edge ({_PSILIA_REPO_BRANCH})…"):
             rc, _, err = conn.run(clone_cmd)
 
         if rc != 0:
@@ -361,7 +361,7 @@ def _step_clone(conn, base: str) -> None:
                 username = Prompt.ask("  GitHub username")
                 token = Prompt.ask("  GitHub token/password", password=True)
             auth_url = _PSILIA_REPO_URL.replace("https://", f"https://{username}:{token}@")
-            with console.status("  Retrying clone with credentials…"):
+            with ui.status("Retrying clone with credentials…"):
                 rc, _, err = conn.run(
                     f"git clone --branch {_PSILIA_REPO_BRANCH} {auth_url} {repo_dir}"
                 )
@@ -371,7 +371,7 @@ def _step_clone(conn, base: str) -> None:
             return
         ui.ok(f"Repository cloned to {repo_dir}")
 
-    with console.status("  Running pip install -e .…"):
+    with ui.status("Running pip install -e .…"):
         rc, _, err = conn.run(f"pip install -e {repo_dir}")
     if rc != 0:
         ui.fail(f"pip install failed: {err.strip()}")
