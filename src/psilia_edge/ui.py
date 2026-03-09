@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from rich.console import Console, Group
-from rich.columns import Columns
 from rich.padding import Padding
-from rich.panel import Panel
-from rich.rule import Rule
+from rich.live import Live
+from rich.spinner import Spinner
 from rich.text import Text
 from rich.pretty import pprint
 import yaml as _yaml_mod
@@ -82,7 +81,6 @@ def done(msg: str, hint: str = "") -> None:
     console.print(Padding(lines,(3,PADDING_LEFT,2,PADDING_LEFT), expand=False))
 
 
-
 def title(text: str) -> None:
     """Simple title line with bold text."""
     console.print(Padding(Text(text, style="bold"), (1,PADDING_LEFT), style="", expand=False))
@@ -95,8 +93,6 @@ def ask(prompt: str, default: str = "", password: bool = False) -> str:
     """Styled user prompt."""
     from rich.prompt import Prompt
     return Prompt.ask(Padding(f"[dim]{prompt}[/dim]", (0,PADDING_LEFT), expand=False), default=default, password=password)
-
-# ── status indicators ─────────────────────────────────────────────────────────
 
 def ok(msg: str) -> None:
     """Success line: green checkmark."""
@@ -117,11 +113,16 @@ def stub(msg: str = "not yet implemented") -> None:
     print_line(f"[dim yellow]▢[/dim yellow] {msg}")
 
 
-# ── content helpers ───────────────────────────────────────────────────────────
+
 
 def status(msg: str) -> None:
-    """Status line: blue ellipsis."""
-    return console.status(Padding(f"{msg}", (0,PADDING_LEFT), style="", expand=False))
+    """Status line with custom psilia spinner."""
+    return Live(
+            Padding(Spinner("dots", text=msg, style="bright_magenta"), (0,PADDING_LEFT), expand=False),
+            console=console,
+            transient=True,
+            refresh_per_second=12.5,
+    )
 
 def info(msg: str) -> None:
     """Indented descriptive text."""
@@ -246,6 +247,9 @@ def _demo() -> None:
     info("Connecting to the Jetson over SSH. (info)")
     info("Trying [bold]192.168.1.42[/bold]… (info)")
     stub("detect SSD, confirm mount point, configure /etc/fstab (stub)")
+    import time
+    with status("Connecting to 192.168.1.42… (status)"):
+        time.sleep(1)
     ok("Connected to 192.168.1.42 (ok)")
     detail("connect with", "ssh psilia-jetson (detail)")
     fail("Failed to connect to 192.168.1.42 (fail)")
