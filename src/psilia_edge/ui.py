@@ -119,6 +119,13 @@ def ask(prompt: str, default: str = "", password: bool = False) -> str:
     )
 
 
+def confirm(prompt: str, default: bool = False) -> bool:
+    """Styled yes/no prompt."""
+    from rich.prompt import Confirm
+
+    return Confirm.ask(f"{' ' * PADDING_LEFT}{prompt}", default=default)
+
+
 def ok(msg: str) -> None:
     """Success line: green checkmark."""
     print_line(f"[green]✓[/green] {msg}")

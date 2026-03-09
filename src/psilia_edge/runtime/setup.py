@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 
 import yaml
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 
 from psilia_edge.utils import run, run_streamed, sudo
 from psilia_edge import ui
@@ -131,7 +131,7 @@ def _step_network(name: str) -> dict:
 
     if existing_hotspot:
         ui.ok(f"Existing hotspot found: [bold]{existing_hotspot}[/bold]")
-        if not ui.ask("Replace it?", default=False):
+        if not ui.confirm("Replace it?", default=False):
             ui.info("[dim]Keeping existing hotspot — config unchanged.[/dim]")
             return {}
 
@@ -147,8 +147,8 @@ def _step_network(name: str) -> dict:
             "[dim]Note: built-in wifi can't act as hotspot and client simultaneously on all hardware.[/dim]"
         )
 
-    ssid = Prompt.ask("  Hotspot SSID", default=f"{name}-ap")
-    password = Prompt.ask("  Hotspot password", default=_DEFAULT_HOTSPOT_PASSWORD)
+    ssid = ui.ask("  Hotspot SSID", default=f"{name}-ap")
+    password = ui.ask("  Hotspot password", default=_DEFAULT_HOTSPOT_PASSWORD)
     ui.detail("interface", f"[bold]{iface.name}[/bold]")
     ui.detail("ssid", f"[bold]{ssid}[/bold]")
     ui.detail("password", f"[bold]{password}[/bold]")
@@ -174,7 +174,7 @@ def _step_network(name: str) -> dict:
 # TODO: implement this...
 def _step_camera() -> dict:
     ui.title("Step 8 — Camera (optional)")
-    if not Confirm.ask("  Detect and configure connected camera now?", default=False):
+    if not ui.confirm("  Detect and configure connected camera now?", default=False):
         ui.info("[dim]Skipped — configure later with 'psilia config camera'.[/dim]")
         return {}
     ui.stub("detect USB stereo camera on Jetson")
@@ -187,7 +187,7 @@ def _step_systemd() -> bool:
     ui.info("Installs a systemd service ([bold]psilia.service[/bold]) on the Jetson")
     ui.info("[dim]so the runtime starts automatically on boot.[/dim]")
     ui.stub("install /etc/systemd/system/psilia.service and reload daemon")
-    autostart = Confirm.ask("  Enable autostart on boot?", default=True)
+    autostart = ui.confirm("  Enable autostart on boot?", default=True)
     if autostart:
         ui.stub("systemctl enable psilia")
         ui.ok("Autostart enabled — runtime will start on next boot")
