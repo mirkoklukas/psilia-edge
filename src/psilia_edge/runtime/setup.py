@@ -43,7 +43,7 @@ def _read_git_credentials(host: str) -> tuple[str, str] | None:
 
 
 def _step_copy_ros(base: str) -> None:
-    ui.section_header("Step 4 — ROS Package")
+    ui.title("Step 4 — ROS Package")
 
     src = Path(f"{base}/psilia-edge/ros/psilia_runtime")
     dst = f"{base}/ros/src/psilia_runtime"
@@ -59,7 +59,7 @@ def _step_copy_ros(base: str) -> None:
 
 
 def _step_docker() -> None:
-    ui.section_header("Step 5 — Docker")
+    ui.title("Step 5 — Docker")
     with console.status("  Checking Docker…"):
         rc, ver, _ = run("docker --version")
     if rc == 0:
@@ -88,7 +88,7 @@ def _step_docker() -> None:
 
 
 def _step_build_image(base: str) -> None:
-    ui.section_header("Step 6 — Build Docker Image")
+    ui.title("Step 6 — Build Docker Image")
     ui.info("Building [bold]psilia/runtime:latest[/bold] — this may take a while…")
     ui.detail("source", f"{base}/psilia-edge/ros/Dockerfile")
     rc = run_streamed(
@@ -104,7 +104,7 @@ def _step_network(name: str) -> dict:
     from psilia_edge.network.hotspot import create_hotspot, find_active_hotspot
     from psilia_edge.network.probe import list_interfaces
 
-    ui.section_header("Step 7 — Network Setup")
+    ui.title("Step 7 — Network Setup")
     ui.info("Configures a wifi hotspot on the Jetson (USB dongle preferred)")
     ui.info("[dim]so you can reach it in the field without a router.[/dim]")
 
@@ -170,7 +170,7 @@ def _step_network(name: str) -> dict:
 
 # TODO: implement this...
 def _step_camera() -> dict:
-    ui.section_header("Step 8 — Camera (optional)")
+    ui.title("Step 8 — Camera (optional)")
     if not Confirm.ask("  Detect and configure connected camera now?", default=False):
         ui.info("[dim]Skipped — configure later with 'psilia config camera'.[/dim]")
         return {}
@@ -180,7 +180,7 @@ def _step_camera() -> dict:
 
 # TODO: implement this...
 def _step_systemd() -> bool:
-    ui.section_header("Step 9 — Autostart")
+    ui.title("Step 9 — Autostart")
     ui.info("Installs a systemd service ([bold]psilia.service[/bold]) on the Jetson")
     ui.info("[dim]so the runtime starts automatically on boot.[/dim]")
     ui.stub("install /etc/systemd/system/psilia.service and reload daemon")
@@ -194,7 +194,7 @@ def _step_systemd() -> bool:
 
 
 def _write_runtime_config(runtime_config: dict) -> None:
-    ui.section_header("Step 10 — Runtime Config")
+    ui.title("Step 10 — Runtime Config")
     config_yaml = yaml.dump(runtime_config, default_flow_style=False)
     tmp = "/tmp/_psilia_runtime_config.yaml"
 
@@ -214,7 +214,7 @@ def _step_pull(base: str) -> bool:
     """git pull + pip install -e. Returns True on success."""
     repo_dir = f"{base}/psilia-edge"
 
-    ui.section_header("Step 1 — Pull Latest")
+    ui.title("Step 1 — Pull Latest")
     with console.status("  Pulling latest changes…"):
         rc, out, err = run(f"git -C {repo_dir} pull")
     if rc != 0:
@@ -291,7 +291,7 @@ def run_update() -> None:
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # NOTE: unused — handled by bootstrap.sh) 
 def _step_install_path(conn) -> dict:
-    ui.section_header("Step 1 — Install Path")
+    ui.title("Step 1 — Install Path")
     ui.info("The following will be installed under the base directory:")
     ui.item("[bold]psilia-edge/[/bold]       repo clone (~50 MB)")
     ui.item("[bold]ros/[/bold]               ROS colcon workspace + build artifacts (~500 MB)")
@@ -314,7 +314,7 @@ def _step_create_dirs(conn, base: str) -> None:
         f"{base}/ros/src",
         f"{base}/data/recordings",
     ]
-    ui.section_header("Step 2 — Directory Structure")
+    ui.title("Step 2 — Directory Structure")
     for d in dirs:
         ui.item(d)
     ui.info("[dim]sudo needed to create system directories (/opt/psilia)[/dim]")
@@ -333,7 +333,7 @@ def _step_create_dirs(conn, base: str) -> None:
 
 # NOTE: unused — handled by bootstrap.sh) 
 def _step_clone(conn, base: str) -> None:
-    ui.section_header("Step 3 — Clone psilia-edge")
+    ui.title("Step 3 — Clone psilia-edge")
 
     repo_dir = f"{base}/psilia-edge"
     pull_cmd = f"git -C {repo_dir} pull"
