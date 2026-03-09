@@ -95,7 +95,7 @@ def run_streamed(cmd: str, prefix: str = "") -> int:
     )
     for line in process.stdout:
         line = line.rstrip()
-        ui.print_line(f"[dim]{prefix}{line}[/dim]")
+        ui.print_line(f"[dim]{prefix}{line}[/dim]", highlight=False)
 
     process.wait()
     return process.returncode

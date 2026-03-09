@@ -103,9 +103,11 @@ def title(text: str) -> None:
     )
 
 
-def print_line(text: str, padding_left=PADDING_LEFT) -> None:
+def print_line(text: str, padding_left=PADDING_LEFT, highlight=True) -> None:
     """Simple line of text."""
-    console.print(Padding(text, (0, padding_left), style="", expand=False))
+    console.print(
+        Padding(text, (0, padding_left), style="", expand=False), highlight=highlight
+    )
 
 
 def ask(prompt: str, default: str = "", password: bool = False) -> str:
