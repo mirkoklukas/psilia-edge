@@ -245,7 +245,7 @@ def run_setup() -> None:
     _, name, _ = run("hostname")
     name = name.strip() or "psilia-jetson"
 
-    ui.header(f"psilia setup — {name}", "[dim]Setting up locally[/dim]")
+    ui.header(["Runtime", f"Setup {name}"], "[dim]Setting up locally[/dim]")
 
     runtime_config = yaml.safe_load(Path("/opt/psilia/runtime_config.yaml").read_text()) or {}
     base = runtime_config.get("storage", {}).get("base", _DEFAULT_INSTALL_DIR)
@@ -266,10 +266,6 @@ def run_setup() -> None:
 
 def run_update() -> None:
     """Pull latest repo and rebuild Docker image locally (runs on the Jetson)."""
-    _, name, _ = run("hostname")
-    name = name.strip() or "psilia-jetson"
-
-    ui.header(f"psilia update — {name}", "[dim]Updating locally[/dim]")
 
     runtime_config = yaml.safe_load(Path("/opt/psilia/runtime_config.yaml").read_text()) or {}
     base = runtime_config.get("storage", {}).get("base", _DEFAULT_INSTALL_DIR)
@@ -284,13 +280,8 @@ def run_update() -> None:
     for d in ["build", "install", "log"]:
         sudo(f"rm -rf {base}/ros/{d}")
     ui.ok("Colcon build cache cleared")
-
     _step_build_image(base)
 
-    ui.done(
-        f"{name} updated.",
-        "Run [bold]psilia start[/bold] to restart the runtime.",
-    )
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #

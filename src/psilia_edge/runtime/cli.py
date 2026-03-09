@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Optional
 import functools
 import inspect
+from unicodedata import name
 
 import typer
 
@@ -57,7 +58,6 @@ def device_decorator(func):
 def start(
     host: str = typer.Option("0.0.0.0", help="Bind address", hidden=True),
     port: int = typer.Option(8080, help="HTTP port", hidden=True),
-    foreground: bool = typer.Option(False, "--foreground", "-f", help="Run in foreground", hidden=True),
 ) -> None:
     """Start base layer then spatial layer."""
     from psilia_edge.runtime.daemon import is_running
@@ -68,10 +68,7 @@ def start(
         console.print("[yellow]Already running.[/yellow] Use `psilia stop` first.")
         raise typer.Exit(1)
     
-    if foreground:
-        console.print(f"Starting on [bold]http://{host}:{port}[/bold]  (foreground, Ctrl-C to stop)")
-        serve(host=host, port=port)
-        return
+    ui.header(["Runtime", f"Start"])
 
     with console.status("Starting runtime…"):
         result = start_runtime(host=host, port=port)
@@ -93,6 +90,8 @@ def stop() -> None:
     with console.status("Stopping runtime…"):
         result = stop_runtime()
 
+    ui.header(["Runtime", f"Stop"])
+
     ui.print_tree(result, label="runtime")
 
 
@@ -100,6 +99,7 @@ def stop() -> None:
 @device_decorator
 def status() -> None:
     from psilia_edge.runtime.status import runtime_status
+    ui.header(["Runtime", f"Status"])
     ui.print_tree(runtime_status(), label="Runtime Status")
 
 
@@ -116,7 +116,7 @@ def live_view() -> None:
     from psilia_edge.runtime.status import live_status
     from psilia_edge.runtime.daemon import read_log_tail
 
-    console.print("Live view  [dim]Ctrl-C to detach[/dim]\n")
+    ui.header(["Runtime", f"Live View"], "[dim]Ctrl-C to detach[/dim]")
     try:
         with Live(refresh_per_second=1, screen=False) as live:
             while True:
@@ -136,4 +136,5 @@ def live_view() -> None:
 def update() -> None:
     """Pull latest psilia-edge and rebuild the Docker image."""
     from psilia_edge.runtime.setup import run_update
+    ui.header(["Runtime", f"Update"])
     run_update()

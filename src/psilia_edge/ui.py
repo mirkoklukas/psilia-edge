@@ -56,9 +56,12 @@ def banner() -> None:
 
 PADDING_LEFT = 2
 
-def nav_path(path:list[str], descr="") -> None:
+def nav_path(path:list[str], descr=None) -> None:
     title = " → ".join([*path[:-1], f"[bold]{path[-1]}[/bold]"])
-    group = Group(title, f"[dim]{descr}[/dim]")
+    if descr is None:
+        group = Group(title)
+    else:
+        group = Group(title, f"[dim]{descr}[/dim]")
     console.print(Padding(group, (0,PADDING_LEFT), style="", expand=False))
 
 HEADER_TEXT = Text()
@@ -66,7 +69,7 @@ HEADER_TEXT.append("Psilia-Edge", style="bold")
 HEADER_TEXT.append(" v0.1.1\n", style="dim")
 HEADER_TEXT.append("Spatial Runtime for Embodied AI.", style="dim")
 
-def header(path:list[str], descr) -> None:
+def header(path:list[str], descr=None) -> None:
     """Branded header using grouped padding (original version)."""
     banner()
     nav_path(path, descr)
