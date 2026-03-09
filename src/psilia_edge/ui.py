@@ -92,7 +92,10 @@ def print_line(text: str, padding_left=PADDING_LEFT) -> None:
 def ask(prompt: str, default: str = "", password: bool = False) -> str:
     """Styled user prompt."""
     from rich.prompt import Prompt
-    return Prompt.ask(Padding(f"[dim]{prompt}[/dim]", (0,PADDING_LEFT), expand=False), default=default, password=password)
+    return Prompt.ask(
+        f"{' '*PADDING_LEFT}{prompt}", 
+        default=default, 
+        password=password)
 
 def ok(msg: str) -> None:
     """Success line: green checkmark."""
@@ -221,10 +224,6 @@ def print_yaml(d: dict, key_color="") -> None:
     console.print("\n".join(_collect(d, 0)))
 
 
-
-
-
-
 # ── demo ─────────────────────────────────────────────────────────────────────
 
 def _demo() -> None:
@@ -249,7 +248,7 @@ def _demo() -> None:
     stub("detect SSD, confirm mount point, configure /etc/fstab (stub)")
     import time
     with status("Connecting to 192.168.1.42… (status)"):
-        time.sleep(1)
+        time.sleep(0.5)
     ok("Connected to 192.168.1.42 (ok)")
     detail("connect with", "ssh psilia-jetson (detail)")
     fail("Failed to connect to 192.168.1.42 (fail)")
@@ -273,6 +272,10 @@ def _demo() -> None:
     }   
 
     print_tree(config, label="Config")
+
+    r = ask("hello enter", default = "testing", password = True)
+    console.print(r)
+    console.print(type(r))
 
 if __name__ == "__main__":
     _demo()
