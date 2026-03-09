@@ -34,10 +34,10 @@ done
 REPO_DIR="$INSTALL_DIR/psilia-edge"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
-HEADER=$(cat <<'EOF'
+HEADER=$(cat <<EOF
     ▄
-  ▚ █ ▞   Psilia · Edge v0.1.0-α
-    █     Spatial Runtime for Embodied AI.
+  ▚ █ ▞   Psilia Edge → Bootstrap
+    █     Install directory: $INSTALL_DIR
     ▀
 EOF
 )
@@ -51,9 +51,7 @@ fail() { echo "✗ $1" >&2; exit 1; }
 echo ""
 header
 echo ""
-title "Psilia Edge" "Bootstrap"
-echo "Install directory: $INSTALL_DIR"
-echo ""
+
 
 command -v git  >/dev/null 2>&1 || fail "git not found — install git and retry."
 command -v pip  >/dev/null 2>&1 || fail "pip not found — install Python and retry."
