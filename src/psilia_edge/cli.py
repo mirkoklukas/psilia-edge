@@ -7,7 +7,7 @@
 #   leading underscore    → helper (returns a value or renderable we use here)
 
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -21,11 +21,18 @@ console = Console()
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
 
 
-app.add_typer(runtime_app, name="runtime", 
-              help="Commands to operate the runtime on Jetson devices")
+app.add_typer(
+    runtime_app,
+    name="runtime",
+    help="Commands to operate the runtime on Jetson devices",
+)
 
-app.add_typer(runtime_app, name="rt", 
-              help="Alias for 'runtime' commands (e.g. 'psilia rt start <device>')")
+app.add_typer(
+    runtime_app,
+    name="rt",
+    help="Alias for 'runtime' commands (e.g. 'psilia rt start <device>')",
+)
+
 
 # ── print helper commands ─────────────────────────────────────────────────────
 def _print_section(title: str, content: str) -> None:
@@ -54,12 +61,17 @@ def debug():
 
 def _debug_runtime_host() -> None:
     from psilia_edge.runtime.core import RUNTIME_CONFIG_PATH
+
     _print_file(RUNTIME_CONFIG_PATH)
 
 
 def _debug_device_manager() -> None:
     from psilia_edge.device_manager.core import CONFIG_PATH
-    from psilia_edge.device_manager.pair import _SSH_CONFIG_PATH, _SSH_SECTION_END, _SSH_SECTION_START
+    from psilia_edge.device_manager.pair import (
+        _SSH_CONFIG_PATH,
+        _SSH_SECTION_END,
+        _SSH_SECTION_START,
+    )
 
     _print_file(CONFIG_PATH)
 
@@ -68,17 +80,12 @@ def _debug_device_manager() -> None:
         if _SSH_SECTION_START in text:
             start = text.index(_SSH_SECTION_START)
             end = text.index(_SSH_SECTION_END) + len(_SSH_SECTION_END)
-            _print_section(
-                _SSH_CONFIG_PATH, 
-                text[start:end])
+            _print_section(_SSH_CONFIG_PATH, text[start:end])
         else:
-            _print_section(
-                _SSH_CONFIG_PATH, 
-                "[dim]No psilia section found[/dim]")
+            _print_section(_SSH_CONFIG_PATH, "[dim]No psilia section found[/dim]")
     else:
-        _print_section(
-            _SSH_CONFIG_PATH, 
-            f"[dim]{_SSH_CONFIG_PATH} not found[/dim]")
+        _print_section(_SSH_CONFIG_PATH, f"[dim]{_SSH_CONFIG_PATH} not found[/dim]")
+
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #
@@ -108,6 +115,7 @@ def bootstrap(device: Annotated[str, typer.Argument(help="Registered device name
     ssh_argv = ["ssh", "-t", device, "bash", "-lc", f"'{cmd}'"]
     os.execvp("ssh", ssh_argv)
 
+
 @app.command(rich_help_panel="Device Management")
 def devices():
     """List all registered Jetson devices."""
@@ -121,6 +129,7 @@ def devices():
         return
 
     from rich.table import Table
+
     table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
     table.add_column("Name")
     table.add_column("Host")
@@ -138,6 +147,7 @@ def devices():
         )
 
     console.print(table)
+
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #

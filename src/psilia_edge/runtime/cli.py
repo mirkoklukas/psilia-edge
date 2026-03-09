@@ -16,7 +16,6 @@ from __future__ import annotations
 from typing import Optional
 import functools
 import inspect
-from unicodedata import name
 
 import typer
 
@@ -53,6 +52,7 @@ def device_decorator(func):
     wrapper.__signature__ = new_sig
     return wrapper
 
+
 @app.command()
 @device_decorator
 def start(
@@ -61,14 +61,13 @@ def start(
 ) -> None:
     """Start base layer then spatial layer."""
     from psilia_edge.runtime.daemon import is_running
-    from psilia_edge.runtime.server import serve
     from psilia_edge.runtime.core import start_runtime
 
     if is_running():
         console.print("[yellow]Already running.[/yellow] Use `psilia stop` first.")
         raise typer.Exit(1)
-    
-    ui.header(["Runtime", f"Start"])
+
+    ui.header(["Runtime", "Start"])
 
     with console.status("Starting runtime…"):
         result = start_runtime(host=host, port=port)
@@ -90,7 +89,7 @@ def stop() -> None:
     with console.status("Stopping runtime…"):
         result = stop_runtime()
 
-    ui.header(["Runtime", f"Stop"])
+    ui.header(["Runtime", "Stop"])
 
     ui.print_tree(result, label="runtime")
 
@@ -99,7 +98,8 @@ def stop() -> None:
 @device_decorator
 def status() -> None:
     from psilia_edge.runtime.status import runtime_status
-    ui.header(["Runtime", f"Status"])
+
+    ui.header(["Runtime", "Status"])
     ui.print_tree(runtime_status(), label="Runtime Status")
 
 
@@ -116,19 +116,20 @@ def live_view() -> None:
     from psilia_edge.runtime.status import live_status
     from psilia_edge.runtime.daemon import read_log_tail
 
-    ui.header(["Runtime", f"Live View"], "[dim]Ctrl-C to detach[/dim]")
+    ui.header(["Runtime", "Live View"], "[dim]Ctrl-C to detach[/dim]")
     try:
         with Live(refresh_per_second=1, screen=False) as live:
             while True:
                 log = Text("\n".join(read_log_tail(5)), style="dim", overflow="fold")
-                live.update(Group(
-                    ui.build_tree(live_status(), label="status"),
-                    Panel(log, title="log", border_style="dim"),
-                ))
+                live.update(
+                    Group(
+                        ui.build_tree(live_status(), label="status"),
+                        Panel(log, title="log", border_style="dim"),
+                    )
+                )
                 time.sleep(1.0)
     except KeyboardInterrupt:
         console.print("\n[dim]Detached.[/dim]")
-
 
 
 @app.command()
@@ -136,5 +137,6 @@ def live_view() -> None:
 def update() -> None:
     """Pull latest psilia-edge and rebuild the Docker image."""
     from psilia_edge.runtime.setup import run_update
-    ui.header(["Runtime", f"Update"])
+
+    ui.header(["Runtime", "Update"])
     run_update()

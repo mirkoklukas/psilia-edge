@@ -8,6 +8,7 @@ from pathlib import Path
 import paramiko
 import psilia_edge.ui as ui
 
+
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #
 #   Terminal and SSH Utils
@@ -57,7 +58,9 @@ def connect(
 
 
 def run(cmd: str, stdin_data: str | None = None) -> tuple[int, str, str]:
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, input=stdin_data)
+    result = subprocess.run(
+        cmd, shell=True, capture_output=True, text=True, input=stdin_data
+    )
     return result.returncode, result.stdout, result.stderr
 
 
@@ -65,12 +68,19 @@ def sudo(cmd: str) -> tuple[int, str, str]:
     check = subprocess.run("sudo -n true", shell=True, capture_output=True)
     if check.returncode != 0:
         from psilia_edge.ui import ask
+
         password = ask("sudo password", password=True)
         result = subprocess.run(
-            f"sudo -S {cmd}", shell=True, capture_output=True, text=True, input=password + "\n"
+            f"sudo -S {cmd}",
+            shell=True,
+            capture_output=True,
+            text=True,
+            input=password + "\n",
         )
     else:
-        result = subprocess.run(f"sudo {cmd}", shell=True, capture_output=True, text=True)
+        result = subprocess.run(
+            f"sudo {cmd}", shell=True, capture_output=True, text=True
+        )
     return result.returncode, result.stdout, result.stderr
 
 
@@ -98,7 +108,7 @@ def ssh_run(client: paramiko.SSHClient, cmd: str) -> tuple[int, str, str]:
 
 
 def run_on_device(device: str, cmd: str, replace_process: bool = False) -> int:
-    """Run a command on a registered device over SSH. That means the device 
+    """Run a command on a registered device over SSH. That means the device
     must already be paired and have an SSH config entry.
 
     If replace_process=True, replaces the current process via execvp (use for

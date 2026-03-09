@@ -22,4 +22,3 @@ Some directions worth exploring:
   discover what's actually live before publishing.
 - Treat /psilia/info as dynamic (re-publish periodically) rather than truly static,
   so it reflects the current state of the graph.
-

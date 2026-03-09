@@ -67,7 +67,7 @@ def _step_ssh_keypair(client: paramiko.SSHClient, name: str) -> Path:
             f" && chmod 600 ~/.ssh/authorized_keys",
         )
     ui.ok(f"Keypair saved to {key_path}")
-    ui.ok(f"Public key installed on Jetson (~/.ssh/authorized_keys)")
+    ui.ok("Public key installed on Jetson (~/.ssh/authorized_keys)")
     return key_path
 
 
@@ -110,24 +110,33 @@ def _step_write_ssh_config(name: str, key_path: Path, user: str) -> None:
         inner = existing[inner_start:end_idx].strip("\n")
 
         cleaned = _remove_device_hosts(inner, name)
-        new_inner = (cleaned.rstrip("\n") + "\n\n" + new_block) if cleaned else new_block
+        new_inner = (
+            (cleaned.rstrip("\n") + "\n\n" + new_block) if cleaned else new_block
+        )
 
         before = existing[:start_idx]
-        after = existing[end_idx + len(_SSH_SECTION_END):]
+        after = existing[end_idx + len(_SSH_SECTION_END) :]
         new_file = (
             before
-            + _SSH_SECTION_START + "\n"
-            + new_inner + "\n"
+            + _SSH_SECTION_START
+            + "\n"
+            + new_inner
+            + "\n"
             + _SSH_SECTION_END
             + after
         )
     else:
         sep = "\n" if existing and not existing.endswith("\n") else ""
         new_file = (
-            existing + sep + "\n"
-            + _SSH_SECTION_START + "\n"
-            + new_block + "\n"
-            + _SSH_SECTION_END + "\n"
+            existing
+            + sep
+            + "\n"
+            + _SSH_SECTION_START
+            + "\n"
+            + new_block
+            + "\n"
+            + _SSH_SECTION_END
+            + "\n"
         )
 
     _SSH_CONFIG_PATH.write_text(new_file)
@@ -147,11 +156,12 @@ def _step_register_device(name: str, user: str, key_path: Path) -> None:
     register_device(name=name, host=f"{name}.local", user=user, key_path=key_path)
 
     from psilia_edge.device_manager.core import CONFIG_PATH
+
     ui.ok(f"Device registered in {CONFIG_PATH}")
     ui.detail("name", name)
     ui.detail("host", f"{name}.local")
     ui.detail("user", user)
-    ui.detail("key",  str(key_path))
+    ui.detail("key", str(key_path))
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
@@ -160,7 +170,8 @@ def _step_register_device(name: str, user: str, key_path: Path) -> None:
 def run_pair_wizard() -> None:
     ui.header(
         "Pair Wizard",
-        "[dim]Connects to a Jetson and registers it on this laptop.[/dim]")
+        "[dim]Connects to a Jetson and registers it on this laptop.[/dim]",
+    )
 
     # Step 1 — connect
     result = _step_connect()

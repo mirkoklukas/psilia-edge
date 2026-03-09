@@ -34,6 +34,7 @@ def _read_git_credentials(host: str) -> tuple[str, str] | None:
             continue
         try:
             from urllib.parse import urlparse
+
             parsed = urlparse(line)
             if parsed.hostname == host and parsed.username and parsed.password:
                 return parsed.username, parsed.password
@@ -142,14 +143,16 @@ def _step_network(name: str) -> dict:
         ui.ok(f"USB wifi dongle detected: [bold]{iface.name}[/bold]")
     else:
         ui.warn(f"No USB dongle — using built-in wifi: [bold]{iface.name}[/bold]")
-        ui.info("[dim]Note: built-in wifi can't act as hotspot and client simultaneously on all hardware.[/dim]")
+        ui.info(
+            "[dim]Note: built-in wifi can't act as hotspot and client simultaneously on all hardware.[/dim]"
+        )
 
     ssid = Prompt.ask("  Hotspot SSID", default=f"{name}-ap")
     password = Prompt.ask("  Hotspot password", default=_DEFAULT_HOTSPOT_PASSWORD)
     ui.detail("interface", f"[bold]{iface.name}[/bold]")
-    ui.detail("ssid",      f"[bold]{ssid}[/bold]")
-    ui.detail("password",  f"[bold]{password}[/bold]")
-    ui.detail("ip",        "[bold]10.42.0.1[/bold] (fixed, Jetson side)")
+    ui.detail("ssid", f"[bold]{ssid}[/bold]")
+    ui.detail("password", f"[bold]{password}[/bold]")
+    ui.detail("ip", "[bold]10.42.0.1[/bold] (fixed, Jetson side)")
 
     with console.status("  Creating hotspot…"):
         ok_result, err = create_hotspot(
@@ -247,7 +250,9 @@ def run_setup() -> None:
 
     ui.header(["Runtime", f"Setup {name}"], "[dim]Setting up locally[/dim]")
 
-    runtime_config = yaml.safe_load(Path("/opt/psilia/runtime_config.yaml").read_text()) or {}
+    runtime_config = (
+        yaml.safe_load(Path("/opt/psilia/runtime_config.yaml").read_text()) or {}
+    )
     base = runtime_config.get("storage", {}).get("base", _DEFAULT_INSTALL_DIR)
     runtime_config.setdefault("runtime", {})["image"] = "psilia/runtime:latest"
 
@@ -267,7 +272,9 @@ def run_setup() -> None:
 def run_update() -> None:
     """Pull latest repo and rebuild Docker image locally (runs on the Jetson)."""
 
-    runtime_config = yaml.safe_load(Path("/opt/psilia/runtime_config.yaml").read_text()) or {}
+    runtime_config = (
+        yaml.safe_load(Path("/opt/psilia/runtime_config.yaml").read_text()) or {}
+    )
     base = runtime_config.get("storage", {}).get("base", _DEFAULT_INSTALL_DIR)
 
     if not _step_pull(base):
@@ -285,29 +292,35 @@ def run_update() -> None:
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #
-#   Appendix: old code from setup.py, kept here for reference 
+#   Appendix: old code from setup.py, kept here for reference
 #   during the rewrite. Not used anymore.
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# NOTE: unused — handled by bootstrap.sh) 
+# NOTE: unused — handled by bootstrap.sh)
 def _step_install_path(conn) -> dict:
     ui.title("Step 1 — Install Path")
     ui.info("The following will be installed under the base directory:")
     ui.item("[bold]psilia-edge/[/bold]       repo clone (~50 MB)")
-    ui.item("[bold]ros/[/bold]               ROS colcon workspace + build artifacts (~500 MB)")
-    ui.item("[bold]data/recordings/[/bold]   MCAP recordings (grows with use — easily +25 GB)")
-    ui.info("[dim]Use a path with plenty of free space — an SSD is strongly recommended.[/dim]")
+    ui.item(
+        "[bold]ros/[/bold]               ROS colcon workspace + build artifacts (~500 MB)"
+    )
+    ui.item(
+        "[bold]data/recordings/[/bold]   MCAP recordings (grows with use — easily +25 GB)"
+    )
+    ui.info(
+        "[dim]Use a path with plenty of free space — an SSD is strongly recommended.[/dim]"
+    )
     console.print()
     base = Prompt.ask("  Install path", default=_DEFAULT_INSTALL_DIR)
     data_path = f"{base}/data"
     console.print()
-    ui.detail("repo",  f"[bold]{base}/psilia-edge[/bold]")
-    ui.detail("ros",   f"[bold]{base}/ros[/bold]")
-    ui.detail("data",  f"[bold]{data_path}/recordings[/bold]")
+    ui.detail("repo", f"[bold]{base}/psilia-edge[/bold]")
+    ui.detail("ros", f"[bold]{base}/ros[/bold]")
+    ui.detail("data", f"[bold]{data_path}/recordings[/bold]")
     return {"storage": {"base": base, "data_path": data_path}}
 
 
-# NOTE: unused — handled by bootstrap.sh) 
+# NOTE: unused — handled by bootstrap.sh)
 def _step_create_dirs(conn, base: str) -> None:
     dirs = [
         "/opt/psilia",
@@ -331,13 +344,15 @@ def _step_create_dirs(conn, base: str) -> None:
         ui.ok("Directories created")
 
 
-# NOTE: unused — handled by bootstrap.sh) 
+# NOTE: unused — handled by bootstrap.sh)
 def _step_clone(conn, base: str) -> None:
     ui.title("Step 3 — Clone psilia-edge")
 
     repo_dir = f"{base}/psilia-edge"
     pull_cmd = f"git -C {repo_dir} pull"
-    clone_cmd = f"git clone --branch {_PSILIA_REPO_BRANCH} {_PSILIA_REPO_URL} {repo_dir}"
+    clone_cmd = (
+        f"git clone --branch {_PSILIA_REPO_BRANCH} {_PSILIA_REPO_URL} {repo_dir}"
+    )
 
     rc_check, _, _ = conn.run(f"test -d {repo_dir}/.git")
     if rc_check == 0:
@@ -360,7 +375,9 @@ def _step_clone(conn, base: str) -> None:
             else:
                 username = Prompt.ask("  GitHub username")
                 token = Prompt.ask("  GitHub token/password", password=True)
-            auth_url = _PSILIA_REPO_URL.replace("https://", f"https://{username}:{token}@")
+            auth_url = _PSILIA_REPO_URL.replace(
+                "https://", f"https://{username}:{token}@"
+            )
             with ui.status("Retrying clone with credentials…"):
                 rc, _, err = conn.run(
                     f"git clone --branch {_PSILIA_REPO_BRANCH} {auth_url} {repo_dir}"

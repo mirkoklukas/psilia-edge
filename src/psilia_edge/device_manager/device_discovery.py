@@ -62,7 +62,9 @@ def _find_wired_ifaces() -> list[str]:
     try:
         result = subprocess.run(
             ["networksetup", "-listallhardwareports"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return []
@@ -82,7 +84,10 @@ def _find_wired_ifaces() -> list[str]:
     for iface in ifaces:
         try:
             r = subprocess.run(
-                ["ifconfig", iface], capture_output=True, text=True, timeout=3,
+                ["ifconfig", iface],
+                capture_output=True,
+                text=True,
+                timeout=3,
             )
             if "status: active" in r.stdout:
                 active.append(iface)
@@ -106,7 +111,9 @@ def _iface_cidr24(iface: str) -> str | None:
     same /24 as the laptop.
     """
     try:
-        r = subprocess.run(["ifconfig", iface], capture_output=True, text=True, timeout=3)
+        r = subprocess.run(
+            ["ifconfig", iface], capture_output=True, text=True, timeout=3
+        )
         m = re.search(r"inet (\d+\.\d+\.\d+\.\d+)", r.stdout)
         if m:
             network = ipaddress.IPv4Network(f"{m.group(1)}/24", strict=False)
@@ -222,7 +229,9 @@ def _iface_ips(ifaces: list[str]) -> set[str]:
     ips: set[str] = set()
     for iface in ifaces:
         try:
-            r = subprocess.run(["ifconfig", iface], capture_output=True, text=True, timeout=3)
+            r = subprocess.run(
+                ["ifconfig", iface], capture_output=True, text=True, timeout=3
+            )
             for m in re.finditer(r"inet (\d+\.\d+\.\d+\.\d+)", r.stdout):
                 ips.add(m.group(1))
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -230,7 +239,9 @@ def _iface_ips(ifaces: list[str]) -> set[str]:
     return ips
 
 
-def _pick_host(hosts: list[tuple[str, str]], own_ips: set[str] | None = None) -> str | None:
+def _pick_host(
+    hosts: list[tuple[str, str]], own_ips: set[str] | None = None
+) -> str | None:
     """Auto-return if one host, prompt user to pick if multiple.
 
     own_ips: the laptop's own IP addresses — shown as '(this machine)' in the list.
@@ -271,9 +282,11 @@ def discover_jetson() -> str | None:
     with console.status(f"  Trying mDNS ({_MDNS_HOSTNAME})…"):
         ip = _try_mdns()
     if ip:
-        console.print(f"  Found via mDNS: [bold]{_MDNS_HOSTNAME}[/bold] → [bold]{ip}[/bold]")
+        console.print(
+            f"  Found via mDNS: [bold]{_MDNS_HOSTNAME}[/bold] → [bold]{ip}[/bold]"
+        )
         return ip
-    console.print(f"  [dim]mDNS not found.[/dim]")
+    console.print("  [dim]mDNS not found.[/dim]")
 
     wired = _find_wired_ifaces()
     if wired:
@@ -283,7 +296,9 @@ def discover_jetson() -> str | None:
         # and Thunderbolt ethernet that networksetup may not report.
         wired = _find_ifaces_with_ip()
         if wired:
-            console.print(f"  [dim]No wired interfaces via networksetup — scanning:[/dim] {', '.join(wired)}")
+            console.print(
+                f"  [dim]No wired interfaces via networksetup — scanning:[/dim] {', '.join(wired)}"
+            )
         else:
             console.print("  [yellow]⚠[/yellow]  No network interfaces with IPs found.")
 
@@ -307,5 +322,7 @@ def discover_jetson() -> str | None:
         return ip
 
     console.print("  [yellow]No devices found.[/yellow]")
-    console.print("  Make sure the Jetson is powered on and the ethernet cable is connected.")
+    console.print(
+        "  Make sure the Jetson is powered on and the ethernet cable is connected."
+    )
     return None

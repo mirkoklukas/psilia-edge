@@ -35,10 +35,10 @@ REPO_DIR="$INSTALL_DIR/psilia-edge"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 HEADER=$(cat <<'EOF'
-    ▄                                       
-  ▚ █ ▞   Psilia · Edge v0.1.0-α            
-    █     Spatial Runtime for Embodied AI.  
-    ▀                                       
+    ▄
+  ▚ █ ▞   Psilia · Edge v0.1.0-α
+    █     Spatial Runtime for Embodied AI.
+    ▀
 EOF
 )
 header() { echo "$HEADER"; }

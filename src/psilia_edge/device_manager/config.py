@@ -8,6 +8,7 @@ import yaml
 
 from psilia_edge.device_manager.core import CONFIG_PATH
 
+
 def read_config() -> dict:
     """Read ~/.psilia/config.yaml, returning {} if missing or unreadable."""
     if not CONFIG_PATH.exists():

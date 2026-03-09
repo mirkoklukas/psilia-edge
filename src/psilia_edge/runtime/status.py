@@ -41,11 +41,13 @@ def _read_runtime_config() -> dict:
 
 
 def _runtime_section() -> dict:
-    from psilia_edge.runtime.daemon import LOG_FILE, get_pid, is_running
+    from psilia_edge.runtime.daemon import LOG_FILE, get_pid
 
     pid = get_pid()
     running = pid is not None
-    section: dict = {"status": "[green]running[/green]" if running else "[red]offline[/red]"}
+    section: dict = {
+        "status": "[green]running[/green]" if running else "[red]offline[/red]"
+    }
     if running:
         section["uptime"] = _process_uptime(pid)
         section["url"] = f"http://{socket.gethostname().split('.')[0]}.local:8080"
@@ -75,7 +77,9 @@ def _sensors_section() -> dict:
     camera_type = cfg.get("type")
     return {
         "camera": {
-            "status": "[green]connected[/green]" if camera_type else "[dim]not detected[/dim]",
+            "status": "[green]connected[/green]"
+            if camera_type
+            else "[dim]not detected[/dim]",
             "model": camera_type or "[dim]—[/dim]",
         }
     }
@@ -105,13 +109,20 @@ def _storage_section() -> dict:
 
 
 def _spatial_section() -> dict:
-    from psilia_edge.runtime.docker import container_status, is_docker_running, ros_nodes, ros_topics
+    from psilia_edge.runtime.docker import (
+        container_status,
+        is_docker_running,
+        ros_nodes,
+        ros_topics,
+    )
 
     if not is_docker_running():
         return {"daemon": "[red]offline[/red]"}
 
     status = container_status()
-    color = "green" if status == "running" else "yellow" if status == "exited" else "dim"
+    color = (
+        "green" if status == "running" else "yellow" if status == "exited" else "dim"
+    )
     section: dict = {
         "daemon": "[green]running[/green]",
         "container": f"[{color}]{status}[/{color}]",
@@ -142,7 +153,7 @@ def ros_latest_status() -> dict | None:
     # ros2 topic echo outputs:  data: '{"status": "ok", ...}'
     for line in lines:
         if line.startswith("data:"):
-            raw = line[len("data:"):].strip().strip("'\"")
+            raw = line[len("data:") :].strip().strip("'\"")
             try:
                 return json.loads(raw)
             except json.JSONDecodeError:
