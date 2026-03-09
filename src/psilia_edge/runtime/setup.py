@@ -219,14 +219,14 @@ def _step_pull(base: str) -> bool:
 
     ui.title("Step 1 — Pull Latest")
     with ui.status("Pulling latest changes…"):
-        rc, out, err = run(f"git -C {repo_dir} pull")
+        rc, out, err = run_streamed(f"git -C {repo_dir} pull")
     if rc != 0:
         ui.fail(f"git pull failed: {err.strip()}")
         return False
     ui.ok(out.strip() or "Already up to date.")
 
     with ui.status("Updating package…"):
-        rc, _, err = run(f"pip install -e {repo_dir}")
+        rc, _, err = run_streamed(f"pip install -e {repo_dir}")
     if rc != 0:
         ui.fail(f"pip install failed: {err.strip()}")
         return False
@@ -277,7 +277,6 @@ def run_update() -> None:
 
     _, name, _ = run("hostname")
     name = name.strip()
-
     ui.header(["Runtime", "Update {name}"])
 
     runtime_config = (
