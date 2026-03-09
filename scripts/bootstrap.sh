@@ -110,4 +110,4 @@ echo ""
 echo "Bootstrap complete. Starting setup wizard…"
 echo ""
 
-psilia setup
+psilia runtime setup

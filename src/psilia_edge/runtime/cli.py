@@ -138,5 +138,13 @@ def update() -> None:
     """Pull latest psilia-edge and rebuild the Docker image."""
     from psilia_edge.runtime.setup import run_update
 
-    ui.header(["Runtime", "Update"])
     run_update()
+
+
+@app.command(hidden=True)
+@device_decorator
+def setup() -> None:
+    """Pull latest psilia-edge and rebuild the Docker image."""
+    from psilia_edge.runtime.setup import run_setup
+
+    run_setup()

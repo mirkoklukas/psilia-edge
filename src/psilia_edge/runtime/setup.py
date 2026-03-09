@@ -246,9 +246,12 @@ def run_setup() -> None:
     by scripts/bootstrap.sh before this wizard is invoked.
     """
     _, name, _ = run("hostname")
-    name = name.strip() or "psilia-jetson"
+    name = name.strip()
 
-    ui.header(["Runtime", f"Setup {name}"], "[dim]Setting up locally[/dim]")
+    ui.header(
+        ["Runtime", "Setup"],
+        "[dim]Starting fresh and setting up {name}. This includes ...[/dim]",
+    )
 
     runtime_config = (
         yaml.safe_load(Path("/opt/psilia/runtime_config.yaml").read_text()) or {}
@@ -272,6 +275,11 @@ def run_setup() -> None:
 def run_update() -> None:
     """Pull latest repo and rebuild Docker image locally (runs on the Jetson)."""
 
+    _, name, _ = run("hostname")
+    name = name.strip()
+
+    ui.header(["Runtime", "Update {name}"])
+
     runtime_config = (
         yaml.safe_load(Path("/opt/psilia/runtime_config.yaml").read_text()) or {}
     )
@@ -288,6 +296,11 @@ def run_update() -> None:
         sudo(f"rm -rf {base}/ros/{d}")
     ui.ok("Colcon build cache cleared")
     _step_build_image(base)
+
+    ui.done(
+        f"{name} is up to date.",
+        "Run [bold]psilia runtime start[/bold] to launch the spatial runtime.",
+    )
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
