@@ -44,7 +44,7 @@ def device_decorator(func):
         from psilia_edge.utils import run_on_device
 
         if device is not None:
-            run_on_device(device, f"psilia {func.__name__}")
+            run_on_device(device, f"psilia runtime {func.__name__}")
             return
         else:
             require_runtime_host(f"{func.__name__} <device>")

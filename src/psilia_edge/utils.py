@@ -61,12 +61,20 @@ def run(cmd: str, stdin_data: str | None = None) -> tuple[int, str, str]:
     return result.returncode, result.stdout, result.stderr
 
 
-def sudo(cmd: str, stdin_data: str | None = None) -> tuple[int, str, str]:
-    result = subprocess.run(f"sudo {cmd}", shell=True, capture_output=True, text=True, input=stdin_data)
+def sudo(cmd: str) -> tuple[int, str, str]:
+    check = subprocess.run("sudo -n true", shell=True, capture_output=True)
+    if check.returncode != 0:
+        from psilia_edge.ui import ask
+        password = ask("sudo password", password=True)
+        result = subprocess.run(
+            f"sudo -S {cmd}", shell=True, capture_output=True, text=True, input=password + "\n"
+        )
+    else:
+        result = subprocess.run(f"sudo {cmd}", shell=True, capture_output=True, text=True)
     return result.returncode, result.stdout, result.stderr
 
 
-def run_streamed(cmd: str, prefix: str = " │ ") -> int:
+def run_streamed(cmd: str, prefix: str = "") -> int:
     """Run a command and stream output live to the terminal via Rich.
 
     Each output line is printed with the given prefix. Returns the exit code.

@@ -51,7 +51,7 @@ def _banner_color() -> None:
     console.print(Padding(b, (1,1), expand=False))
 
 def banner() -> None:
-    _banner_color()
+    _banner_bw()
 
 
 PADDING_LEFT = 2
@@ -90,6 +90,11 @@ def title(text: str) -> None:
 def print_line(text: str, padding_left=PADDING_LEFT) -> None:
     """Simple line of text."""
     console.print(Padding(text, (0,padding_left), style="", expand=False))
+
+def ask(prompt: str, default: str = "", password: bool = False) -> str:
+    """Styled user prompt."""
+    from rich.prompt import Prompt
+    return Prompt.ask(f"  [dim]{prompt}[/dim]", default=default, password=password)
 
 # ── status indicators ─────────────────────────────────────────────────────────
 
