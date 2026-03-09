@@ -48,30 +48,27 @@ The same binary is installed on both laptop and Jetson. Context is detected auto
 if `/opt/psilia/runtime_config.yaml` exists the binary is running on a runtime host (Jetson);
 otherwise it assumes a device manager (laptop).
 
+**Manager commands** run on the laptop only and are never forwarded over SSH:
+
 ```
-Command                     Runs on    Description
-────────────────────────────────────────────────────────────────────
-# Device Management
-psilia pair                 laptop     Connect to Jetson, generate keypair, register device
-psilia devices              laptop     List all registered devices
-psilia setup <device>       laptop     Bootstrap a Jetson over SSH
+psilia pair                 Connect to Jetson, generate SSH keypair, register device
+psilia devices              List all registered devices
+psilia bootstrap <device>   Bootstrap a Jetson over SSH: runs bootstrap.sh on the device
 
-# Data Mangement
-psilia pull <device>        laptop     Sync recordings Jetson → laptop
+psilia pull <device>        Sync recordings Jetson → laptop
+```
 
-# Runtime
-psilia start                jetson     Start base layer + ROS layer
-psilia stop                 jetson     Stop base layer + ROS layer
-psilia status               jetson     Show local runtime status
-psilia attach               jetson     Attach to daemon log. Ctrl-C to detach (does not stop the daemon).
-psilia autostart on/off     jetson     Configure systemd autostart on boot
+**Runtime commands** run locally on the Jetson. When called with an optional `<device>`
+argument from the laptop, they are forwarded as SSH wrappers (`psilia <cmd>` on the device):
 
-# Runtime Wrapper
-psilia start <device>            laptop     [ssh wrapper] Start runtime on a registered device
-psilia stop <device>             laptop     [ssh wrapper] Stop runtime on a registered device
-psilia status <device>           laptop     [ssh wrapper] Show runtime status of registered device
-psilia attach <device>           laptop     [ssh wrapper] Attach to daemon log. Ctrl-C to detach (does not stop the daemon).
-psilia autostart <device> on/off laptop     [ssh wrapper] Configure autostart on a registered device
+```
+psilia setup   [device]          Run setup wizard
+psilia start   [device]          Start base layer + ROS layer
+psilia stop    [device]          Stop base layer + ROS layer
+psilia status  [device]          Show runtime status
+psilia attach  [device]          Attach to daemon log (Ctrl-C to detach, does not stop the daemon)
+psilia update  [device]          Pull latest psilia-edge and rebuild Docker image
+psilia autostart [device] on/off Configure systemd autostart on boot
 ```
 
 ---
@@ -270,6 +267,78 @@ The install path step is skipped (paths are pre-set from `--base`). All other se
 - Does not ask the user to choose a Docker image or configure ROS — Psilia owns that by default
 - Does not touch existing SSH keys or network config beyond what is needed
 - Does not require a camera — the mock node runs in its place, giving a fully working system to explore without hardware.
+
+---
+
+## Mode 1: Direct Jetson Setup (v0)
+
+The user has direct shell access to the Jetson (monitor + keyboard, or pre-existing SSH).
+Two components handle setup: `bootstrap.sh` bootstraps the machine and hands off to `psilia setup`,
+which runs the interactive wizard.
+
+### `bootstrap.sh`
+
+Minimal bash — no interaction required. Run from the intended install parent directory:
+
+```bash
+cd /ssd
+curl -fsSL https://raw.githubusercontent.com/mirkoklukas/psilia-edge/main/scripts/bootstrap.sh | bash
+```
+
+Or with an explicit install directory:
+
+```bash
+curl -fsSL .../bootstrap.sh | bash -s -- --install-dir /data/psilia
+```
+
+If `--install-dir` is omitted, defaults to `./psilia` (relative to the current directory).
+
+**Steps:**
+
+1. Preflight checks — verify `git`, `pip`, `sudo` are available
+2. Create directory structure under `./psilia/`:
+   - `psilia/psilia-edge/` — repo clone
+   - `psilia/ros/src/` — ROS colcon workspace
+   - `psilia/data/recordings/` — MCAP recordings
+3. Clone repo into `psilia/psilia-edge/` (or pull if already cloned)
+4. `pip install -e psilia/psilia-edge` — makes `psilia` command available
+5. Copy `psilia_runtime` ROS package into `psilia/ros/src/psilia_runtime/`
+6. Create `/opt/psilia/` (sudo) and write skeleton `runtime_config.yaml`:
+   ```yaml
+   storage:
+     base: /ssd/psilia
+     data_path: /ssd/psilia/data
+   runtime:
+     ros_workspace: /ssd/psilia/ros
+   ```
+7. Hand off → `psilia setup`
+
+### `psilia setup` / `run_setup_local()`
+
+Interactive wizard. No arguments — reads install paths from `/opt/psilia/runtime_config.yaml`.
+
+**Steps:**
+
+1. **Docker** — check if installed; install via `get.docker.com` if missing
+2. **Build Docker image** — `docker build` → `psilia/runtime:latest`
+3. **Network** — detect wifi interface, configure hotspot (prompt for SSID + password)
+4. **Camera** — optional detection (can be skipped and configured later)
+5. **Autostart** — configure systemd service for boot autostart
+6. **Write runtime config** — fill remaining fields into `/opt/psilia/runtime_config.yaml`:
+   ```yaml
+   storage:
+     base: /ssd/psilia
+     data_path: /ssd/psilia/data
+   runtime:
+     image: psilia/runtime:latest
+     ros_workspace: /ssd/psilia/ros
+     autostart: true
+   camera:
+     type: null
+   hotspot:
+     ssid: <name>-ap
+     interface: wlx...
+   ```
 
 ---
 

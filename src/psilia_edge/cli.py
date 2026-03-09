@@ -7,17 +7,25 @@
 #   leading underscore    → helper (returns a value or renderable we use here)
 
 from pathlib import Path
-from typing import Optional, Annotated
+from typing import Annotated, Optional
 
 import typer
 from rich.console import Console
 from rich.padding import Padding
 
 
+from psilia_edge.runtime.cli import app as runtime_app
+
 console = Console()
 
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
 
+
+app.add_typer(runtime_app, name="runtime", 
+              help="Commands to operate the runtime on Jetson devices")
+
+app.add_typer(runtime_app, name="rt", 
+              help="Alias for 'runtime' commands (e.g. 'psilia rt start <device>')")
 
 # ── print helper commands ─────────────────────────────────────────────────────
 def _print_section(title: str, content: str) -> None:
@@ -85,51 +93,20 @@ def pair():
     run_pair_wizard()
 
 
-_SETUP_SCRIPT_URL = "https://raw.githubusercontent.com/mirkoklukas/psilia-edge/main/scripts/setup.sh"
+_BOOTSTRAP_SCRIPT_URL = "https://raw.githubusercontent.com/mirkoklukas/psilia-edge/main/scripts/bootstrap.sh"
 
 
 @app.command(rich_help_panel="Device Management")
-def setup(device: Annotated[str, typer.Argument(help="Registered device name")]):
-    """Bootstrap a Jetson device over SSH by running setup.sh on the device."""
+def bootstrap(device: Annotated[str, typer.Argument(help="Registered device name")]):
+    """Bootstrap a Jetson over SSH: runs bootstrap.sh on the device."""
     import os
     import shlex
     from rich.prompt import Prompt
 
-    config = None
-    try:
-        from psilia_edge.device_manager.config import read_config
-        config = read_config()
-    except Exception:
-        pass
-
-    if config and device not in config.get("devices", {}):
-        console.print(f"[red]Device '{device}' not registered.[/red] Run 'psilia pair' first.")
-        raise typer.Exit(1)
-
     install_dir = Prompt.ask("  Install directory on device", default="/ssd/psilia")
-    cmd = f"curl -fsSL {_SETUP_SCRIPT_URL} | bash -s -- --install-dir {shlex.quote(install_dir)}"
+    cmd = f"curl -fsSL {_BOOTSTRAP_SCRIPT_URL} | bash -s -- --install-dir {shlex.quote(install_dir)}"
     ssh_argv = ["ssh", "-t", device, "bash", "-lc", f"'{cmd}'"]
     os.execvp("ssh", ssh_argv)
-
-
-@app.command(rich_help_panel="Device Management")
-def update(device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)")):
-    """Pull latest psilia-edge and rebuild the Docker image. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.core import is_runtime_host
-
-    if not device:
-        if not is_runtime_host():
-            console.print("[red]No device specified.[/red] Run 'psilia update <device>' from your laptop.")
-            raise typer.Exit(1)
-        from psilia_edge.runtime.setup import run_update_local
-        from psilia_edge.runtime.status import _read_runtime_config
-        base = _read_runtime_config().get("storage", {}).get("base", "/ssd/psilia")
-        run_update_local(base=base)
-        return
-
-    from psilia_edge.device_manager.ssh import ssh_on_device
-    ssh_on_device(device, "update")
-
 
 @app.command(rich_help_panel="Device Management")
 def devices():
@@ -161,84 +138,6 @@ def devices():
         )
 
     console.print(table)
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-#
-#   RUNTIME COMMANDS
-#
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-@app.command(rich_help_panel="Runtime")
-def start(
-    device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
-    host: str = typer.Option("0.0.0.0", help="Bind address", hidden=True),
-    port: int = typer.Option(8080, help="HTTP port", hidden=True),
-    foreground: bool = typer.Option(False, "--foreground", "-f", help="Run in foreground", hidden=True),
-):
-    """Start base + spatial layers. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.cli import runtime_start
-    from psilia_edge.runtime.core import require_runtime_host
-    from psilia_edge.device_manager.ssh import ssh_on_device
-
-    if device:
-        ssh_on_device(device, "start")
-    else:
-        require_runtime_host("start <device>")
-        runtime_start(host=host, port=port, foreground=foreground)
-
-
-@app.command(rich_help_panel="Runtime")
-def stop(
-    device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
-):
-    """Stop spatial + base layers. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.cli import runtime_stop
-    from psilia_edge.runtime.core import require_runtime_host
-    from psilia_edge.device_manager.ssh import ssh_on_device
-
-    if device:
-        ssh_on_device(device, "stop")
-    else:
-        require_runtime_host("stop <device>")
-        runtime_stop()
-
-
-@app.command(rich_help_panel="Runtime")
-def status(
-    device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
-):
-    """Show runtime status. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.cli import status
-    from psilia_edge.runtime.core import require_runtime_host
-    from psilia_edge.device_manager.ssh import ssh_on_device
-
-    if device:
-        ssh_on_device(device, "status")
-    else:
-        require_runtime_host("status <device>")
-        status()
-
-
-@app.command("attach", rich_help_panel="Runtime")
-def attach(
-    device: Optional[str] = typer.Argument(None, help="Registered device name (SSH wrapper)"),
-):
-    """Live status view. Ctrl-C to detach. With <device>: SSH wrapper for a registered device."""
-    from psilia_edge.runtime.cli import live_view
-    from psilia_edge.runtime.core import require_runtime_host
-    from psilia_edge.runtime.daemon import is_running
-    from psilia_edge.device_manager.ssh import ssh_on_device
-
-    if device:
-        ssh_on_device(device, "attach", replace_process=True)
-        return
-
-    require_runtime_host("attach <device>")
-
-    if not is_running():
-        console.print("[yellow]Base layer is not running.[/yellow] Start it with: psilia start")
-        raise typer.Exit(1)
-
-    live_view()
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #

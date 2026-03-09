@@ -13,6 +13,9 @@ TODO: Define a typer sub-app here (e.g. `app = typer.Typer(...)`) with
 """
 
 from __future__ import annotations
+from typing import Optional
+import functools
+import inspect
 
 import typer
 
@@ -20,7 +23,42 @@ from psilia_edge import ui
 from psilia_edge.ui import console
 
 
-def runtime_start(host: str, port: int, foreground: bool) -> None:
+app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
+
+
+def device_decorator(func):
+    """Decorator to run a command on a registered device if given a device name."""
+    device_param = inspect.Parameter(
+        "device",
+        kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        default=typer.Argument(None, help="Registered device name (SSH wrapper)"),
+        annotation=Optional[str],
+    )
+    orig_params = list(inspect.signature(func).parameters.values())
+    new_sig = inspect.signature(func).replace(parameters=[device_param] + orig_params)
+
+    @functools.wraps(func)
+    def wrapper(device, *args, **kwargs):
+        from psilia_edge.runtime.core import require_runtime_host
+        from psilia_edge.utils import run_on_device
+
+        if device is not None:
+            run_on_device(device, f"psilia {func.__name__}")
+            return
+        else:
+            require_runtime_host(f"{func.__name__} <device>")
+            return func(*args, **kwargs)
+
+    wrapper.__signature__ = new_sig
+    return wrapper
+
+@app.command()
+@device_decorator
+def start(
+    host: str = typer.Option("0.0.0.0", help="Bind address", hidden=True),
+    port: int = typer.Option(8080, help="HTTP port", hidden=True),
+    foreground: bool = typer.Option(False, "--foreground", "-f", help="Run in foreground", hidden=True),
+) -> None:
     """Start base layer then spatial layer."""
     from psilia_edge.runtime.daemon import is_running
     from psilia_edge.runtime.server import serve
@@ -29,7 +67,7 @@ def runtime_start(host: str, port: int, foreground: bool) -> None:
     if is_running():
         console.print("[yellow]Already running.[/yellow] Use `psilia stop` first.")
         raise typer.Exit(1)
-
+    
     if foreground:
         console.print(f"Starting on [bold]http://{host}:{port}[/bold]  (foreground, Ctrl-C to stop)")
         serve(host=host, port=port)
@@ -46,7 +84,9 @@ def runtime_start(host: str, port: int, foreground: bool) -> None:
     ui.print_tree(result, label="runtime")
 
 
-def runtime_stop() -> None:
+@app.command()
+@device_decorator
+def stop() -> None:
     """Stop spatial layer then base layer."""
     from psilia_edge.runtime.core import stop_runtime
 
@@ -56,73 +96,15 @@ def runtime_stop() -> None:
     ui.print_tree(result, label="runtime")
 
 
-def base_start(host: str, port: int, foreground: bool) -> None:
-    from psilia_edge.runtime.daemon import is_running
-    from psilia_edge.runtime.server import serve
-    from psilia_edge.runtime.core import start_base_layer
-
-    if is_running():
-        console.print("[yellow]Already running.[/yellow] Use `psilia stop` first.")
-        raise typer.Exit(1)
-
-    if foreground:
-        console.print(f"Starting on [bold]http://{host}:{port}[/bold]  (foreground, Ctrl-C to stop)")
-        serve(host=host, port=port)
-        return
-
-    with console.status("Starting base layer…"):
-        result = start_base_layer(host=host, port=port)
-
-    ui.ok(f"Base layer started  (PID {result['pid']})")
-    ui.print_tree(result, label="base layer")
-
-
-def base_stop() -> None:
-    from psilia_edge.runtime.core import stop_base_layer
-
-    result = stop_base_layer()
-    if result["status"] == "stopped":
-        ui.ok("Base layer stopped.")
-    else:
-        console.print("[dim]Not running.[/dim]")
-
-
+@app.command()
+@device_decorator
 def status() -> None:
     from psilia_edge.runtime.status import runtime_status
     ui.print_tree(runtime_status(), label="Runtime Status")
 
 
-def spatial_start() -> None:
-    from psilia_edge.runtime.core import start_spatial_layer
-
-    with console.status("Starting spatial runtime…"):
-        result = start_spatial_layer()
-
-    if result.get("status") == "error":
-        ui.fail(result.get("error", "Unknown error"))
-        raise typer.Exit(1)
-    elif result.get("status") == "already_running":
-        console.print("[yellow]Spatial runtime already running.[/yellow]")
-    else:
-        ui.ok("Spatial runtime started.")
-        ui.print_tree(result, label="spatial")
-
-
-def spatial_stop() -> None:
-    from psilia_edge.runtime.core import stop_spatial_layer
-
-    with console.status("Stopping spatial runtime…"):
-        result = stop_spatial_layer()
-
-    if result.get("status") == "error":
-        ui.fail(result.get("error", "Unknown error"))
-        raise typer.Exit(1)
-    elif result.get("status") == "not_running":
-        console.print("[dim]Not running.[/dim]")
-    else:
-        ui.ok("Spatial runtime stopped.")
-
-
+@app.command("attach")
+@device_decorator
 def live_view() -> None:
     """Live status display. Runs until Ctrl-C."""
     import time
@@ -146,3 +128,12 @@ def live_view() -> None:
                 time.sleep(1.0)
     except KeyboardInterrupt:
         console.print("\n[dim]Detached.[/dim]")
+
+
+
+@app.command()
+@device_decorator
+def update() -> None:
+    """Pull latest psilia-edge and rebuild the Docker image."""
+    from psilia_edge.runtime.setup import run_update
+    run_update()

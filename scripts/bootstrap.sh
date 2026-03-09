@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Psilia Edge — Setup
+# Psilia Edge — Bootstrap
 #
 # Run from the directory where you want psilia installed:
 #
 #   cd /ssd
-#   curl -fsSL https://raw.githubusercontent.com/mirkoklukas/psilia-edge/main/scripts/setup.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/mirkoklukas/psilia-edge/main/scripts/bootstrap.sh | bash
 #
 # Or with a custom install directory:
 #
-#   curl -fsSL .../setup.sh | bash -s -- --install-dir /data/psilia
+#   curl -fsSL .../bootstrap.sh | bash -s -- --install-dir /data/psilia
 
 set -e
 
@@ -85,14 +85,24 @@ info "Installing psilia-edge…"
 pip install -e "$REPO_DIR" --quiet
 ok "psilia-edge installed — 'psilia' command now available"
 
+# ── copy psilia_runtime into ROS workspace ────────────────────────────────────
+
+info "Copying psilia_runtime into ROS workspace…"
+cp -r "$REPO_DIR/ros/psilia_runtime" "$INSTALL_DIR/ros/src/psilia_runtime"
+ok "psilia_runtime ready at $INSTALL_DIR/ros/src/psilia_runtime"
+
 # ── /opt/psilia (requires sudo) ───────────────────────────────────────────────
 
-info "Creating /opt/psilia/ (requires sudo)…"
+info "Creating /opt/psilia/ and writing runtime config (requires sudo)…"
 sudo mkdir -p /opt/psilia
-if [ ! -f /opt/psilia/runtime_config.yaml ]; then
-    sudo touch /opt/psilia/runtime_config.yaml
-fi
-ok "/opt/psilia/runtime_config.yaml ready"
+sudo tee /opt/psilia/runtime_config.yaml > /dev/null <<EOF
+storage:
+  base: $INSTALL_DIR
+  data_path: $INSTALL_DIR/data
+runtime:
+  ros_workspace: $INSTALL_DIR/ros
+EOF
+ok "/opt/psilia/runtime_config.yaml written"
 
 # ── run setup wizard ──────────────────────────────────────────────────────────
 
@@ -100,4 +110,4 @@ echo ""
 echo "Bootstrap complete. Starting setup wizard…"
 echo ""
 
-python -m psilia_edge.runtime.setup --install-dir "$INSTALL_DIR"
+psilia setup
