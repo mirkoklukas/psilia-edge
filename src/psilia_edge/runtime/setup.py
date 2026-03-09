@@ -362,7 +362,9 @@ def _step_pull(conn, base: str) -> bool:
 
 # ── entry points ──────────────────────────────────────────────────────────────
 
-
+# TODO: directory structure is created by setup bash script. remove from here. the flow is off.
+# TODO: add description of args, what is base, /ssd/psilia I suppose. 
+# I think in the bash script we called /ssd "install dir", which makes sense. 
 def run_setup_local(base: str | None = None) -> None:
     """Run the setup wizard locally on the Jetson."""
     runner = LocalRunner()
@@ -426,7 +428,7 @@ def run_update_local(base: str) -> None:
         "Run [bold]psilia start[/bold] to restart the runtime.",
     )
 
-
+# TODO: we shouldn't need this, so check if this is used. we have the script/setup.sh script. 
 if __name__ == "__main__":
     import argparse
 

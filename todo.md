@@ -4,6 +4,9 @@
 - Continue code restructuring: finalize `runtime/` vs `device_manager/` split,
   clean up `runtime/commands.py` (start/stop/status/monitor logic placement),
   decide on `network/` ownership.
+- Check ssh methods. What do we need the JetsonConn and LocalRunner for really? Might want to wrap output of calls like
+  `docker build` in a rich   panel or something like that.
+- 
 
 ---
 

@@ -34,15 +34,24 @@ done
 REPO_DIR="$INSTALL_DIR/psilia-edge"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
-
+HEADER=$(cat <<'EOF'
+    ▄                                       
+  ▚ █ ▞   Psilia · Edge v0.1.0-α            
+    █     Spatial Runtime for Embodied AI.  
+    ▀                                       
+EOF
+)
+header() { echo "$HEADER"; }
+title() { echo "$1 → $2"; }
 ok()   { echo "  ✓ $1"; }
 info() { echo "  $1"; }
 fail() { echo "  ✗ $1" >&2; exit 1; }
 
 # ── preflight ─────────────────────────────────────────────────────────────────
-
 echo ""
-echo "Psilia Edge — Setup"
+header
+echo ""
+title "Psilia Edge" "Bootstrap"
 echo "Install directory: $INSTALL_DIR"
 echo ""
 

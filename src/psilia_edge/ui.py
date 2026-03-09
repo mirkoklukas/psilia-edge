@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from rich.console import Console, Group
+from rich.columns import Columns
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
@@ -13,6 +14,43 @@ import yaml as _yaml_mod
 console = Console()
 
 # ── structural ────────────────────────────────────────────────────────────────
+
+LOGO = """
+  ▄  
+▚ █ ▞
+  █  
+  ▀  
+""".strip("\n")
+
+HEADER = """
+  ▄                                    
+▚ █ ▞  [bold]Psilia·Edge[/bold] [dim]v0.1.0-α[/dim]            
+  █    Spatial Runtime for Embodied AI.
+  ▀                                    
+""".strip("\n")
+
+HEADER_COLOR = """
+[magenta]  ▄                                    
+[magenta]▚ █ ▞  [bold bright_magenta]Psilia·Edge[/bold bright_magenta] [not bold]v0.1.0-α            [/]
+[cyan]  █    Spatial Runtime for Embodied AI.[/]
+[cyan]  ▀                                    [/]
+""".strip("\n")
+
+def _banner_bw() -> None:
+    b = Padding(HEADER, (1,5), expand=False, style="")
+    console.print(b, highlight=False)
+
+def _banner_color() -> None:
+    b = Padding(HEADER_COLOR, (1,5), expand=False, style="on black")
+    console.print(Padding(b, (1,1), expand=False))
+
+def banner() -> None:
+    _banner_color()
+        
+def nav(items, descr="") -> None:
+    title = " → ".join([*items[:-1], f"[bold]{items[-1]}[/bold]"])
+    group = Group(title, f"[dim]{descr}[/dim]")
+    console.print(Padding(group, (0,2), style="", expand=False))
 
 HEADER_TEXT = Text()
 HEADER_TEXT.append("Psilia-Edge", style="bold")
@@ -198,10 +236,21 @@ def print_yaml(d: dict, key_color="") -> None:
 
 
 
+
 # ── demo ─────────────────────────────────────────────────────────────────────
 
 def _demo() -> None:
     """Print a fake wizard flow to preview all UI helpers."""
+    _banner_bw()
+    nav(["Device Manager", "Pair with Device"], 
+        "Pair a Jetson: connect, generate SSH keypair, register device.")
+
+
+    _banner_color()
+    nav(["Device Manager", "Pair with Device"], 
+        "Pair a Jetson: connect, generate SSH keypair, register device.")
+    
+    console.print(Padding("Device Manager → [bold]Pair with Device[/bold]", (1,1), style="", expand=False))
     header("Device Manager → [bold]Pair with Device[/bold]",
            "[dim]Pair a Jetson: connect, generate SSH keypair, register device.[/dim]")
 
