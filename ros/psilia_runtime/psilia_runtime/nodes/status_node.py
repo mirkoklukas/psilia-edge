@@ -37,7 +37,7 @@ class StatusNode(Node):
         """Publish static info once on startup (latched — late subscribers still receive it)."""
         # Read runtime config if available
         config: dict = {}
-        config_path = "/opt/psilia/runtime_config.yaml"
+        config_path = "/etc/psilia/device_config.yaml"
         if os.path.exists(config_path):
             try:
                 import yaml

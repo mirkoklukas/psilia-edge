@@ -7,7 +7,7 @@ import shutil
 import socket
 import time
 
-from psilia_edge.runtime.config import read_runtime_config
+from psilia_edge.runtime.config import read_device_config
 
 
 def _format_uptime(seconds: float) -> str:
@@ -47,7 +47,7 @@ def _runtime_section() -> dict:
 def _hotspot_section() -> dict:
     from psilia_edge.network.hotspot import hotspot_is_broadcasting
 
-    cfg = read_runtime_config().get("hotspot", {})
+    cfg = read_device_config().get("hotspot", {})
     ssid = cfg.get("ssid")
     con_name = f"{ssid}-Hotspot" if ssid else None
     active = hotspot_is_broadcasting(con_name) if con_name else False
@@ -62,7 +62,7 @@ def _hotspot_section() -> dict:
 
 
 def _sensors_section() -> dict:
-    cfg = read_runtime_config().get("camera", {})
+    cfg = read_device_config().get("camera", {})
     camera_type = cfg.get("type")
     return {
         "camera": {
@@ -77,7 +77,7 @@ def _sensors_section() -> dict:
 def _storage_section() -> dict:
     from psilia_edge.runtime.config import get_data_dir
 
-    cfg = read_runtime_config()
+    cfg = read_device_config()
     mount = cfg.get("runtime", {}).get("mount", "/ssd")
     recordings_path = get_data_dir() / "recordings"
 

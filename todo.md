@@ -29,7 +29,7 @@
 | 12b| Network — wifi client setup (connect Jetson to existing network) | ⬜ |
 | 13 | Camera detection (optional) | ⬜ |
 | 14 | Systemd autostart service | ⬜ |
-| 15 | Write Jetson config (/opt/psilia/runtime_config.yaml) | ✅ |
+| 15 | Write Jetson config (/opt/psilia/device_config.yaml) | ✅ |
 | 16 | Sync runtime config back to laptop (~/.psilia/config.yaml) | ✅ |
 
 ## Mode 2: Runtime

@@ -31,7 +31,7 @@ def runtime_env(tmp_path, monkeypatch):
     monkeypatch.setenv("PSILIA_RUN_DIR", str(run_dir))
     monkeypatch.setenv("PSILIA_LOG_DIR", str(log_dir))
 
-    config_path = config_dir / "runtime_config.yaml"
+    config_path = config_dir / "device_config.yaml"
     config_path.write_text(yaml.dump({
         "runtime": {
             "base_dir": str(base_dir),

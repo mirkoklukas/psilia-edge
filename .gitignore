@@ -8,6 +8,9 @@ docs/*
 !docs/*.md
 __pycache__/
 
+# Used as install dir for runtime host data
+tests/tmp/
+
 .venv/
 .vscode/
 

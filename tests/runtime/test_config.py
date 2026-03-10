@@ -30,16 +30,16 @@ def test_paths_respect_env_vars(runtime_env, reload_config):
     assert str(cfg.CONFIG_DIR) == str(runtime_env["config_dir"])
     assert str(cfg.RUN_DIR) == str(runtime_env["run_dir"])
     assert str(cfg.LOG_DIR) == str(runtime_env["log_dir"])
-    assert cfg.RUNTIME_CONFIG_PATH == runtime_env["config_path"]
+    assert cfg.DEVICE_CONFIG_PATH == runtime_env["config_path"]
 
 
-def test_read_runtime_config_missing(runtime_env, reload_config):
+def test_read_device_config_missing(runtime_env, reload_config):
     cfg = reload_config
     runtime_env["config_path"].unlink()
-    assert cfg.read_runtime_config() == {}
+    assert cfg.read_device_config() == {}
 
 
-def test_read_runtime_config(runtime_env, reload_config):
+def test_read_device_config(runtime_env, reload_config):
     cfg = reload_config
     data = {"runtime": {
         "base_dir": "/ssd/psilia",
@@ -47,13 +47,13 @@ def test_read_runtime_config(runtime_env, reload_config):
         "data_dir": "/ssd/psilia/data"}
     }
     runtime_env["config_path"].write_text(yaml.dump(data))
-    assert cfg.read_runtime_config() == data
+    assert cfg.read_device_config() == data
 
 
-def test_write_runtime_config(runtime_env, reload_config):
+def test_write_device_config(runtime_env, reload_config):
     cfg = reload_config
     data = {"runtime": {"base_dir": "/ssd/psilia"}}
-    cfg.write_runtime_config(data)
+    cfg.write_device_config(data)
     assert yaml.safe_load(runtime_env["config_path"].read_text()) == data
 
 

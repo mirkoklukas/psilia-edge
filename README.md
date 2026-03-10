@@ -1,5 +1,21 @@
 <img src="assets/psilia-logo.svg" width="350" style="margin-top: 1em; margin-bottom: 1em;">
 
+## Install
+
+**From your laptop** (requires `psilia-edge` installed and device paired via `psilia pair`):
+
+```bash
+psilia bootstrap <device>
+```
+
+**Directly on the Jetson:**
+
+```bash
+python3 <(curl -fsSL https://raw.githubusercontent.com/mirkoklukas/psilia-edge/main/scripts/bootstrap.py) /ssd
+```
+
+---
+
 ## About Psilia
 
 The name, **Psilia**, is derived from the greek letter psi (Ψ), which we take as an acronym for Perception & Spatial Intelligence.

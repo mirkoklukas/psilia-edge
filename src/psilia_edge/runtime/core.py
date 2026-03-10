@@ -5,15 +5,15 @@ from __future__ import annotations
 import socket
 import time
 
-from psilia_edge.runtime.config import RUNTIME_CONFIG_PATH
+from psilia_edge.runtime.config import DEVICE_CONFIG_PATH
 
 
 def is_runtime_host() -> bool:
     """Return True if this machine is a runtime host (Jetson).
 
-    Heuristic: runtime_config.yaml only exists after `psilia setup` has run.
+    Heuristic: device_config.yaml only exists after `psilia setup` has run.
     """
-    return RUNTIME_CONFIG_PATH.exists()
+    return DEVICE_CONFIG_PATH.exists()
 
 
 def require_runtime_host(device_hint: str) -> None:
@@ -65,12 +65,12 @@ def stop_base_layer() -> dict:
 def start_spatial_layer() -> dict:
     """Start the ROS Docker container. Returns a result dict."""
     from psilia_edge.runtime.docker import is_docker_running, start_container
-    from psilia_edge.runtime.config import get_ros_dir, read_runtime_config
+    from psilia_edge.runtime.config import get_ros_dir, read_device_config
 
     if not is_docker_running():
         return {"status": "error", "error": "Docker daemon is not running."}
 
-    cfg = read_runtime_config()
+    cfg = read_device_config()
     image = cfg.get("runtime", {}).get("image", "psilia/runtime:latest")
 
     return start_container(image=image, ros_workspace=str(get_ros_dir()))

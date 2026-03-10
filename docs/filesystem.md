@@ -4,7 +4,7 @@
 
 ```
 /etc/psilia/
-  runtime_config.yaml   # system-wide config, written during setup, read at boot
+  device_config.yaml   # system-wide config, written during setup, read at boot
                         # lives here so it is available before the SSD mounts
 
 /run/psilia/            # ephemeral runtime state, cleared on reboot
@@ -39,14 +39,29 @@
   recordings/
 ```
 
-## Environment Variable Overrides (for testing)
+## Jetson Cleanup — Paths Used in Earlier Versions
 
-| Variable            | Default                | Description                                                                 |
-|---------------------|------------------------|-----------------------------------------------------------------------------|
-| `PSILIA_CONFIG_DIR` | `/etc/psilia`          | **config dir** — system-wide config (`runtime_config.yaml`), on eMMC       |
-| `PSILIA_RUN_DIR`    | `/run/psilia`          | **run dir** — ephemeral runtime state: PID file, sockets, cleared on reboot |
-| `PSILIA_LOG_DIR`    | `/var/log/psilia`      | **log dir** — persistent daemon logs                                        |
-| `PSILIA_BASE_DIR`   | `/ssd/psilia`          | **base dir** — install root on SSD: repo, ROS workspace, data               |
-| `PSILIA_REPO_DIR`   | `/ssd/psilia/psilia-edge` | **repo dir** — psilia-edge repo clone (`pip install -e .`)               |
-| `PSILIA_ROS_DIR`    | `/ssd/psilia/ros`      | **ros dir** — colcon workspace, mounted into Docker at runtime              |
-| `PSILIA_DATA_DIR`   | `/ssd/psilia/data`     | **data dir** — MCAP recordings and other runtime data                       |
+Paths that were used in previous versions and can be safely removed from the Jetson.
+
+```bash
+# Config dir (moved from /opt/psilia to /etc/psilia)
+sudo rm -rf /opt/psilia
+
+# Runtime config filename (renamed from runtime_config.yaml to device_config.yaml)
+sudo rm -f /etc/psilia/runtime_config.yaml
+```
+
+---
+
+## Path Reference
+
+| Description                          | Default      | Default overwritten       | Configurable | Python (`runtime.config`)  |
+|--------------------------------------|---------------------------------|---------------------|--------|-----------------|
+| **config dir** — on eMMC, always available before SSD mounts | `/etc/psilia`     | `ENV:PSILIA_CONFIG_DIR` | - | `CONFIG_DIR`            |
+| **device config** — written by `psilia setup`, read at runtime | `/etc/psilia/device_config.yaml` |      | ✓  | `DEVICE_CONFIG_PATH`    |
+| **run dir** — ephemeral state: PID file, sockets; cleared on reboot | `/run/psilia`  | `ENV:PSILIA_RUN_DIR`   | - | `RUN_DIR`               |
+| **log dir** — persistent daemon logs | `/var/log/psilia`        | `ENV:PSILIA_LOG_DIR`      | - | `LOG_DIR`               |
+| **base dir** — install root on SSD   | `/ssd/psilia`            |  `ENV:PSILIA_BASE_DIR`    | ✓ | `get_base_dir()`        |
+| **repo dir** — psilia-edge repo clone (`pip install -e .`)      | `{base}/psilia-edge` |  | ✓   | `get_repo_dir()`      |
+| **ros dir** — colcon workspace, mounted into Docker at runtime | `{base}/ros` |        | ✓  | `get_ros_dir()`         |
+| **data dir** — MCAP recordings       | `{base}/data`              |                  | ✓  | `get_data_dir()`        |

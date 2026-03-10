@@ -13,7 +13,7 @@
 set -e
 
 REPO_URL="https://github.com/mirkoklukas/psilia-edge.git"
-REPO_BRANCH="main"
+REPO_BRANCH="dev"
 INSTALL_DIR="$(pwd)/psilia"
 
 # ── parse args ────────────────────────────────────────────────────────────────
@@ -106,13 +106,14 @@ sudo chown "$PSILIA_USER:$PSILIA_USER" /var/log/psilia
 ok "System directories ready (/etc/psilia, /run/psilia, /var/log/psilia)"
 
 info "Writing runtime config…"
-cat > /etc/psilia/runtime_config.yaml <<EOF
+cat > /etc/psilia/device_config.yaml <<EOF
 runtime:
   base_dir: $INSTALL_DIR
   ros_dir: $INSTALL_DIR/ros
   data_dir: $INSTALL_DIR/data
+  repo_dir: $REPO_DIR
 EOF
-ok "/etc/psilia/runtime_config.yaml written"
+ok "/etc/psilia/device_config.yaml written"
 
 # ── run setup wizard ──────────────────────────────────────────────────────────
 

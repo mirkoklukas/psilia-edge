@@ -42,37 +42,3 @@ def register_device(name: str, host: str, user: str, key_path: Path) -> None:
         "pull_to", str(Path.home() / "psilia-data")
     )
     write_config(config)
-
-
-def sync_device_config(device: str, conn) -> None:
-    """Read /opt/psilia/runtime_config.yaml from Jetson and merge relevant fields into laptop config.
-
-    Merges: data_path, hotspot.ssid, camera.type.
-    conn must implement .run(cmd) -> (rc, stdout, stderr).
-    """
-    rc, out, _ = conn.run("cat /opt/psilia/runtime_config.yaml")
-    if rc != 0:
-        return
-    try:
-        jetson_cfg = yaml.safe_load(out) or {}
-    except yaml.YAMLError:
-        return
-
-    config = read_config()
-    dev = config.setdefault("devices", {}).setdefault(device, {})
-
-    runtime = jetson_cfg.get("runtime", {})
-    if data_dir := runtime.get("data_dir"):
-        # data_dir in Jetson config is /ssd/psilia/data — recordings live one level deeper
-        dev["data_path"] = data_dir.rstrip("/") + "/recordings"
-
-    hotspot = jetson_cfg.get("hotspot", {})
-    if ssid := hotspot.get("ssid"):
-        dev["hotspot_ssid"] = ssid
-    if password := hotspot.get("password"):
-        dev["hotspot_password"] = password
-
-    camera = jetson_cfg.get("camera", {})
-    dev["camera"] = camera.get("type")
-
-    write_config(config)

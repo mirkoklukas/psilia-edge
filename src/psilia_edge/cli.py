@@ -13,13 +13,14 @@ import typer
 from rich.console import Console
 from rich.padding import Padding
 
-
+from psilia_edge.runtime.config import DEFAULT_BASE_DIR
 from psilia_edge.runtime.cli import app as runtime_app
 
 console = Console()
 
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
 
+_DEFAULT_INSTALL_DIR = DEFAULT_BASE_DIR.parent
 
 app.add_typer(
     runtime_app,
@@ -60,9 +61,9 @@ def debug():
 
 
 def _debug_runtime_host() -> None:
-    from psilia_edge.runtime.core import RUNTIME_CONFIG_PATH
+    from psilia_edge.runtime.config import DEVICE_CONFIG_PATH
 
-    _print_file(RUNTIME_CONFIG_PATH)
+    _print_file(DEVICE_CONFIG_PATH)
 
 
 def _debug_device_manager() -> None:
@@ -100,20 +101,60 @@ def pair():
     run_pair_wizard()
 
 
-_BOOTSTRAP_SCRIPT_URL = "https://raw.githubusercontent.com/mirkoklukas/psilia-edge/main/scripts/bootstrap.sh"
+# Path to bootstrap.py in the repo — works for editable installs (src layout).
+_BOOTSTRAP_PY = Path(__file__).parent.parent.parent / "scripts" / "bootstrap.py"
 
 
 @app.command(rich_help_panel="Device Management")
 def bootstrap(device: Annotated[str, typer.Argument(help="Registered device name")]):
-    """Bootstrap a Jetson over SSH: runs bootstrap.sh on the device."""
-    import os
-    import shlex
+    """Bootstrap a Jetson over SSH: streams bootstrap.py via base64 + process substitution.
+
+    The script is base64-encoded and embedded in the SSH command, then decoded on the
+    remote via process substitution — so stdin stays as the terminal and the setup
+    wizard runs interactively in one shot.
+    """
+    import base64
+    from psilia_edge.ui import ask
+    from psilia_edge.utils import run_on_device
+
+    if not _BOOTSTRAP_PY.exists():
+        console.print(f"[red]bootstrap.py not found at {_BOOTSTRAP_PY}[/red]")
+        raise typer.Exit(1)
+
+    install_dir = ask("Install directory on device", default=str(_DEFAULT_INSTALL_DIR))
+
+    encoded = base64.b64encode(_BOOTSTRAP_PY.read_bytes()).decode()
+    cmd = f"python3 <(echo '{encoded}' | base64 -d) {install_dir}"
+    run_on_device(device, cmd, replace_process=True)
+
+
+@app.command(rich_help_panel="Device Management", hidden=True)
+def broken_bootstrap(
+    device: Annotated[str, typer.Argument(help="Registered device name")],
+):
+    """Broken bootstrap — pipes script via stdin so interactive prompts get EOF.
+
+    Demonstrates the stdin conflict: bootstrap runs fine but the setup wizard
+    at the end cannot read user input because stdin is the exhausted pipe.
+    """
+    import subprocess
     from psilia_edge.ui import ask
 
-    install_dir = ask("Install directory on device", default="/ssd/psilia")
-    cmd = f"curl -fsSL {_BOOTSTRAP_SCRIPT_URL} | bash -s -- --install-dir {shlex.quote(install_dir)}"
-    ssh_argv = ["ssh", "-t", device, "bash", "-lc", f"'{cmd}'"]
-    os.execvp("ssh", ssh_argv)
+    if not _BOOTSTRAP_PY.exists():
+        console.print(f"[red]bootstrap.py not found at {_BOOTSTRAP_PY}[/red]")
+        raise typer.Exit(1)
+
+    install_dir = ask("Install directory on device", default=str(_DEFAULT_INSTALL_DIR))
+
+    # Pipe the script via stdin. SSH warns "Pseudo-terminal will not be allocated
+    # because stdin is not a terminal" and the setup wizard at the end gets EOF
+    # on stdin — interactive prompts fail or silently receive empty input.
+    script = _BOOTSTRAP_PY.read_text()
+    subprocess.run(
+        ["ssh", "-t", device, f"python3 - {install_dir}"],
+        input=script,
+        text=True,
+    )
 
 
 @app.command(rich_help_panel="Device Management")

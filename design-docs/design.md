@@ -36,7 +36,7 @@ The layered `psilia base` / `psilia spatial` commands exist for development, tes
 
 The same `psilia-edge` package is installed on both machines, but each takes on a distinct role:
 
-**Runtime host** (Jetson) — runs the spatial perception stack. Hosts the base layer daemon, the ROS layer in Docker, and serves the Control UI. Detected by the presence of `/opt/psilia/runtime_config.yaml`, which is written during `psilia setup` and lives on eMMC.
+**Runtime host** (Jetson) — runs the spatial perception stack. Hosts the base layer daemon, the ROS layer in Docker, and serves the Control UI. Detected by the presence of `/etc/psilia/device_config.yaml`, which is written during `psilia setup` and lives on eMMC.
 
 **Device manager** (laptop) — manages one or more runtime hosts. Handles pairing, bootstrapping over SSH, and data operations (pull, sync, cloud push). Keeps a registry of registered devices in `~/.psilia/config.yaml`.
 
@@ -45,7 +45,7 @@ The role distinction is intentional and permanent for a given machine — a Jets
 ### CLI commands
 
 The same binary is installed on both laptop and Jetson. Context is detected automatically:
-if `/opt/psilia/runtime_config.yaml` exists the binary is running on a runtime host (Jetson);
+if `/etc/psilia/device_config.yaml` exists the binary is running on a runtime host (Jetson);
 otherwise it assumes a device manager (laptop).
 
 **Manager commands** run on the laptop only and are never forwarded over SSH:
@@ -192,8 +192,8 @@ SSH wrapper for `psilia setup` on the Jetson. Bootstraps the device, then automa
 
 > Note: keep step order in sync with `src/psilia_edge/setup/__init__.py`.
 
-1. **Install path** — prompt for the base installation directory (default: `/ssd/psilia`). Falls back to `/opt/psilia` on eMMC with a storage warning. All paths are derived from this.
-2. **Create directory structure** — `/opt/psilia/` on eMMC (config only), `/ssd/psilia/ros/src/`, `/ssd/psilia/data/recordings/` on the SSD.
+1. **Install path** — prompt for the base installation directory (default: `/ssd/psilia`). All paths are derived from this.
+2. **Create directory structure** — `/etc/psilia/` on eMMC (config only), `/ssd/psilia/ros/src/`, `/ssd/psilia/data/recordings/` on the SSD.
 3. **Install `psilia-edge`** — clone the repo to `/ssd/psilia/psilia-edge/` and `pip install -e .`. Until the repo is public, copies `~/.git-credentials` from the laptop to authenticate, then removes it.
 4. **Populate ROS workspace** — copy `psilia_runtime` from the cloned repo into `/ssd/psilia/ros/src/psilia_runtime/`. Intentionally kept separate from the repo clone so users can edit nodes directly.
 5. **Install Docker** — skip if already installed.
@@ -203,7 +203,7 @@ SSH wrapper for `psilia setup` on the Jetson. Bootstraps the device, then automa
    - **WiFi connection** — scan visible networks, user selects SSID and enters password. Persisted as autoconnect profile.
 8. **Detect connected camera** — optional, can be skipped and configured later.
 9. **Configure systemd autostart** — wizard asks whether to enable autostart on boot.
-10. **Write Jetson config** — writes `/opt/psilia/runtime_config.yaml`:
+10. **Write Jetson config** — writes `/etc/psilia/device_config.yaml`:
 
 ```yaml
 storage:
@@ -256,7 +256,7 @@ curl -fsSL https://raw.githubusercontent.com/mirkoklukas/psilia-edge/main/script
    - `psilia/data/recordings/` — MCAP recordings
 2. Clones the repo into `psilia/psilia-edge/` (or pulls if already cloned).
 3. `pip install -e psilia/psilia-edge` — makes the `psilia` command available.
-4. Creates `/opt/psilia/` and an empty `runtime_config.yaml` (requires sudo). This marks the machine as a runtime host immediately.
+4. Creates `/etc/psilia/` and an empty `device_config.yaml` (requires sudo). This marks the machine as a runtime host immediately.
 5. Calls `psilia setup --base $(pwd)/psilia` — runs the full setup wizard, skipping the install path prompt since the path is already known.
 
 The install path step is skipped (paths are pre-set from `--base`). All other setup steps run as normal.
@@ -303,7 +303,7 @@ If `--install-dir` is omitted, defaults to `./psilia` (relative to the current d
 3. Clone repo into `psilia/psilia-edge/` (or pull if already cloned)
 4. `pip install -e psilia/psilia-edge` — makes `psilia` command available
 5. Copy `psilia_runtime` ROS package into `psilia/ros/src/psilia_runtime/`
-6. Create `/opt/psilia/` (sudo) and write skeleton `runtime_config.yaml`:
+6. Create `/etc/psilia/` (sudo) and write skeleton `device_config.yaml`:
    ```yaml
    storage:
      base: /ssd/psilia
@@ -315,7 +315,7 @@ If `--install-dir` is omitted, defaults to `./psilia` (relative to the current d
 
 ### `psilia setup` / `run_setup_local()`
 
-Interactive wizard. No arguments — reads install paths from `/opt/psilia/runtime_config.yaml`.
+Interactive wizard. No arguments — reads install paths from `/etc/psilia/device_config.yaml`.
 
 **Steps:**
 
@@ -324,7 +324,7 @@ Interactive wizard. No arguments — reads install paths from `/opt/psilia/runti
 3. **Network** — detect wifi interface, configure hotspot (prompt for SSID + password)
 4. **Camera** — optional detection (can be skipped and configured later)
 5. **Autostart** — configure systemd service for boot autostart
-6. **Write runtime config** — fill remaining fields into `/opt/psilia/runtime_config.yaml`:
+6. **Write runtime config** — fill remaining fields into `/etc/psilia/device_config.yaml`:
    ```yaml
    storage:
      base: /ssd/psilia
@@ -359,8 +359,8 @@ Interactive wizard. No arguments — reads install paths from `/opt/psilia/runti
 ### Jetson
 
 ```
-/opt/psilia/            # eMMC — config only, not user-scoped
-  config.yaml           # Jetson-side config (storage mount point, runtime image, autostart)
+/etc/psilia/            # eMMC — config only, not user-scoped
+  device_config.yaml    # Jetson-side config (storage mount point, runtime image, autostart)
                         # Must live on eMMC: the systemd service reads it at boot to know
                         # where the SSD is mounted — before the SSD is available.
 
@@ -403,17 +403,17 @@ The image is purely the environment — ROS, CUDA, and dependencies. The `psilia
 
 ### The ROS Workspace
 
-`psilia_runtime` lives on the Jetson host at `/opt/psilia/ros/` and is mounted into the container at runtime:
+`psilia_runtime` lives on the Jetson host at `/ssd/psilia/ros/` and is mounted into the container at runtime:
 
 ```bash
 docker run \
-  -v /opt/psilia/ros:/opt/psilia/ros \
+  -v /ssd/psilia/ros:/ssd/psilia/ros \
   --network host \
   psilia/runtime:latest
 ```
 
 Build artifacts are also stored on the host, so incremental rebuilds are fast. At startup the container:
-1. Builds `/opt/psilia/ros/` with `colcon build` (incremental — fast after first build)
+1. Builds `/ssd/psilia/ros/` with `colcon build` (incremental — fast after first build)
 2. Sources the workspace
 3. Runs `ros2 launch psilia_runtime default.launch.py`
 
@@ -424,7 +424,7 @@ Topic remapping from hardware-specific names to the stable `/psilia/*` interface
 Edit the launch file or nodes directly on the Jetson host, then restart the container to pick up changes:
 
 ```bash
-vim /opt/psilia/ros/psilia_runtime/launch/default.launch.py
+vim /ssd/psilia/ros/psilia_runtime/launch/default.launch.py
 psilia spatial restart
 ```
 
@@ -646,7 +646,7 @@ psilia-edge/
     package.json
     dist/                 # built output, served by runtime/
   ros/                    # ROS package + Dockerfile — not pip installable
-    psilia_runtime/       # copied to /opt/psilia/ros/ on Jetson during init
+    psilia_runtime/       # copied to /ssd/psilia/ros/src/ on Jetson during setup
       nodes/
         mock_node.py      # synthetic /psilia/* publisher — no deps
         depth_node.py     # wraps psilia.depth

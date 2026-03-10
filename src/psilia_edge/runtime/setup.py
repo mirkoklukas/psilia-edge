@@ -16,13 +16,91 @@ from rich.prompt import Prompt
 from psilia_edge.utils import run, run_streamed, sudo
 from psilia_edge import ui
 from psilia_edge.ui import console
+from psilia_edge.runtime.config import (
+    CONFIG_DIR,
+    RUN_DIR,
+    LOG_DIR,
+    DEFAULT_BASE_DIR,
+    get_repo_dir,
+    get_ros_dir,
+    get_docker_image,
+    read_device_config,
+)
 
-_DEFAULT_INSTALL_DIR = "/ssd/psilia"
 _DEFAULT_HOTSPOT_PASSWORD = "psilia1234"
 _PSILIA_REPO_URL = "https://github.com/mirkoklukas/psilia-edge.git"
 _PSILIA_REPO_BRANCH = "dev"
 
+# TODO: Maybe put DEFAULT_DOCKER_IMAGE in the config.
+#   And also make a getter function for it, so it's not hardcoded in multiple places.
+_DOCKER_IMAGE = "psilia/runtime:latest"
 
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Entry points
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def run_setup() -> None:
+    """Run the setup wizard locally on the Jetson.
+
+    Reads install paths from /etc/psilia/device_config.yaml, which is written
+    by scripts/bootstrap.sh before this wizard is invoked.
+    """
+    _, name, _ = run("hostname")
+    name = name.strip()
+    ui.header(
+        ["Runtime", "Setup"],
+        "[dim]Starting fresh and setting up {name}. This includes ...[/dim]",
+    )
+
+    device_config = read_device_config()
+    # device_config.setdefault("runtime", {})["image"] = _DOCKER_IMAGE
+
+    _step_docker()
+    device_config |= _step_build_image(get_docker_image() or _DOCKER_IMAGE)
+    device_config |= _step_network(name)
+    device_config |= _step_camera()
+    device_config |= _step_systemd()
+    _step_write_device_config(device_config)
+
+    ui.print_tree(device_config, title="Device Config")
+
+    ui.done(
+        f"{name} set up.",
+        "Run [bold]psilia runtime start[/bold] to launch the spatial runtime.",
+    )
+
+
+def run_update() -> None:
+    """Pull latest repo and rebuild Docker image locally (runs on the Jetson)."""
+    _, name, _ = run("hostname")
+    name = name.strip()
+    ui.header(["Runtime", "Update {name}"])
+
+    if not _step_pull():
+        return
+    _step_copy_ros()
+
+    # Clear colcon build cache so any setup.py changes are picked up
+    # (dirs are owned by root because they were created inside Docker)
+    ui.fyi("sudo needed to remove Docker-owned build cache")
+    for d in ["build", "install", "log"]:
+        sudo(f"rm -rf {get_ros_dir()}/{d}")
+    ui.ok("Colcon build cache cleared")
+    _step_build_image(get_docker_image() or _DOCKER_IMAGE)
+
+    ui.done(
+        f"{name} is up to date.",
+        "Run [bold]psilia runtime start[/bold] to launch the spatial runtime.",
+    )
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Steps and Helper
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 def _read_git_credentials(host: str) -> tuple[str, str] | None:
     creds_path = Path.home() / ".git-credentials"
     if not creds_path.exists():
@@ -42,24 +120,25 @@ def _read_git_credentials(host: str) -> tuple[str, str] | None:
     return None
 
 
-def _step_copy_ros(base: str) -> None:
+def _step_copy_ros() -> None:
     ui.title("Step 4 — ROS Package")
 
-    src = Path(f"{base}/psilia-edge/ros/psilia_runtime")
-    dst = f"{base}/ros/src/psilia_runtime"
+    src = get_repo_dir() / "ros/psilia_runtime"
+    dst = get_ros_dir() / "src/psilia_runtime"
 
     if not src.exists():
         ui.fail(f"psilia_runtime not found at {src} — is the repo cloned?")
         return
 
     with ui.status("Copying psilia_runtime…"):
-        shutil.copytree(str(src), dst, dirs_exist_ok=True)
+        shutil.copytree(str(src), str(dst), dirs_exist_ok=True)
 
     ui.ok(f"psilia_runtime copied to {dst}")
+    return {}
 
 
 def _step_docker() -> None:
-    ui.title("Step 5 — Docker")
+    ui.title("Install Docker")
     with ui.status("Checking Docker…"):
         rc, ver, _ = run("docker --version")
     if rc == 0:
@@ -85,26 +164,32 @@ def _step_docker() -> None:
     _, ver, _ = run("docker --version")
     ui.ok(f"Docker installed ({ver.strip()})")
     ui.ok(f"User '{user}' added to docker group")
+    return {}
 
 
-def _step_build_image(base: str) -> None:
-    ui.title("Step 6 — Build Docker Image")
-    ui.info("Building [bold]psilia/runtime:latest[/bold] — this may take a while…")
-    ui.detail("source", f"{base}/psilia-edge/ros/Dockerfile")
+# TODO: we might want to copy the docker file to the ros directory.
+#   And use that to build the image, so that users can modify it if needed.
+#   But for now we can just point to the one in the repo.
+def _step_build_image(image_name=_DOCKER_IMAGE) -> None:
+    ui.title("Build Docker Image")
+    ui.info(f"Building [bold]{image_name}[/bold] — this may take a while…")
+    ui.detail("source", f"{get_repo_dir()}/ros/Dockerfile")
     rc = run_streamed(
-        f"docker build --network=host -t psilia/runtime:latest {base}/psilia-edge/ros"
+        f"docker build --network=host -t {image_name} {get_repo_dir()}/ros"
     )
     if rc != 0:
         ui.fail("Docker build failed.")
+        return {}
     else:
-        ui.ok("Docker image built: psilia/runtime:latest")
+        ui.ok(f"Docker image built: {image_name}")
+        return {"runtime": {"image": image_name}}
 
 
 def _step_network(name: str) -> dict:
     from psilia_edge.network.hotspot import create_hotspot, find_active_hotspot
     from psilia_edge.network.probe import list_interfaces
 
-    ui.title("Step 7 — Network Setup")
+    ui.title("Network Setup")
     ui.info("Configures a wifi hotspot on the Jetson (USB dongle preferred)")
     ui.info("[dim]so you can reach it in the field without a router.[/dim]")
 
@@ -192,21 +277,21 @@ def _step_systemd() -> bool:
         ui.ok("Autostart enabled — runtime will start on next boot")
     else:
         ui.info("[dim]Autostart disabled — start manually with:[/dim] psilia start")
-    return autostart
+    return {"runtime": {"autostart": autostart}}
 
 
-def _step_write_runtime_config(runtime_config: dict) -> None:
-    from psilia_edge.runtime.config import RUNTIME_CONFIG_PATH, write_runtime_config
+def _step_write_device_config(device_config: dict) -> None:
+    from psilia_edge.runtime.config import DEVICE_CONFIG_PATH, write_device_config
 
-    ui.title("Runtime Config")
-    with ui.status("Writing runtime config…"):
-        write_runtime_config(runtime_config)
-    ui.ok(f"Runtime config written to {RUNTIME_CONFIG_PATH}")
+    ui.title("Device Config")
+    with ui.status("Writing device config…"):
+        write_device_config(device_config)
+    ui.ok(f"Device config written to {DEVICE_CONFIG_PATH}")
 
 
-def _step_pull(base: str) -> bool:
+def _step_pull() -> bool:
     """git pull + pip install -e. Returns True on success."""
-    repo_dir = f"{base}/psilia-edge"
+    repo_dir = get_repo_dir()
 
     ui.title("Step 1 — Pull Latest")
     with ui.status("Pulling latest changes…"):
@@ -227,79 +312,11 @@ def _step_pull(base: str) -> bool:
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #
-#   Entry points
-#
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-def run_setup() -> None:
-    """Run the setup wizard locally on the Jetson.
-
-    Reads install paths from /opt/psilia/runtime_config.yaml, which is written
-    by scripts/bootstrap.sh before this wizard is invoked.
-    """
-    _, name, _ = run("hostname")
-    name = name.strip()
-
-    ui.header(
-        ["Runtime", "Setup"],
-        "[dim]Starting fresh and setting up {name}. This includes ...[/dim]",
-    )
-
-    from psilia_edge.runtime.config import read_runtime_config
-
-    runtime_config = read_runtime_config()
-    base = runtime_config.get("runtime", {}).get("base_dir", _DEFAULT_INSTALL_DIR)
-    runtime_config.setdefault("runtime", {})["image"] = "psilia/runtime:latest"
-
-    _step_docker()
-    _step_build_image(base)
-    runtime_config |= _step_network(name)
-    runtime_config |= _step_camera()
-    runtime_config["runtime"]["autostart"] = _step_systemd()
-    _step_write_runtime_config(runtime_config)
-
-    ui.done(
-        f"{name} set up.",
-        "Run [bold]psilia runtime start[/bold] to launch the spatial runtime.",
-    )
-
-
-def run_update() -> None:
-    """Pull latest repo and rebuild Docker image locally (runs on the Jetson)."""
-
-    _, name, _ = run("hostname")
-    name = name.strip()
-    ui.header(["Runtime", "Update {name}"])
-
-    from psilia_edge.runtime.config import read_runtime_config
-
-    runtime_config = read_runtime_config()
-    base = runtime_config.get("runtime", {}).get("base_dir", _DEFAULT_INSTALL_DIR)
-
-    if not _step_pull(base):
-        return
-    _step_copy_ros(base)
-
-    # Clear colcon build cache so any setup.py changes are picked up
-    # (dirs are owned by root because they were created inside Docker)
-    ui.fyi("sudo needed to remove Docker-owned build cache")
-    for d in ["build", "install", "log"]:
-        sudo(f"rm -rf {base}/ros/{d}")
-    ui.ok("Colcon build cache cleared")
-    _step_build_image(base)
-
-    ui.done(
-        f"{name} is up to date.",
-        "Run [bold]psilia runtime start[/bold] to launch the spatial runtime.",
-    )
-
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-#
 #   Appendix: old code from setup.py, kept here for reference
 #   during the rewrite. Not used anymore.
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# NOTE: unused — handled by bootstrap.sh)
+# NOTE: unused — handled by bootstrap.sh
 def _step_install_path(conn) -> dict:
     ui.title("Step 1 — Install Path")
     ui.info("The following will be installed under the base directory:")
@@ -314,7 +331,7 @@ def _step_install_path(conn) -> dict:
         "[dim]Use a path with plenty of free space — an SSD is strongly recommended.[/dim]"
     )
     console.print()
-    base = Prompt.ask("  Install path", default=_DEFAULT_INSTALL_DIR)
+    base = Prompt.ask("  Install path", default=DEFAULT_BASE_DIR)
     data_path = f"{base}/data"
     console.print()
     ui.detail("repo", f"[bold]{base}/psilia-edge[/bold]")
@@ -323,31 +340,7 @@ def _step_install_path(conn) -> dict:
     return {"runtime": {"base_dir": base, "data_dir": data_path}}
 
 
-# NOTE: unused — handled by bootstrap.sh)
-def _step_create_dirs(conn, base: str) -> None:
-    dirs = [
-        "/opt/psilia",
-        f"{base}/ros/src",
-        f"{base}/data/recordings",
-    ]
-    ui.title("Step 2 — Directory Structure")
-    for d in dirs:
-        ui.item(d)
-    ui.fyi("sudo needed to create system directories (/opt/psilia)")
-    with ui.status("Creating directories…"):
-        rc, _, err = conn.sudo(f"mkdir -p {' '.join(dirs)}")
-    if rc != 0:
-        ui.fail(f"mkdir failed: {err.strip()}")
-        return
-    with ui.status("Setting ownership…"):
-        rc, _, err = conn.sudo(f"chown -R {conn.user} {base}")
-    if rc != 0:
-        ui.fail(f"chown failed: {err.strip()}")
-    else:
-        ui.ok("Directories created")
-
-
-# NOTE: unused — handled by bootstrap.sh)
+# NOTE: unused — handled by bootstrap.sh
 def _step_clone(conn, base: str) -> None:
     ui.title("Step 3 — Clone psilia-edge")
 
@@ -397,3 +390,49 @@ def _step_clone(conn, base: str) -> None:
         ui.fail(f"pip install failed: {err.strip()}")
     else:
         ui.ok("psilia-edge installed")
+
+
+# NOTE: unused — handled by bootstrap.sh
+def _make_bootstrap_config(
+    base_dir: str | Path = DEFAULT_BASE_DIR,
+    ros_dir: str | Path = DEFAULT_BASE_DIR / "ros",
+    data_dir: str | Path = DEFAULT_BASE_DIR / "data",
+    repo_dir: str | Path = DEFAULT_BASE_DIR / "psilia-edge",
+) -> dict:
+    """Create a minimal device_config dict with default paths,
+    so the setup wizard can read/write it."""
+    config = {
+        "runtime": {
+            "base_dir": str(base_dir),
+            "ros_dir": str(ros_dir),
+            "data_dir": str(data_dir),
+            "repo_dir": str(repo_dir),
+        }
+    }
+    return config
+
+
+# NOTE: unused — handled by bootstrap.sh
+def _step_create_dirs(
+    config_dir: str | Path = CONFIG_DIR,
+    run_dir: str | Path = RUN_DIR,
+    log_dir: str | Path = LOG_DIR,
+    base_dir: str | Path = DEFAULT_BASE_DIR,
+    ros_dir: str | Path = DEFAULT_BASE_DIR / "ros",
+    data_dir: str | Path = DEFAULT_BASE_DIR / "data",
+    repo_dir: str | Path = DEFAULT_BASE_DIR / "psilia-edge",
+) -> None:
+    import yaml
+
+    ui.title("Create Directories")
+    for d in [config_dir, run_dir, log_dir, base_dir, ros_dir, data_dir, repo_dir]:
+        if not d.exists():
+            d.mkdir(parents=True, exist_ok=True)
+            ui.ok(f"Created {d}")
+        else:
+            ui.ok(f"{d} already exists")
+
+    decive_config = _make_bootstrap_config(base_dir, ros_dir, data_dir, repo_dir)
+    (CONFIG_DIR / "device_config.yaml").write_text(
+        yaml.dump(decive_config, default_flow_style=False)
+    )

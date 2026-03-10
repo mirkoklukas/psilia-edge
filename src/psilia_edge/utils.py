@@ -124,3 +124,40 @@ def run_on_device(device: str, cmd: str, replace_process: bool = False) -> int:
 
     result = subprocess.run(ssh_argv)
     return result.returncode
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Nested dict update utility (used in config)
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def deep_update(base: dict, update: dict, *, strict: bool = False) -> dict:
+    """Recursively update `base` with `update`, merging nested dicts.
+
+    If `strict`, the update may only fill in existing keys with matching types.
+    New keys, missing keys, and type mismatches raise an error.
+    """
+    for key, value in update.items():
+        if strict and key not in base:
+            raise KeyError(f"Key {key!r} not found in base dict")
+        base_value = base.get(key)
+        if isinstance(value, dict) and isinstance(base_value, dict):
+            deep_update(base_value, value, strict=strict)
+        elif strict and key in base and type(value) is not type(base_value):
+            raise TypeError(
+                f"Type mismatch for key {key!r}: "
+                f"base has {type(base_value).__name__}, "
+                f"update has {type(value).__name__}"
+            )
+        else:
+            base[key] = value
+    return base
+
+
+class NestedDict(dict):
+    def update(self, other=dict):
+        deep_update(self, other)
+
+    def __ior__(self, other):
+        self.update(other)
+        return self
