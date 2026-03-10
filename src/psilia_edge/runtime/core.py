@@ -8,6 +8,33 @@ import time
 from psilia_edge.runtime.config import DEVICE_CONFIG_PATH
 
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Entry points
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# TODO: Should port be read from somewhere?
+def start_runtime(host: str = "0.0.0.0", port: int = 8080) -> dict:
+    """Start base layer then spatial layer. Returns a combined result dict."""
+    base = start_base_layer(host=host, port=port)
+    if base.get("status") == "error":
+        return {"base": base, "spatial": {"status": "skipped"}}
+    spatial = start_spatial_layer()
+    return {"base": base, "spatial": spatial}
+
+
+def stop_runtime() -> dict:
+    """Stop spatial layer then base layer. Returns a combined result dict."""
+    spatial = stop_spatial_layer()
+    base = stop_base_layer()
+    return {"base": base, "spatial": spatial}
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Utils and Helper
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 def is_runtime_host() -> bool:
     """Return True if this machine is a runtime host (Jetson).
 
@@ -38,6 +65,8 @@ def start_base_layer(host: str = "0.0.0.0", port: int = 8080) -> dict:
 
     hostname = socket.gethostname().split(".")[0]
     try:
+        # UDP trick: connect to Google's public DNS (8.8.8.8) — no packet is sent,
+        # but the OS picks the outbound interface, so getsockname() returns our LAN IP.
         _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         _s.connect(("8.8.8.8", 80))
         lan_ip = _s.getsockname()[0]
@@ -81,19 +110,3 @@ def stop_spatial_layer() -> dict:
     from psilia_edge.runtime.docker import stop_container
 
     return stop_container()
-
-
-def start_runtime(host: str = "0.0.0.0", port: int = 8080) -> dict:
-    """Start base layer then spatial layer. Returns a combined result dict."""
-    base = start_base_layer(host=host, port=port)
-    if base.get("status") == "error":
-        return {"base": base, "spatial": {"status": "skipped"}}
-    spatial = start_spatial_layer()
-    return {"base": base, "spatial": spatial}
-
-
-def stop_runtime() -> dict:
-    """Stop spatial layer then base layer. Returns a combined result dict."""
-    spatial = stop_spatial_layer()
-    base = stop_base_layer()
-    return {"base": base, "spatial": spatial}

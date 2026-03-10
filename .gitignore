@@ -8,8 +8,14 @@ docs/*
 !docs/*.md
 __pycache__/
 
-# Used as install dir for runtime host data
+# Temporary files and directories
 tests/tmp/
+tests/_tmp/
+
+# Local env vars, e.g. for development
+# and testing directory for the runtime host
+.envrc
+_dev/
 
 .venv/
 .vscode/

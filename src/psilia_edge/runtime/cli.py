@@ -119,7 +119,7 @@ def live_view() -> None:
     from psilia_edge.runtime.status import live_status
     from psilia_edge.runtime.daemon import read_log_tail
 
-    ui.header(["Runtime", "Live View"], "[dim]Ctrl-C to detach[/dim]")
+    ui.header(["Runtime", "Live View"], "Ctrl-C to detach...")
     try:
         with Live(refresh_per_second=1, screen=False) as live:
             while True:

@@ -16,7 +16,7 @@ LOG_DIR = Path(os.environ.get("PSILIA_LOG_DIR", "/var/log/psilia"))
 
 # Base directory for installs, ROS workspace, data, and repo.
 # Set by bootstrap.sh and read from device_config.yaml at runtime.
-DEFAULT_BASE_DIR = Path(os.environ.get("PSILIA_BASE_DIR", "/ssd/psilia"))
+DEFAULT_BASE_DIR = Path(os.environ.get("PSILIA_DEFAULT_BASE_DIR", "/ssd/psilia"))
 
 
 DEVICE_CONFIG_PATH = CONFIG_DIR / "device_config.yaml"
@@ -35,7 +35,7 @@ def read_device_config() -> NestedDict:
 def write_device_config(config: dict | NestedDict) -> None:
     """Write config dict to device_config.yaml (requires sudo for /etc/psilia/)."""
     DEVICE_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    DEVICE_CONFIG_PATH.write_text(yaml.dump(config, default_flow_style=False))
+    DEVICE_CONFIG_PATH.write_text(yaml.dump(dict(**config), default_flow_style=False))
 
 
 # TODO: get_base_dir shouldn't really be used, we can directly call get_ros_dir, get_data_dir, get_repo_dir which read from the config.

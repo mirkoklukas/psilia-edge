@@ -9,6 +9,7 @@ dependencies = [
     "numpy",
     "mcap",
     "paramiko",
+    "psutil",
     "pyyaml",
     "sshconf",
     "fastapi",

@@ -67,6 +67,29 @@ def banner() -> None:
 PADDING_LEFT = 2
 
 
+def banner_nav(path, descr="...") -> None:
+    if descr is None:
+        descr = "..."
+    title = " → ".join(
+        [*path[:-1], f"[bold bright_magenta]{path[-1]}[/bold bright_magenta]"]
+    )
+    lines = [title, *descr.split("\n")]
+
+    logo_lines = ["[magenta]▚┃▞[/magenta]", "[cyan] ┃ [/cyan]"]
+    if len(lines) > 1:
+        logo_lines += ["   "] * len(lines[1:])
+
+    s = []
+    for i, (ell, t) in enumerate(zip(logo_lines, lines)):
+        if i == 0:
+            s.append(f" {ell}  [magenta]{t}[/magenta]   ")
+        else:
+            s.append(f" {ell}  [cyan]{t}[/cyan]   ")
+
+    p = Padding("\n".join(s), (1, 2), style="on black", expand=False)
+    console.print(Padding(p, (1, 1), expand=False))
+
+
 def nav_path(path: list[str], descr=None) -> None:
     title = " → ".join([*path[:-1], f"[bold]{path[-1]}[/bold]"])
     if descr is None:
@@ -84,8 +107,9 @@ HEADER_TEXT.append("Spatial Runtime for Embodied AI.", style="dim")
 
 def header(path: list[str], descr=None) -> None:
     """Branded header using grouped padding (original version)."""
-    banner()
-    nav_path(path, descr)
+    # banner()
+    # nav_path(path, descr)
+    banner_nav(path, descr)
 
 
 def done(msg: str, hint: str = "") -> None:
@@ -171,6 +195,12 @@ def info(msg: str) -> None:
 
 def fyi(msg: str) -> None:
     print_line(f"[dim](FYI: {msg})[/dim]")
+
+
+def debug(msg: str, show=True) -> None:
+    if not show:
+        return
+    print_line(f"[dim](DEBUG: {msg})[/dim]")
 
 
 def item(msg: str) -> None:

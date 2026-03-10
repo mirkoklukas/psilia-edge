@@ -55,8 +55,6 @@ def run_setup() -> None:
     )
 
     device_config = read_device_config()
-    # device_config.setdefault("runtime", {})["image"] = _DOCKER_IMAGE
-
     _step_docker()
     device_config |= _step_build_image(get_docker_image() or _DOCKER_IMAGE)
     device_config |= _step_network(name)
@@ -64,7 +62,7 @@ def run_setup() -> None:
     device_config |= _step_systemd()
     _step_write_device_config(device_config)
 
-    ui.print_tree(device_config, title="Device Config")
+    ui.print_tree(device_config, label="Device Config")
 
     ui.done(
         f"{name} set up.",
@@ -174,6 +172,7 @@ def _step_build_image(image_name=_DOCKER_IMAGE) -> None:
     ui.title("Build Docker Image")
     ui.info(f"Building [bold]{image_name}[/bold] — this may take a while…")
     ui.detail("source", f"{get_repo_dir()}/ros/Dockerfile")
+    # TODO: path to docker file should be a configurable? not hardcoded?
     rc = run_streamed(
         f"docker build --network=host -t {image_name} {get_repo_dir()}/ros"
     )
@@ -221,7 +220,9 @@ def _step_network(name: str) -> dict:
 
     if iface is None:
         ui.warn("No wifi interface found — skipping network setup.")
-        ui.info("[dim]Connect a USB wifi dongle and re-run 'psilia setup'.[/dim]")
+        ui.info(
+            "[dim]Connect a USB wifi dongle and re-run 'psilia runtime setup'.[/dim]"
+        )
         return {}
     elif iface.is_usb_wifi:
         ui.ok(f"USB wifi dongle detected: [bold]{iface.name}[/bold]")
@@ -271,7 +272,7 @@ def _step_systemd() -> bool:
     ui.info("Installs a systemd service ([bold]psilia.service[/bold]) on the Jetson")
     ui.info("[dim]so the runtime starts automatically on boot.[/dim]")
     ui.stub("install /etc/systemd/system/psilia.service and reload daemon")
-    autostart = ui.confirm("  Enable autostart on boot?", default=True)
+    autostart = ui.confirm("  Enable autostart on boot?", default=False)
     if autostart:
         ui.stub("systemctl enable psilia")
         ui.ok("Autostart enabled — runtime will start on next boot")
@@ -285,7 +286,7 @@ def _step_write_device_config(device_config: dict) -> None:
 
     ui.title("Device Config")
     with ui.status("Writing device config…"):
-        write_device_config(device_config)
+        write_device_config(dict(**device_config))
     ui.ok(f"Device config written to {DEVICE_CONFIG_PATH}")
 
 

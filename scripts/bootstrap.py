@@ -8,8 +8,9 @@ Run from the directory where you want psilia installed:
 
 Use a local mock system dir (for testing) and skip the setup:
 
-    cd /tmp/test-install
-    python bootstrap.py . --system-dir system --no-setup
+    # For instance from the root of the psilia-edge repo
+    mkdir -p tests/_tmp/
+    python scripts/bootstrap.py tests/_tmp/ --system-dir tests/_tmp/system --no-setup
 
 """
 
@@ -78,6 +79,8 @@ def header(base_dir: Path) -> None:
 
 # ── steps ─────────────────────────────────────────────────────────────────────
 
+# TODO: When printing directory names, print them relative to cwd for readability.
+
 def step_preflight() -> None:
     title("Preflight")
     for cmd in ["git", "pip", "sudo"]:
@@ -86,16 +89,14 @@ def step_preflight() -> None:
     ok("git, pip, sudo available")
 
 
-def step_create_dirs(base_dir: Path) -> None:
+def step_runtime_dirs(dirs) -> None:
     title("Directory structure")
-    dirs = [
-        base_dir / "psilia-edge",
-        base_dir / "ros" / "src",
-        base_dir / "data" / "recordings",
-    ]
     for d in dirs:
-        d.mkdir(parents=True, exist_ok=True)
-        info(str(d))
+        if d.exists():
+            info(f"{d} already exists — skipping")
+        else:
+            d.mkdir(parents=True, exist_ok=True)
+            info(str(d))
     ok("Directories ready")
 
 
@@ -197,9 +198,9 @@ def main(install_dir: Path, system_dir: Path | None = None) -> dict:
     base_dir = install_dir / "psilia"
 
     if system_dir is not None:
-        config_dir = system_dir.resolve() / "etc" / "psilia"
-        run_dir    = system_dir.resolve() / "run" / "psilia"
-        log_dir    = system_dir.resolve() / "var" / "log" / "psilia"
+        config_dir = system_dir.resolve() / "config"
+        run_dir    = system_dir.resolve() / "run"
+        log_dir    = system_dir.resolve() / "log"
     else:
         config_dir = DEFAULT_CONFIG_DIR
         run_dir    = DEFAULT_RUN_DIR
@@ -213,16 +214,11 @@ def main(install_dir: Path, system_dir: Path | None = None) -> dict:
 
     device_config_path = config_dir / "device_config.yaml"
 
+    header(base_dir)
+    repo_dir = step_install_or_existing(base_dir)
+
     ros_dir  = base_dir / "ros"
     data_dir = base_dir / "data"
-
-    header(base_dir)
-    step_preflight()
-    step_create_dirs(base_dir)
-    repo_dir = step_install_or_existing(base_dir)
-    step_copy_ros(repo_dir, base_dir)
-    step_system_dirs(**system_dirs)
-
     runtime_dirs = {
             "base_dir": base_dir,
             "ros_dir": ros_dir,
@@ -230,7 +226,10 @@ def main(install_dir: Path, system_dir: Path | None = None) -> dict:
             "repo_dir": repo_dir,
     }
 
-
+    step_preflight()
+    step_runtime_dirs(runtime_dirs.values())
+    step_copy_ros(repo_dir, base_dir)
+    step_system_dirs(**system_dirs)
     step_write_device_config(device_config_path, **runtime_dirs)
 
     return {
