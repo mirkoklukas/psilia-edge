@@ -19,6 +19,13 @@ app = FastAPI(title="Psilia Edge", docs_url=None, redoc_url=None)
 # ── API routes (must be registered before the static file catch-all) ─────────
 
 
+@app.get("/api/config")
+async def api_config() -> JSONResponse:
+    from psilia_edge.runtime.config import read_config
+
+    return JSONResponse(dict(read_config()))
+
+
 @app.get("/api/status")
 async def api_status() -> JSONResponse:
     from psilia_edge.runtime.status import runtime_status

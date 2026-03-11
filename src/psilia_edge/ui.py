@@ -67,26 +67,50 @@ def banner() -> None:
 PADDING_LEFT = 2
 
 
+# LOGO_SMALL = (
+#     f"▚┃▞\n"
+#     f" ┃ "
+# )
+# LOGO_SMALL = "Ψ"
+# LOGO_SMALL = (
+#     f"\|/\n"
+#     f" | "
+# )
+LOGO_SMALL = (
+    """
+◟|◞
+ |
+"""
+).strip("\n")
+
+# LOGO_SMALL = (
+#     f"▚╏▞\n"
+#     f" ┃ "
+# )
+# LOGO_SMALL = (
+#     f"▚╻▞\n"
+#     f" ┃ "
+# )
+
+
 def banner_nav(path, descr="...") -> None:
     if descr is None:
         descr = "..."
-    title = " → ".join(
-        [*path[:-1], f"[bold bright_magenta]{path[-1]}[/bold bright_magenta]"]
-    )
+    title = " → ".join([*path[:-1], f"[bold ]{path[-1]}[/bold ]"])
     lines = [title, *descr.split("\n")]
 
-    logo_lines = ["[magenta]▚┃▞[/magenta]", "[cyan] ┃ [/cyan]"]
+    logo_lines = LOGO_SMALL.split("\n")
     if len(lines) > 1:
         logo_lines += ["   "] * len(lines[1:])
 
     s = []
     for i, (ell, t) in enumerate(zip(logo_lines, lines)):
         if i == 0:
-            s.append(f" {ell}  [magenta]{t}[/magenta]   ")
+            s.append(f"  [magenta]{ell}  {t}[/magenta]   ")
         else:
-            s.append(f" {ell}  [cyan]{t}[/cyan]   ")
+            s.append(f"  [cyan]{ell}  {t}[/cyan]   ")
 
-    p = Padding("\n".join(s), (1, 2), style="on black", expand=False)
+    p = Padding("\n".join(s), (1, 0), style="", expand=False)
     console.print(Padding(p, (1, 1), expand=False))
 
 
@@ -371,6 +395,12 @@ def _demo() -> None:
     console.print(type(r))
 
     detail("check runtime status", "psilia runtime status \[device]")
+
+    banner_nav(
+        ["Runtime", "Status"],
+        descr="Check if the runtime is running and healthy.\n"
+        "Shows device status, runtime version, and recent logs.",
+    )
 
 
 if __name__ == "__main__":

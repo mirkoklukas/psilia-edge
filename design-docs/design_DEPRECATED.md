@@ -1,3 +1,5 @@
+> **DEPRECATED** — This document is no longer maintained. The authoritative design doc is now at `docs/design.md`. Kept around to strip for useful pieces.
+
 # Psilia Edge — Structure & Experience
 
 ## Overview

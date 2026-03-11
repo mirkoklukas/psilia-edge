@@ -1,47 +1,18 @@
 # Todo
 
+## Keep in mind
+- Hotspot and camera config in `psilia.yaml` are written once during `psilia runtime setup`
+  and may be stale between boots if hardware changes (USB dongle swapped, camera unplugged).
+  Live detection should eventually replace or validate the stored values at startup.
+
+
 ## Next up
 - Continue code restructuring: finalize `runtime/` vs `device_manager/` split,
   clean up `runtime/commands.py` (start/stop/status/monitor logic placement),
   decide on `network/` ownership.
 - Check ssh methods. What do we need the JetsonConn and LocalRunner for really? Might want to wrap output of calls like
   `docker build` in a rich   panel or something like that.
--
-
----
-
-## Mode 1: Pair + Setup
-
-| Step | Description | Status |
-|------|-------------|--------|
-| 1  | Connect — Path A (known IP) / Path B (discover over ethernet) | ✅ |
-| 2  | Device name — read current hostname, set new one via hostnamectl | ✅ |
-| 3  | SSH keypair — generate RSA-4096, install pubkey on Jetson | ✅ |
-| 4  | Write SSH config (managed psilia-edge section) | ✅ |
-| 5  | Register device (~/.psilia/config.yaml) | ✅ |
-| 6  | Install path — prompt for base directory, derive all paths from it | ✅ |
-| 7  | Create dirs — /opt/psilia, /ssd/psilia/ros/src, /ssd/psilia/data | ✅ |
-| 8  | Clone psilia-edge repo + pip install -e . | ✅ |
-| 9  | Copy ROS package (psilia_runtime) to Jetson workspace | ✅ |
-| 10 | Docker — check installed, install via get.docker.com if missing | ✅ |
-| 11 | Build Docker image (psilia/runtime:latest) | ⬜ |
-| 12 | Network — detect dongle/interface, create hotspot via nmcli | ✅ |
-| 12b| Network — wifi client setup (connect Jetson to existing network) | ⬜ |
-| 13 | Camera detection (optional) | ⬜ |
-| 14 | Systemd autostart service | ⬜ |
-| 15 | Write Jetson config (/opt/psilia/device_config.yaml) | ✅ |
-| 16 | Sync runtime config back to laptop (~/.psilia/config.yaml) | ✅ |
-
-## Mode 2: Runtime
-
-| Feature | Description | Status |
-|---------|-------------|--------|
-| Daemon  | Start/stop background process, PID file, log file | ✅ |
-| Web server | FastAPI + uvicorn, serves web/ from repo root | ✅ |
-| CLI | `psilia start/stop/status/monitor [device]` | ✅ |
-| Web UI | Static HTML control page, polls /api/status | ✅ |
-| /api/status | Structured status dict (runtime, hotspot, sensors, storage, runtime_config) | ✅ |
-| `psilia status` | Pretty-prints runtime status dict | ✅ |
-| Docker status | Check if Docker is running on device | ⬜ |
-| ROS runtime status | Check if psilia Docker container is running | ⬜ |
-| `psilia spatial start/stop` | Start/stop the ROS Docker container | ⬜ |
+- Add `--dev` flag to runtime CLI (default from `PSILIA_DEV=1` env var). In dev mode:
+  sync ROS workspace from repo into dev install path, skip/use local Docker image,
+  optionally rebuild from local Dockerfile. Allows `psilia runtime start --dev` to
+  pick up local node changes without a full bootstrap cycle.

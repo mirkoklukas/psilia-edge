@@ -5,7 +5,7 @@ from __future__ import annotations
 import socket
 import time
 
-from psilia_edge.runtime.config import DEVICE_CONFIG_PATH
+from psilia_edge.runtime.config import read_config
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -36,11 +36,11 @@ def stop_runtime() -> dict:
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 def is_runtime_host() -> bool:
-    """Return True if this machine is a runtime host (Jetson).
+    """Return True if a local runtime has been provisioned on this machine.
 
-    Heuristic: device_config.yaml only exists after `psilia setup` has run.
+    Heuristic: runtime.home_path is set in ~/.psilia/psilia.yaml after `psilia runtime setup` has run.
     """
-    return DEVICE_CONFIG_PATH.exists()
+    return bool(read_config().get("runtime", {}).get("home_path"))
 
 
 def require_runtime_host(device_hint: str) -> None:
@@ -50,7 +50,7 @@ def require_runtime_host(device_hint: str) -> None:
 
     if not is_runtime_host():
         error(
-            f"[red]This command only runs on a Jetson.[/red]\n"
+            f"[red]No local runtime found. Run `psilia runtime setup` first.[/red]\n"
             f"To target a registered device: [bold]psilia {device_hint}[/bold]"
         )
         raise typer.Exit(1)
@@ -94,15 +94,11 @@ def stop_base_layer() -> dict:
 def start_spatial_layer() -> dict:
     """Start the ROS Docker container. Returns a result dict."""
     from psilia_edge.runtime.docker import is_docker_running, start_container
-    from psilia_edge.runtime.config import get_ros_dir, read_device_config
 
     if not is_docker_running():
         return {"status": "error", "error": "Docker daemon is not running."}
 
-    cfg = read_device_config()
-    image = cfg.get("runtime", {}).get("image", "psilia/runtime:latest")
-
-    return start_container(image=image, ros_workspace=str(get_ros_dir()))
+    return start_container()
 
 
 def stop_spatial_layer() -> dict:

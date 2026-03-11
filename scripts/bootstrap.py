@@ -46,6 +46,7 @@ def _sudo(cmd: list[str]) -> tuple[int, str, str]:
 
 def _find_editable_repo_dir() -> Path | None:
     """Return the repo dir if psilia-edge is already pip-installed as editable, else None."""
+    from importlib.metadata import distribution
     try:
         dist = distribution("psilia-edge")
         direct_url = dist.read_text("direct_url.json")

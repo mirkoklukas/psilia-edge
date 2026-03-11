@@ -3,31 +3,38 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    mock_node = Node(
+    core_node = Node(
         package="psilia_runtime",
-        executable="mock_node",
-        name="mock_node",
+        executable="core",
+        name="psilia_core",
         output="screen",
     )
 
-    status_node = Node(
+    ping_node = Node(
         package="psilia_runtime",
-        executable="status_node",
-        name="status_node",
+        executable="ping",
+        name="psilia_ping",
+        output="screen",
+    )
+
+    mock_node = Node(
+        package="psilia_runtime",
+        executable="mock",
+        name="psilia_mock",
         output="screen",
     )
 
     # depth_node = Node(
     #     package="psilia_runtime",
-    #     executable="depth_node",
-    #     name="depth_node",
+    #     executable="depth",
+    #     name="psilia_depth",
     #     output="screen",
     # )
 
     # pose_node = Node(
     #     package="psilia_runtime",
-    #     executable="pose_node",
-    #     name="pose_node",
+    #     executable="pose",
+    #     name="psilia_pose",
     #     output="screen",
     # )
 
@@ -47,7 +54,8 @@ def generate_launch_description():
     # )
 
     return LaunchDescription([
+        core_node,
+        ping_node,
         mock_node,
-        status_node,
         rosbridge,
     ])

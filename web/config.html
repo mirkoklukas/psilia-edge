@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Psilia Edge — Config</title>
+  <link rel="stylesheet" href="/psilia.css">
+  <style>
+    .row { align-items: baseline; }
+    .row .value { word-break: break-all; text-align: right; max-width: 60%; }
+    #load-status { font-size: 0.75rem; color: #555; margin-bottom: 1.25rem; }
+  </style>
+</head>
+<body>
+  <h1>Psilia Edge</h1>
+  <div class="subtitle">spatial perception runtime</div>
+  <nav>
+    <a href="/">status</a>
+    <a href="/runtime-status.html">runtime status</a>
+    <a href="/runtime-test.html">runtime test</a>
+    <a href="/config.html" class="active">config</a>
+  </nav>
+  <div id="load-status">loading…</div>
+
+  <div id="cards"></div>
+
+  <script>
+    async function load() {
+      const res = await fetch('/api/config');
+      if (!res.ok) {
+        document.getElementById('load-status').textContent = 'failed to load config';
+        return;
+      }
+      const config = await res.json();
+      document.getElementById('load-status').textContent = '';
+      renderConfig(config);
+    }
+
+    function renderConfig(config) {
+      const container = document.getElementById('cards');
+      for (const [section, value] of Object.entries(config)) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `<h2>${section}</h2>`;
+        card.appendChild(renderValue(value));
+        container.appendChild(card);
+      }
+    }
+
+    function renderValue(value, prefix = '') {
+      const frag = document.createDocumentFragment();
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        for (const [k, v] of Object.entries(value)) {
+          const label = prefix ? `${prefix}.${k}` : k;
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            frag.appendChild(renderValue(v, label));
+          } else {
+            const row = document.createElement('div');
+            row.className = 'row';
+            row.innerHTML = `
+              <span class="label">${label}</span>
+              <span class="value ${v == null ? 'dim' : ''}">${v ?? '—'}</span>
+            `;
+            frag.appendChild(row);
+          }
+        }
+      } else {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `<span class="value ${value == null ? 'dim' : ''}">${value ?? '—'}</span>`;
+        frag.appendChild(row);
+      }
+      return frag;
+    }
+
+    load();
+  </script>
+</body>
+</html>

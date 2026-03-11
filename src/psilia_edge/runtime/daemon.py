@@ -45,6 +45,7 @@ def start_daemon(host: str = "0.0.0.0", port: int = 8080) -> int:
     if entry_point is None:
         raise RuntimeError("psilia executable not found on PATH")
 
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     log_fh = LOG_FILE.open("a")
     proc = subprocess.Popen(
         [entry_point, "serve", host, str(port)],
@@ -53,6 +54,7 @@ def start_daemon(host: str = "0.0.0.0", port: int = 8080) -> int:
         start_new_session=True,  # detach from controlling terminal
         close_fds=True,
     )
+    PID_FILE.parent.mkdir(parents=True, exist_ok=True)
     PID_FILE.write_text(str(proc.pid))
     return proc.pid
 

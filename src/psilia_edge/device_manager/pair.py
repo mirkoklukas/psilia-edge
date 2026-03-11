@@ -7,6 +7,7 @@ once the UX is proven, but err on the side of too much information for now.
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -14,18 +15,54 @@ import paramiko
 from rich.prompt import Prompt
 
 from psilia_edge import ui
+from psilia_edge.device_manager.config import KEYS_DIR
 from psilia_edge.ui import console
 from psilia_edge.utils import SSHError, connect, ssh_run
 
 
-_SSH_CONFIG_PATH = Path.home() / ".ssh" / "config"
+_SSH_CONFIG_PATH = Path(
+    os.environ.get("PSILIA_SSH_CONFIG_PATH", "~/.ssh/config")
+).expanduser()
 _SSH_SECTION_START = "# >>> psilia-edge (managed by psilia — do not edit manually)"
 _SSH_SECTION_END = "# <<< psilia-edge"
 
 
-# ── step 1: connect (Path A / Path B) ────────────────────────────────────────
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Entrypoint
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def run_pair_wizard() -> None:
+    ui.header(
+        ["Runtime Manager", "Pair Wizard"],
+        "Connects to a Jetson and registers it on this laptop.",
+    )
+
+    # Step 1 — connect
+    result = _step_connect()
+    if result is None:
+        ui.warn("Aborted — could not connect.")
+        return
+    client, user = result
+
+    with client:
+        _, name, _ = ssh_run(client, "hostname")
+        name = name.strip()
+        key_path = _step_ssh_keypair(client, name)
+        _step_write_ssh_config(name, key_path, user)
+        _step_register_device(name, user, key_path)
+
+    ui.done(
+        f"{name} paired.",
+        f"Run [bold]`psilia boostrap {name}`[/bold] to bootstrap the device.",
+    )
 
 
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Steps
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 def _step_connect() -> tuple[paramiko.SSHClient, str] | None:
     ui.title("Connect")
 
@@ -49,9 +86,8 @@ def _step_connect() -> tuple[paramiko.SSHClient, str] | None:
 
 def _step_ssh_keypair(client: paramiko.SSHClient, name: str) -> Path:
     ui.title("SSH Keypair")
-    key_dir = Path.home() / ".psilia" / "keys"
-    key_dir.mkdir(parents=True, exist_ok=True)
-    key_path = key_dir / name
+    KEYS_DIR.mkdir(parents=True, exist_ok=True)
+    key_path = KEYS_DIR / name
 
     with console.status("  Generating RSA-4096 keypair…"):
         key = paramiko.RSAKey.generate(4096)
@@ -155,39 +191,10 @@ def _step_register_device(name: str, user: str, key_path: Path) -> None:
 
     register_device(name=name, host=f"{name}.local", user=user, key_path=key_path)
 
-    from psilia_edge.device_manager.config import CONFIG_PATH
+    from psilia_edge.runtime.config import CONFIG_PATH
 
     ui.ok(f"Device registered in {CONFIG_PATH}")
     ui.detail("name", name)
     ui.detail("host", f"{name}.local")
     ui.detail("user", user)
     ui.detail("key", str(key_path))
-
-
-# ── entry point ───────────────────────────────────────────────────────────────
-
-
-def run_pair_wizard() -> None:
-    ui.header(
-        ["Runtime Manager", "Pair Wizard"],
-        "[dim]Connects to a Jetson and registers it on this laptop.[/dim]",
-    )
-
-    # Step 1 — connect
-    result = _step_connect()
-    if result is None:
-        ui.warn("Aborted — could not connect.")
-        return
-    client, user = result
-
-    with client:
-        _, name, _ = ssh_run(client, "hostname")
-        name = name.strip()
-        key_path = _step_ssh_keypair(client, name)
-        _step_write_ssh_config(name, key_path, user)
-        _step_register_device(name, user, key_path)
-
-    ui.done(
-        f"{name} paired.",
-        f"Run [bold]`psilia boostrap {name}`[/bold] to bootstrap the device.",
-    )

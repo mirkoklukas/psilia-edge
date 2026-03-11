@@ -14,10 +14,11 @@ setup(
     install_requires=["setuptools"],
     entry_points={
         "console_scripts": [
-            "mock_node = psilia_runtime.nodes.mock_node:main",
-            "status_node = psilia_runtime.nodes.status_node:main",
-            "depth_node = psilia_runtime.nodes.depth_node:main",
-            "pose_node = psilia_runtime.nodes.pose_node:main",
+            "core = psilia_runtime.nodes.core_node:main",
+            "ping = psilia_runtime.nodes.ping_node:main",
+            "mock = psilia_runtime.nodes.mock_node:main",
+            "depth = psilia_runtime.nodes.depth_node:main",
+            "pose = psilia_runtime.nodes.pose_node:main",
         ],
     },
     packages=[package_name, f"{package_name}.nodes"],

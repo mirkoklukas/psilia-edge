@@ -13,14 +13,13 @@ import typer
 from rich.console import Console
 from rich.padding import Padding
 
-from psilia_edge.runtime.config import DEFAULT_BASE_DIR
 from psilia_edge.runtime.cli import app as runtime_app
 
 console = Console()
 
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
 
-_DEFAULT_INSTALL_DIR = DEFAULT_BASE_DIR.parent
+_DEFAULT_INSTALL_DIR = "/ssd"  # default parent dir for psilia-runtime-home on Jetson
 
 app.add_typer(
     runtime_app,
@@ -61,13 +60,13 @@ def debug():
 
 
 def _debug_runtime_host() -> None:
-    from psilia_edge.runtime.config import DEVICE_CONFIG_PATH
+    from psilia_edge.runtime.config import CONFIG_PATH
 
-    _print_file(DEVICE_CONFIG_PATH)
+    _print_file(CONFIG_PATH)
 
 
 def _debug_device_manager() -> None:
-    from psilia_edge.device_manager.config import CONFIG_PATH
+    from psilia_edge.runtime.config import CONFIG_PATH
     from psilia_edge.device_manager.pair import (
         _SSH_CONFIG_PATH,
         _SSH_SECTION_END,
@@ -114,14 +113,21 @@ def bootstrap(device: Annotated[str, typer.Argument(help="Registered device name
     wizard runs interactively in one shot.
     """
     import base64
-    from psilia_edge.ui import ask
+    import psilia_edge.ui as ui
     from psilia_edge.utils import run_on_device
+
+    ui.header(
+        ["Device Manager", "Bootstrapping", f"{device}"],
+        descr="Installs psilia on the device and runs setup wizard",
+    )
 
     if not _BOOTSTRAP_PY.exists():
         console.print(f"[red]bootstrap.py not found at {_BOOTSTRAP_PY}[/red]")
         raise typer.Exit(1)
 
-    install_dir = ask("Install directory on device", default=str(_DEFAULT_INSTALL_DIR))
+    install_dir = ui.ask(
+        "Install directory on device", default=str(_DEFAULT_INSTALL_DIR)
+    )
 
     encoded = base64.b64encode(_BOOTSTRAP_PY.read_bytes()).decode()
     cmd = f"python3 <(echo '{encoded}' | base64 -d) {install_dir}"
@@ -160,10 +166,10 @@ def broken_bootstrap(
 @app.command(rich_help_panel="Device Management")
 def devices():
     """List all registered Jetson devices."""
-    from psilia_edge.device_manager.config import read_config
+    from psilia_edge.runtime.config import read_config
 
     config = read_config()
-    devs = config.get("devices", {})
+    devs = config.get("registered_devices", {})
 
     if not devs:
         console.print("[dim]No devices registered. Run 'psilia pair' to add one.[/dim]")

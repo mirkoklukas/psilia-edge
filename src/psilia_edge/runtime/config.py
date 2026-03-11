@@ -1,4 +1,4 @@
-"""Runtime-side path constants and config access."""
+"""Path constants and config access for the psilia tooling."""
 
 from __future__ import annotations
 
@@ -9,57 +9,77 @@ import yaml
 
 from psilia_edge.utils import NestedDict
 
-# System directories
-CONFIG_DIR = Path(os.environ.get("PSILIA_CONFIG_DIR", "/etc/psilia"))
-RUN_DIR = Path(os.environ.get("PSILIA_RUN_DIR", "/run/psilia"))
-LOG_DIR = Path(os.environ.get("PSILIA_LOG_DIR", "/var/log/psilia"))
+# Hidden CLI-internal directory — ~/.psilia/ on any machine.
+CONFIG_DIR = Path(os.environ.get("PSILIA_DIR", "~/.psilia")).expanduser()
 
-# Base directory for installs, ROS workspace, data, and repo.
-# Set by bootstrap.sh and read from device_config.yaml at runtime.
-DEFAULT_BASE_DIR = Path(os.environ.get("PSILIA_DEFAULT_BASE_DIR", "/ssd/psilia"))
+RUN_DIR = Path(os.environ.get("PSILIA_RUN_DIR", "~/.psilia/run")).expanduser()
+LOG_DIR = Path(os.environ.get("PSILIA_LOG_DIR", "~/.psilia/log")).expanduser()
+
+# Unified config file — ~/.psilia/psilia.yaml
+CONFIG_PATH = CONFIG_DIR / "psilia.yaml"
+
+# Default runtime home — user-facing directory where the runtime lives.
+# TODO: Not sure why we need a env var for this.
+DEFAULT_RUNTIME_HOME = Path(
+    os.environ.get("PSILIA_DEFAULT_RUNTIME_HOME", "~/psilia-runtime-home")
+).expanduser()
+
+CONTAINER_NAME = "psilia-runtime"
+DEFAULT_DOCKER_IMAGE = "psilia/runtime:latest"
+
+# These are the subdirs of the runtime home that we create and manage.
+# The repo dir is not included here since it's not necessarily a subdir of the runtime home.
+RUNTIME_DIRS = ["ros", "data", "log"]
 
 
-DEVICE_CONFIG_PATH = CONFIG_DIR / "device_config.yaml"
-
-
-def read_device_config() -> NestedDict:
-    """Read device_config.yaml, returning {} if missing or unreadable."""
-    if not DEVICE_CONFIG_PATH.exists():
+# TODO: Should we raise an error if the config file doesn't exist?
+def read_config() -> NestedDict:
+    """Read ~/.psilia/psilia.yaml, returning {} if missing or unreadable."""
+    if not CONFIG_PATH.exists():
         return NestedDict()
     try:
-        return NestedDict(yaml.safe_load(DEVICE_CONFIG_PATH.read_text()) or {})
+        return NestedDict(yaml.safe_load(CONFIG_PATH.read_text()) or {})
     except yaml.YAMLError:
         return NestedDict()
 
 
-def write_device_config(config: dict | NestedDict) -> None:
-    """Write config dict to device_config.yaml (requires sudo for /etc/psilia/)."""
-    DEVICE_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    DEVICE_CONFIG_PATH.write_text(yaml.dump(dict(**config), default_flow_style=False))
+def write_config(config: dict | NestedDict) -> None:
+    """Write config dict to ~/.psilia/psilia.yaml."""
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(yaml.dump(dict(**config), default_flow_style=False))
 
 
-# TODO: get_base_dir shouldn't really be used, we can directly call get_ros_dir, get_data_dir, get_repo_dir which read from the config.
-#   But for now we can keep it for backwards compatibility with some of the setup code that still references base_dir.
-def get_base_dir() -> Path:
-    """Return the base install directory on the SSD (e.g. /ssd/psilia)."""
-    return Path(read_device_config()["runtime"]["base_dir"])
+def get_runtime_home() -> Path:
+    """Return the runtime home directory from config.
+
+    Raises RuntimeError if not set — run `psilia runtime setup` first.
+    """
+    value = read_config().get("runtime", {}).get("home_path")
+    if not value:
+        raise RuntimeError(
+            "No runtime home configured. Run `psilia runtime setup` first."
+        )
+    return Path(value).expanduser()
 
 
 def get_ros_dir() -> Path:
-    """Return the colcon workspace directory, mounted into Docker at runtime (e.g. /ssd/psilia/ros)."""
-    return Path(read_device_config()["runtime"]["ros_dir"])
+    """Return the colcon workspace directory (e.g. ~/psilia-runtime-home/ros)."""
+    return get_runtime_home() / "ros"
 
 
 def get_data_dir() -> Path:
-    """Return the data directory where MCAP recordings are stored (e.g. /ssd/psilia/data)."""
-    return Path(read_device_config()["runtime"]["data_dir"])
+    """Return the data directory where MCAP recordings are stored."""
+    return get_runtime_home() / "data"
 
 
 def get_repo_dir() -> Path:
-    """Return the repository directory (e.g. /ssd/psilia/psilia-edge)."""
-    return Path(read_device_config()["runtime"]["repo_dir"])
+    """Return the repository root directory, derived from the installed package location.
+
+    Assumes `pip install -e .` (editable install) — always the case for v0.
+    """
+    return Path(__file__).resolve().parents[3]
 
 
 def get_docker_image() -> str | None:
     """Return the name of the Docker image to use for the runtime container or None."""
-    return read_device_config().get("runtime", {}).get("image", None)
+    return read_config().get("runtime", {}).get("image", DEFAULT_DOCKER_IMAGE)

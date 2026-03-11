@@ -4,56 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Psilia Edge</title>
+  <link rel="stylesheet" href="/psilia.css">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, system-ui, sans-serif;
-      background: #1a1a2e;
-      color: #e0e0e0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 2rem 1rem;
-      min-height: 100vh;
-    }
-    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; letter-spacing: 0.05em; }
-    .subtitle { font-size: 0.8rem; color: #666; margin-bottom: 1.5rem; }
-    .card {
-      background: #16213e;
-      border-radius: 0.75rem;
-      padding: 1.25rem;
-      width: 100%;
-      max-width: 420px;
-      margin-bottom: 1rem;
-    }
-    .card h2 { font-size: 0.85rem; color: #4ecca3; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
-    .row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0.35rem 0;
-      border-bottom: 1px solid #1a1a2e;
-      font-size: 0.85rem;
-    }
-    .row:last-child { border-bottom: none; }
-    .row .label { color: #888; font-family: monospace; }
-    .row .value { font-family: monospace; }
-    .badge {
-      font-size: 0.75rem;
-      padding: 0.15rem 0.6rem;
-      border-radius: 1rem;
-      font-weight: 600;
-    }
-    .green  { color: #4ecca3; }
-    .dim    { color: #555; }
-    .yellow { color: #f0c040; }
-
     #api-status { font-size: 0.75rem; color: #555; margin-bottom: 1.25rem; }
   </style>
 </head>
 <body>
   <h1>Psilia Edge</h1>
   <div class="subtitle">spatial perception runtime</div>
+  <nav>
+    <a href="/" class="active">status</a>
+    <a href="/runtime-status.html">runtime status</a>
+    <a href="/runtime-test.html">runtime test</a>
+    <a href="/config.html">config</a>
+  </nav>
   <div id="api-status">loading…</div>
 
   <div class="card" id="services-card">

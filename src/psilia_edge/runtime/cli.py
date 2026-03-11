@@ -10,12 +10,21 @@ Naming convention:
 TODO: Define a typer sub-app here (e.g. `app = typer.Typer(...)`) with
       base/spatial start/stop commands, then import and mount it in cli.py
       via `app.add_typer(runtime_app, name="runtime")` or similar.
+
+TODO: Add a --dev flag (default from env var PSILIA_DEV=1) for dev mode.
+      In dev mode, commands like `update` and `start` could:
+        - sync the ROS workspace from the repo into the dev install path
+        - skip or bypass Docker image rebuild (use local build)
+        - optionally rebuild the Docker image from the local Dockerfile
+      This would allow running `psilia runtime start --dev` to pick up local
+      node changes without a full bootstrap cycle.
 """
 
 from __future__ import annotations
 from typing import Optional
 import functools
 import inspect
+from pathlib import Path
 
 import typer
 
@@ -51,6 +60,39 @@ def device_decorator(func):
 
     wrapper.__signature__ = new_sig
     return wrapper
+
+
+@app.command()
+def init() -> None:
+    """Initializes a runtime home directory."""
+    from psilia_edge.runtime.setup import runtime_home_init
+
+    ui.banner_nav(
+        ["Runtime", "Initialize"], "Initializing the current working directory..."
+    )
+    runtime_home_init(Path.cwd())
+
+
+@app.command(hidden=True)
+@device_decorator
+def setup() -> None:
+    """Pull latest psilia-edge and rebuild the Docker image."""
+    from psilia_edge.runtime.config import DEFAULT_RUNTIME_HOME
+    from psilia_edge.runtime.setup import run_setup
+
+    ui.banner_nav(["Runtime", "Setup"], "Setting up a runtime ...")
+    home = ui.ask("Runtime home directory", default=DEFAULT_RUNTIME_HOME)
+    run_setup(home)
+
+
+@app.command()
+@device_decorator
+def update() -> None:
+    """Update ROS package and rebuilt docker container."""
+    from psilia_edge.runtime.setup import runtime_home_update
+
+    ui.banner_nav(["Runtime", "Update"], "Updating the runtime working directory...")
+    runtime_home_update()
 
 
 @app.command()
@@ -99,11 +141,15 @@ def stop() -> None:
 
 @app.command()
 @device_decorator
-def status() -> None:
+def status(
+    debug: bool = typer.Option(
+        False, "--debug", help="Print timing for each status section."
+    ),
+) -> None:
     from psilia_edge.runtime.status import runtime_status
 
     ui.header(["Runtime", "Status"])
-    ui.print_tree(runtime_status(), label="Runtime Status")
+    ui.print_tree(runtime_status(debug=debug), label="Runtime Status")
 
 
 @app.command("attach")
@@ -133,21 +179,3 @@ def live_view() -> None:
                 time.sleep(1.0)
     except KeyboardInterrupt:
         console.print("\n[dim]Detached.[/dim]")
-
-
-@app.command()
-@device_decorator
-def update() -> None:
-    """Pull latest psilia-edge and rebuild the Docker image."""
-    from psilia_edge.runtime.setup import run_update
-
-    run_update()
-
-
-@app.command(hidden=True)
-@device_decorator
-def setup() -> None:
-    """Pull latest psilia-edge and rebuild the Docker image."""
-    from psilia_edge.runtime.setup import run_setup
-
-    run_setup()

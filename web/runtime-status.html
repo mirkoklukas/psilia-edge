@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Psilia Edge — Status</title>
+  <link rel="stylesheet" href="/psilia.css">
+  <style>
+    .row { align-items: baseline; }
+    .row .value { word-break: break-all; text-align: right; max-width: 60%; }
+    #load-status { font-size: 0.75rem; color: #555; margin-bottom: 1.25rem; }
+    #refresh { margin-bottom: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Psilia Edge</h1>
+  <div class="subtitle">spatial perception runtime</div>
+  <nav>
+    <a href="/">status</a>
+    <a href="/runtime-status.html" class="active">runtime status</a>
+    <a href="/runtime-test.html">runtime test</a>
+    <a href="/config.html">config</a>
+  </nav>
+
+  <button id="refresh">refresh</button>
+  <div id="load-status"></div>
+  <div id="cards"></div>
+
+  <script>
+    async function load() {
+      document.getElementById('load-status').textContent = 'loading…';
+      document.getElementById('cards').innerHTML = '';
+      const t0 = Date.now();
+      const res = await fetch('/api/status');
+      if (!res.ok) {
+        document.getElementById('load-status').textContent = 'failed to load status';
+        return;
+      }
+      const status = await res.json();
+      document.getElementById('load-status').textContent = `loaded in ${Date.now() - t0}ms`;
+      render(status);
+    }
+
+    function addCard(container, title, value) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<h2>${title}</h2>`;
+      card.appendChild(renderValue(value));
+      container.appendChild(card);
+    }
+
+    function render(status) {
+      const container = document.getElementById('cards');
+      for (const [section, value] of Object.entries(status)) {
+        if (section === 'runtime' && value && typeof value === 'object') {
+          for (const [sub, subval] of Object.entries(value)) {
+            addCard(container, `runtime.${sub}`, subval);
+          }
+        } else {
+          addCard(container, section, value);
+        }
+      }
+    }
+
+    function renderValue(value, prefix = '') {
+      const frag = document.createDocumentFragment();
+      if (Array.isArray(value)) {
+        const block = document.createElement('div');
+        block.style.marginBottom = '0.5rem';
+        const label = document.createElement('div');
+        label.style.cssText = 'color:#888; font-family:monospace; font-size:0.85rem; padding:0.35rem 0;';
+        label.textContent = prefix;
+        block.appendChild(label);
+        const list = document.createElement('div');
+        list.style.cssText = 'display:flex; flex-direction:column; gap:0.15rem; padding-left:1rem; margin-top:0.2rem;';
+        for (const item of value) {
+          const entry = document.createElement('div');
+          entry.style.fontSize = '0.8rem';
+          entry.textContent = item;
+          list.appendChild(entry);
+        }
+        if (!value.length) {
+          const empty = document.createElement('div');
+          empty.className = 'dim';
+          empty.style.fontSize = '0.8rem';
+          empty.textContent = '—';
+          list.appendChild(empty);
+        }
+        block.appendChild(list);
+        frag.appendChild(block);
+      } else if (value && typeof value === 'object') {
+        for (const [k, v] of Object.entries(value)) {
+          const label = prefix ? `${prefix}.${k}` : k;
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            frag.appendChild(renderValue(v, label));
+          } else {
+            frag.appendChild(renderValue(v, label));
+          }
+        }
+      } else {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `
+          <span class="label">${prefix}</span>
+          <span class="value ${value == null ? 'dim' : ''}">${value ?? '—'}</span>
+        `;
+        frag.appendChild(row);
+      }
+      return frag;
+    }
+
+    document.getElementById('refresh').addEventListener('click', load);
+    load();
+  </script>
+</body>
+</html>
