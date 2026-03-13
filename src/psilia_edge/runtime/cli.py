@@ -21,7 +21,7 @@ TODO: Add a --dev flag (default from env var PSILIA_DEV=1) for dev mode.
 """
 
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, Annotated
 import functools
 import inspect
 from pathlib import Path
@@ -63,26 +63,56 @@ def device_decorator(func):
 
 
 @app.command()
-def init() -> None:
+def init(
+    runtime_home: Annotated[
+        Path, typer.Argument(help="The path to the runtime home directory.")
+    ] = Path("./"),
+    create: Annotated[
+        bool,
+        typer.Option(
+            "--create",
+            "-c",
+            help="Create the runtime home directory if it doesn't exist.",
+        ),
+    ] = False,
+) -> None:
     """Initializes a runtime home directory."""
     from psilia_edge.runtime.setup import runtime_home_init
 
+    if not runtime_home.exists() and not create:
+        ui.error(
+            f"Runtime home directory '{runtime_home}' does not exist."
+            f"Run with --create (-c) to create it."
+        )
+        raise typer.Exit(1)
+
     ui.banner_nav(
-        ["Runtime", "Initialize"], "Initializing the current working directory..."
+        ["Runtime", "Initialize"], "Initializing the runtime home directory ..."
     )
-    runtime_home_init(Path.cwd())
+    runtime_home_init(runtime_home or Path.cwd(), create=create)
 
 
 @app.command(hidden=True)
 @device_decorator
-def setup() -> None:
+def setup(
+    skip_init: bool = typer.Option(
+        False, "--skip-init", "-s", help="...skip_init", hidden=False
+    ),
+) -> None:
     """Pull latest psilia-edge and rebuild the Docker image."""
-    from psilia_edge.runtime.config import DEFAULT_RUNTIME_HOME
+    from psilia_edge.runtime.config import get_runtime_home, DEFAULT_RUNTIME_HOME
     from psilia_edge.runtime.setup import run_setup
 
     ui.banner_nav(["Runtime", "Setup"], "Setting up a runtime ...")
-    home = ui.ask("Runtime home directory", default=DEFAULT_RUNTIME_HOME)
-    run_setup(home)
+
+    if skip_init:
+        home = get_runtime_home()
+        ui.info(f"Skipping runtime home initialization. Using: \{home}")
+
+    else:
+        home = ui.ask("Runtime home directory", default=DEFAULT_RUNTIME_HOME)
+
+    run_setup(home, skip_init=skip_init)
 
 
 @app.command()
@@ -91,65 +121,116 @@ def update() -> None:
     """Update ROS package and rebuilt docker container."""
     from psilia_edge.runtime.setup import runtime_home_update
 
-    ui.banner_nav(["Runtime", "Update"], "Updating the runtime working directory...")
+    ui.banner_nav(["Runtime", "Update"], "Updating the runtime working directory…")
     runtime_home_update()
 
 
 @app.command()
 @device_decorator
 def start(
+    spatial_only: bool = typer.Option(
+        False, "--spatial-only", "-s", help="Starts Spatial Runtime only (ROS2)."
+    ),
+    base_only: bool = typer.Option(
+        False, "--base-only", "-b", help="Starts the Base Layer only (Webserver)."
+    ),
     host: str = typer.Option("0.0.0.0", help="Bind address", hidden=True),
     port: int = typer.Option(8080, help="HTTP port", hidden=True),
 ) -> None:
     """Start base layer then spatial layer."""
     from psilia_edge.runtime.daemon import is_running
-    from psilia_edge.runtime.core import start_runtime
-
-    if is_running():
-        ui.warn("[yellow]Already running.[/yellow].")
-        raise typer.Exit(1)
+    from psilia_edge.runtime.docker import is_container_running
+    from psilia_edge.runtime.core import (
+        start_base_layer,
+        start_spatial_layer,
+        start_runtime,
+    )
+    from psilia_edge.runtime.config import read_runtime_config
 
     ui.header(["Runtime", "Start"])
 
-    with ui.status("Starting runtime…"):
-        result = start_runtime(host=host, port=port)
+    if base_only:
+        if is_running():
+            ui.warn("Base layer already running.")
+            raise typer.Exit(1)
+        with ui.status("Starting base layer…"):
+            result = start_base_layer(host=host, port=port)
+        ui.print_tree(result, label="base")
+        return
 
-    ui.detail("check runtime status", "psilia runtime status \[device]")
-    ui.detail("live view", "psilia runtime attach \[device]")
-    ui.detail("stop runtime", "psilia runtime stop \[device]")
+    if spatial_only:
+        if is_container_running():
+            ui.warn("Spatial layer already running.")
+            raise typer.Exit(1)
+        with ui.status("Starting spatial layer…"):
+            result = start_spatial_layer()
+        ui.print_tree(result, label="spatial")
+        return
+
+    # default: start both layers
+    with ui.status("Starting runtime…"):
+        result = start_runtime(
+            host=host, port=port, runtime_config=read_runtime_config()
+        )
+
+    ui.detail("check runtime status", "psilia runtime status [device]")
+    ui.detail("live view", "psilia runtime attach [device]")
+    ui.detail("stop runtime", "psilia runtime stop [device]")
     ui.print_tree(result, label="runtime")
 
 
 @app.command()
 @device_decorator
-def stop() -> None:
+def stop(
+    spatial_only: bool = typer.Option(
+        False, "--spatial-only", "-s", help="Stops Spatial Runtime only (ROS2)."
+    ),
+    base_only: bool = typer.Option(
+        False, "--base-only", "-b", help="Stops the Base Layer only (Webserver)."
+    ),
+) -> None:
     """Stop spatial layer then base layer."""
-    from psilia_edge.runtime.core import stop_runtime
+    from psilia_edge.runtime.core import (
+        stop_base_layer,
+        stop_spatial_layer,
+        stop_runtime,
+    )
     from psilia_edge.runtime.daemon import is_running
-
-    if not is_running():
-        ui.warn("[yellow]Nothing running.[/yellow]")
-        raise typer.Exit(1)
-
-    with ui.status("Stopping runtime…"):
-        result = stop_runtime()
+    from psilia_edge.runtime.docker import is_container_running
 
     ui.header(["Runtime", "Stop"])
 
+    if base_only:
+        if not is_running():
+            ui.warn("Base layer is not running.")
+            raise typer.Exit(1)
+        with ui.status("Stopping base layer…"):
+            result = stop_base_layer()
+        ui.print_tree(result, label="base")
+        return
+
+    if spatial_only:
+        if not is_container_running():
+            ui.warn("Spatial layer is not running.")
+            raise typer.Exit(1)
+        with ui.status("Stopping spatial layer…"):
+            result = stop_spatial_layer()
+        ui.print_tree(result, label="spatial")
+        return
+
+    # default: stop both layers
+    with ui.status("Stopping runtime…"):
+        result = stop_runtime()
     ui.print_tree(result, label="runtime")
 
 
 @app.command()
 @device_decorator
-def status(
-    debug: bool = typer.Option(
-        False, "--debug", help="Print timing for each status section."
-    ),
-) -> None:
+def status() -> None:
     from psilia_edge.runtime.status import runtime_status
 
-    ui.header(["Runtime", "Status"])
-    ui.print_tree(runtime_status(debug=debug), label="Runtime Status")
+    ui.header(["Runtime", "Status"], "State of base & spatial layer and network etc…")
+    ui.print_tree(runtime_status(), label="Runtime Status")
 
 
 @app.command("attach")
@@ -165,7 +246,7 @@ def live_view() -> None:
     from psilia_edge.runtime.status import live_status
     from psilia_edge.runtime.daemon import read_log_tail
 
-    ui.header(["Runtime", "Live View"], "Ctrl-C to detach...")
+    ui.header(["Runtime", "Live View"], "Ctrl-C to detach…")
     try:
         with Live(refresh_per_second=1, screen=False) as live:
             while True:
@@ -179,3 +260,19 @@ def live_view() -> None:
                 time.sleep(1.0)
     except KeyboardInterrupt:
         console.print("\n[dim]Detached.[/dim]")
+
+
+@app.command(hidden=True)
+def home() -> Path:
+    """Print the runtime home directory path."""
+    from psilia_edge.runtime.config import get_runtime_home
+
+    print(get_runtime_home())
+
+
+@app.command(hidden=True)
+def repo() -> Path:
+    """Print the runtime home directory path."""
+    from psilia_edge.runtime.config import get_repo_dir
+
+    print(get_repo_dir())

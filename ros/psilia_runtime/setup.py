@@ -16,6 +16,7 @@ setup(
         "console_scripts": [
             "core = psilia_runtime.nodes.core_node:main",
             "ping = psilia_runtime.nodes.ping_node:main",
+            "recording = psilia_runtime.nodes.recording_node:main",
             "mock = psilia_runtime.nodes.mock_node:main",
             "depth = psilia_runtime.nodes.depth_node:main",
             "pose = psilia_runtime.nodes.pose_node:main",

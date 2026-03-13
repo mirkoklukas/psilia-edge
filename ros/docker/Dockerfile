@@ -1,6 +1,9 @@
 # psilia/runtime:latest
 # Builds the Spatial Runtime Docker image for Jetson (ROS 2 Humble + CUDA).
 #
+# Helpful resources:
+# > https://www.docker.com/blog/docker-best-practices-choosing-between-run-cmd-and-entrypoint/
+#
 # TODO: replace base image with JetPack-compatible ROS 2 Humble base
 FROM ros:humble
 
@@ -15,15 +18,27 @@ RUN apt-get update && apt-get install -y \
 # RUN pip install psilia
 
 # psilia_runtime is mounted from the Jetson host at runtime:
-#   docker run -v /ssd/psilia/ros:/opt/psilia/ros ...
+#   docker run -v {runtime_home}/ros:/psilia/ros ...
 # Expected layout: /ssd/psilia/ros/src/psilia_runtime/
 # The entrypoint runs colcon build on startup (incremental after first build).
 
 # Make ROS available to all login shells (e.g. docker exec bash -l)
 RUN echo "source /opt/ros/humble/setup.bash" > /etc/profile.d/ros_setup.sh
 
+# Source PSILIA ROS workspace in all shells if not already present
+RUN mkdir -p /psilia/ros/src/install
+COPY <<'EOF' /etc/profile.d/psilia_setup.sh
+if [ -f /psilia/ros/install/setup.bash ]; then
+  source /psilia/ros/install/setup.bash
+fi
+EOF
+
+
 # Entrypoint: build workspace, source, and launch
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["ros2", "launch", "psilia_runtime", "default.launch.py"]
+COPY scripts/ /scripts/
+RUN for f in /scripts/*.sh; do \
+        cp "$f" / && chmod +x "/$(basename "$f")"; \
+    done && rm -rf /scripts
+
+
+ENTRYPOINT ["/launch_ros.sh"]

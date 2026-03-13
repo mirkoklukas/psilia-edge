@@ -12,6 +12,9 @@ docker ps -a
 # View container logs
 docker logs psilia-runtime
 
+# Stream container logs live
+docker logs -f psilia-runtime
+
 # Build the image manually
 docker build --network=host -t psilia/runtime:latest /ssd/psilia/psilia-edge/ros/
 ```
@@ -52,4 +55,7 @@ psilia update borne
 ros2 node list
 ros2 topic list
 ros2 topic echo /psilia/pose
+
+# Tail the latest ROS launch log
+tail -f ~/.ros/log/latest/launch.log
 ```

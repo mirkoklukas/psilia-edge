@@ -8,6 +8,10 @@ def generate_launch_description():
         executable="core",
         name="psilia_core",
         output="screen",
+        parameters=[{
+            "psilia_version": "0.1.0",
+            "interface_topics": ["/psilia/heartbeat"],
+        }],
     )
 
     ping_node = Node(
@@ -15,6 +19,14 @@ def generate_launch_description():
         executable="ping",
         name="psilia_ping",
         output="screen",
+    )
+
+    # enables recording through the web UI
+    recording_node = Node(
+            package='psilia_runtime',
+            executable='recording',
+            name='psilia_recording',
+            output='screen',
     )
 
     mock_node = Node(
@@ -56,6 +68,7 @@ def generate_launch_description():
     return LaunchDescription([
         core_node,
         ping_node,
-        mock_node,
+        recording_node,
         rosbridge,
+        mock_node,
     ])

@@ -7,7 +7,6 @@
 #   leading underscore    → helper (returns a value or renderable we use here)
 
 from pathlib import Path
-from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -100,67 +99,67 @@ def pair():
     run_pair_wizard()
 
 
-# Path to bootstrap.py in the repo — works for editable installs (src layout).
-_BOOTSTRAP_PY = Path(__file__).parent.parent.parent / "scripts" / "bootstrap.py"
+# # Path to bootstrap.py in the repo — works for editable installs (src layout).
+# _BOOTSTRAP_PY = Path(__file__).parent.parent.parent / "scripts" / "bootstrap.py"
 
 
-@app.command(rich_help_panel="Device Management")
-def bootstrap(device: Annotated[str, typer.Argument(help="Registered device name")]):
-    """Bootstrap a Jetson over SSH: streams bootstrap.py via base64 + process substitution.
+# @app.command(rich_help_panel="Device Management")
+# def bootstrap(device: Annotated[str, typer.Argument(help="Registered device name")]):
+#     """Bootstrap a Jetson over SSH: streams bootstrap.py via base64 + process substitution.
 
-    The script is base64-encoded and embedded in the SSH command, then decoded on the
-    remote via process substitution — so stdin stays as the terminal and the setup
-    wizard runs interactively in one shot.
-    """
-    import base64
-    import psilia_edge.ui as ui
-    from psilia_edge.utils import run_on_device
+#     The script is base64-encoded and embedded in the SSH command, then decoded on the
+#     remote via process substitution — so stdin stays as the terminal and the setup
+#     wizard runs interactively in one shot.
+#     """
+#     import base64
+#     import psilia_edge.ui as ui
+#     from psilia_edge.utils import run_on_device
 
-    ui.header(
-        ["Device Manager", "Bootstrapping", f"{device}"],
-        descr="Installs psilia on the device and runs setup wizard",
-    )
+#     ui.header(
+#         ["Device Manager", "Bootstrapping", f"{device}"],
+#         descr="Installs psilia on the device and runs setup wizard",
+#     )
 
-    if not _BOOTSTRAP_PY.exists():
-        console.print(f"[red]bootstrap.py not found at {_BOOTSTRAP_PY}[/red]")
-        raise typer.Exit(1)
+#     if not _BOOTSTRAP_PY.exists():
+#         console.print(f"[red]bootstrap.py not found at {_BOOTSTRAP_PY}[/red]")
+#         raise typer.Exit(1)
 
-    install_dir = ui.ask(
-        "Install directory on device", default=str(_DEFAULT_INSTALL_DIR)
-    )
+#     install_dir = ui.ask(
+#         "Install directory on device", default=str(_DEFAULT_INSTALL_DIR)
+#     )
 
-    encoded = base64.b64encode(_BOOTSTRAP_PY.read_bytes()).decode()
-    cmd = f"python3 <(echo '{encoded}' | base64 -d) {install_dir}"
-    run_on_device(device, cmd, replace_process=True)
+#     encoded = base64.b64encode(_BOOTSTRAP_PY.read_bytes()).decode()
+#     cmd = f"python3 <(echo '{encoded}' | base64 -d) {install_dir}"
+#     run_on_device(device, cmd, replace_process=True)
 
 
-@app.command(rich_help_panel="Device Management", hidden=True)
-def broken_bootstrap(
-    device: Annotated[str, typer.Argument(help="Registered device name")],
-):
-    """Broken bootstrap — pipes script via stdin so interactive prompts get EOF.
+# @app.command(rich_help_panel="Device Management", hidden=True)
+# def broken_bootstrap(
+#     device: Annotated[str, typer.Argument(help="Registered device name")],
+# ):
+#     """Broken bootstrap — pipes script via stdin so interactive prompts get EOF.
 
-    Demonstrates the stdin conflict: bootstrap runs fine but the setup wizard
-    at the end cannot read user input because stdin is the exhausted pipe.
-    """
-    import subprocess
-    from psilia_edge.ui import ask
+#     Demonstrates the stdin conflict: bootstrap runs fine but the setup wizard
+#     at the end cannot read user input because stdin is the exhausted pipe.
+#     """
+#     import subprocess
+#     from psilia_edge.ui import ask
 
-    if not _BOOTSTRAP_PY.exists():
-        console.print(f"[red]bootstrap.py not found at {_BOOTSTRAP_PY}[/red]")
-        raise typer.Exit(1)
+#     if not _BOOTSTRAP_PY.exists():
+#         console.print(f"[red]bootstrap.py not found at {_BOOTSTRAP_PY}[/red]")
+#         raise typer.Exit(1)
 
-    install_dir = ask("Install directory on device", default=str(_DEFAULT_INSTALL_DIR))
+#     install_dir = ask("Install directory on device", default=str(_DEFAULT_INSTALL_DIR))
 
-    # Pipe the script via stdin. SSH warns "Pseudo-terminal will not be allocated
-    # because stdin is not a terminal" and the setup wizard at the end gets EOF
-    # on stdin — interactive prompts fail or silently receive empty input.
-    script = _BOOTSTRAP_PY.read_text()
-    subprocess.run(
-        ["ssh", "-t", device, f"python3 - {install_dir}"],
-        input=script,
-        text=True,
-    )
+#     # Pipe the script via stdin. SSH warns "Pseudo-terminal will not be allocated
+#     # because stdin is not a terminal" and the setup wizard at the end gets EOF
+#     # on stdin — interactive prompts fail or silently receive empty input.
+#     script = _BOOTSTRAP_PY.read_text()
+#     subprocess.run(
+#         ["ssh", "-t", device, f"python3 - {install_dir}"],
+#         input=script,
+#         text=True,
+#     )
 
 
 @app.command(rich_help_panel="Device Management")
@@ -201,18 +200,7 @@ def devices():
 #   DATA MANAGEMENT COMMANDS
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-@app.command(rich_help_panel="Data Management")
-def pull(device: str = typer.Argument(None, help="Target device name")):
-    """Pull recordings from Jetson to laptop. [dim](not yet implemented)[/dim]"""
-    raise NotImplementedError
-
-
-@app.command(hidden=True)
-def serve(
-    host: str = typer.Argument(default="0.0.0.0"),
-    port: int = typer.Argument(default=8080),
-):
-    """Internal: run the FastAPI server (called by the daemon subprocess)."""
-    from psilia_edge.runtime.server import serve as run_server
-
-    run_server(host=host, port=port)
+# @app.command(rich_help_panel="Data Management")
+# def pull(device: str = typer.Argument(None, help="Target device name")):
+#     """Pull recordings from Jetson to laptop. [dim](not yet implemented)[/dim]"""
+#     raise NotImplementedError

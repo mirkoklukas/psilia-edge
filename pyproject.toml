@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 psilia = "psilia_edge.cli:app"
+rt = "psilia_edge.runtime.cli:app"
 
 [build-system]
 requires = ["hatchling"]

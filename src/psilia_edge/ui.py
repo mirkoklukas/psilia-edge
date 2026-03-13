@@ -15,6 +15,8 @@ from psilia_edge import __version__ as psilia_version
 
 console = Console()
 
+PADDING_LEFT = 2
+
 psilia_version = "v" + psilia_version.replace("alpha", "α").replace("beta", "β")
 LOGO = """
   ▄
@@ -64,9 +66,6 @@ def banner() -> None:
     _banner_color()
 
 
-PADDING_LEFT = 2
-
-
 # LOGO_SMALL = (
 #     f"▚┃▞\n"
 #     f" ┃ "
@@ -91,27 +90,39 @@ LOGO_SMALL = (
 #     f"▚╻▞\n"
 #     f" ┃ "
 # )
+LOGO_BIG = (
+    """
+  ▄
+▚ █ ▞
+  █
+  ▀
+"""
+).strip("\n")
 
 
-def banner_nav(path, descr="...") -> None:
+def banner_nav(path, descr=None) -> None:
     if descr is None:
-        descr = "..."
-    title = " → ".join([*path[:-1], f"[bold ]{path[-1]}[/bold ]"])
-    lines = [title, *descr.split("\n")]
+        descr = "…"
+    title = " → ".join([*path[:-1], f"[bold]{path[-1]}[/bold ]"])
+    descr_lines = [f"{line}" for line in descr.split("\n")]
+    lines = ["", title, *descr_lines]
+    logo_lines = LOGO_BIG.split("\n")
 
-    logo_lines = LOGO_SMALL.split("\n")
+    if len(lines) < len(logo_lines):
+        lines += [""] * (len(logo_lines) - len(lines))
+
     if len(lines) > 1:
-        logo_lines += ["   "] * len(lines[1:])
+        logo_lines += [" " * len(logo_lines[0])] * len(lines[1:])
 
     s = []
     for i, (ell, t) in enumerate(zip(logo_lines, lines)):
-        if i == 0:
-            s.append(f"  [magenta]{ell}  {t}[/magenta]   ")
+        if i <= 1:
+            s.append(f" {ell}  {t}   ")
         else:
-            s.append(f"  [cyan]{ell}  {t}[/cyan]   ")
+            s.append(f" {ell}  {t}   ")
 
-    p = Padding("\n".join(s), (1, 0), style="", expand=False)
-    console.print(Padding(p, (1, 1), expand=False))
+    p = Padding("\n".join(s), (0, 0), style="", expand=False)
+    console.print(Padding(p, (0, 1), expand=False))
 
 
 def nav_path(path: list[str], descr=None) -> None:
@@ -127,6 +138,13 @@ HEADER_TEXT = Text()
 HEADER_TEXT.append("Psilia-Edge", style="bold")
 HEADER_TEXT.append(" v0.1.1\n", style="dim")
 HEADER_TEXT.append("Spatial Runtime for Embodied AI.", style="dim")
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Header, title, lines ...
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 
 def header(path: list[str], descr=None) -> None:
@@ -284,7 +302,7 @@ def build_tree(
         guide_style=guide_style,
     )
     _add(tree, d)
-    return Padding(tree, (2, 2))
+    return Padding(tree, (0, 0, 1, PADDING_LEFT))
 
 
 def print_tree(

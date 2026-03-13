@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Psilia Edge — Recording</title>
+
+  <!-- TODO: roslibjs loaded from CDN. In the field there may be no internet access.
+             Consider vendoring roslib.min.js into web/vendor/ and updating this path. -->
+  <script src="https://unpkg.com/roslib@1/build/roslib.min.js"></script>
+
+  <link rel="stylesheet" href="/psilia.css">
+  <style>
+    #ros-status { font-size: 0.75rem; color: #555; margin-bottom: 1.25rem; }
+    input[type="text"] {
+      width: 100%;
+      padding: 0.65rem 0.75rem;
+      background: #1a1a2e;
+      border: 1px solid #2a2a4e;
+      border-radius: 0.5rem;
+      color: #e0e0e0;
+      font-size: 0.85rem;
+      font-family: monospace;
+      margin-top: 0.75rem;
+    }
+    input[type="text"]:focus { outline: none; border-color: #4ecca3; }
+    input[type="text"]::placeholder { color: #555; }
+    .input-label {
+      font-size: 0.75rem;
+      color: #888;
+      font-family: monospace;
+      margin-top: 0.75rem;
+      display: block;
+    }
+    button {
+      width: 100%;
+      padding: 0.75rem;
+      background: #4ecca3;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 0.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+    }
+    button.stop { background: #e05c5c; color: #fff; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    button:active:not(:disabled) { opacity: 0.8; }
+  </style>
+</head>
+<body>
+  <h1>Psilia Edge</h1>
+  <div class="subtitle">spatial perception runtime</div>
+  <nav>
+    <a href="/">status</a>
+    <a href="/runtime-status.html">runtime status</a>
+    <a href="/runtime-test.html">runtime test</a>
+    <a href="/recording.html" class="active">recording</a>
+    <a href="/config.html">config</a>
+  </nav>
+  <div id="ros-status">connecting to rosbridge…</div>
+
+  <div class="card">
+    <h2>/psilia/heartbeat</h2>
+    <div class="row">
+      <span class="label">status</span>
+      <span class="value dim" id="hb-status">—</span>
+    </div>
+    <div class="row">
+      <span class="label">stamp</span>
+      <span class="value dim" id="hb-stamp">—</span>
+    </div>
+    <div class="row">
+      <span class="label">last received</span>
+      <span class="value dim" id="hb-received">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>recording</h2>
+    <button id="record-btn" disabled onclick="toggleRecording()">Start Recording</button>
+    <span class="input-label">session name</span>
+    <input type="text" id="session-input" placeholder="e.g. crimson-falcon" />
+  </div>
+
+  <script>
+    const ROSBRIDGE_URL = `ws://${location.hostname}:9090`;
+
+    // TODO: make topics configurable from runtime.yaml
+    const DEFAULT_TOPICS = ['/psilia/heartbeat'];
+
+    let isRecording = false;
+
+    const ros = new ROSLIB.Ros({ url: ROSBRIDGE_URL });
+
+    ros.on('connection', () => {
+      document.getElementById('ros-status').textContent = '';
+      document.getElementById('record-btn').disabled = false;
+    });
+
+    ros.on('error', () => {
+      document.getElementById('ros-status').textContent = 'rosbridge error';
+      document.getElementById('ros-status').style.color = '#f0c040';
+      document.getElementById('record-btn').disabled = true;
+    });
+
+    ros.on('close', () => {
+      document.getElementById('ros-status').textContent = 'rosbridge disconnected';
+      document.getElementById('ros-status').style.color = '#555';
+      document.getElementById('record-btn').disabled = true;
+    });
+
+    // --- /psilia/heartbeat subscriber ---
+    const heartbeatTopic = new ROSLIB.Topic({
+      ros,
+      name: '/psilia/heartbeat',
+      messageType: 'std_msgs/String',
+    });
+
+    heartbeatTopic.subscribe(msg => {
+      let data;
+      try { data = JSON.parse(msg.data); } catch { return; }
+      document.getElementById('hb-status').textContent = data.status ?? '—';
+      document.getElementById('hb-status').className   = 'value ' + (data.status === 'ok' ? 'green' : 'yellow');
+      document.getElementById('hb-stamp').textContent  = data.stamp ?? '—';
+      document.getElementById('hb-stamp').className    = 'value dim';
+      document.getElementById('hb-received').textContent = new Date().toLocaleTimeString();
+      document.getElementById('hb-received').className   = 'value green';
+    });
+
+    // --- /psilia/recording/status subscriber ---
+    const recordingStatusTopic = new ROSLIB.Topic({
+      ros,
+      name: '/psilia/recording/status',
+      messageType: 'std_msgs/Bool',
+    });
+
+    recordingStatusTopic.subscribe(msg => {
+      isRecording = msg.data;
+      const btn = document.getElementById('record-btn');
+      btn.textContent = isRecording ? 'Stop Recording' : 'Start Recording';
+      btn.className   = isRecording ? 'stop' : '';
+    });
+
+    // --- /psilia/web/recording/start publisher ---
+    const startTopic = new ROSLIB.Topic({
+      ros,
+      name: '/psilia/web/recording/start',
+      messageType: 'std_msgs/String',
+    });
+
+    // --- /psilia/web/recording/stop publisher ---
+    const stopTopic = new ROSLIB.Topic({
+      ros,
+      name: '/psilia/web/recording/stop',
+      messageType: 'std_msgs/String',
+    });
+
+    function toggleRecording() {
+      if (isRecording) {
+        stopTopic.publish(new ROSLIB.Message({ data: '' }));
+      } else {
+        const session = document.getElementById('session-input').value.trim() || 'session';
+        const payload = JSON.stringify({
+          session,
+          topics: DEFAULT_TOPICS,
+        });
+        startTopic.publish(new ROSLIB.Message({ data: payload }));
+      }
+    }
+  </script>
+</body>
+</html>

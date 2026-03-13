@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import re
-import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-Runner = Callable[..., subprocess.CompletedProcess]
+from psilia_edge.utils import run
+
+Runner = Callable[[list[str]], tuple[int, str, str]]
 
 
-def _run(cmd: list[str], runner: Runner = subprocess.run) -> tuple[int, str]:
+def _run(cmd: list[str], runner: Runner = run) -> tuple[int, str]:
     try:
-        result = runner(cmd, capture_output=True, text=True)
-        return result.returncode, result.stdout.strip()
+        rc, out, _ = runner(cmd)
+        return rc, out.strip()
     except (FileNotFoundError, NotADirectoryError, OSError):
         # Command not available (e.g. running on dev machine without nmcli/iw)
         return 127, ""
@@ -52,7 +53,7 @@ class Interface:
         return self.state == "connected"
 
 
-def list_interfaces(runner: Runner = subprocess.run) -> list[Interface]:
+def list_interfaces(runner: Runner = run) -> list[Interface]:
     """Return all non-loopback network interfaces via nmcli."""
     rc, out = _run(
         ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"],
@@ -86,7 +87,7 @@ def list_interfaces(runner: Runner = subprocess.run) -> list[Interface]:
     return interfaces
 
 
-def _get_ip4(ifname: str, runner: Runner = subprocess.run) -> str | None:
+def _get_ip4(ifname: str, runner: Runner = run) -> str | None:
     rc, out = _run(
         ["nmcli", "-t", "-f", "IP4.ADDRESS", "device", "show", ifname],
         runner,
@@ -98,7 +99,7 @@ def _get_ip4(ifname: str, runner: Runner = subprocess.run) -> str | None:
     return m.group(1) if m else None
 
 
-def _check_ap_support(ifname: str, runner: Runner = subprocess.run) -> bool:
+def _check_ap_support(ifname: str, runner: Runner = run) -> bool:
     """Return True if the interface's underlying phy advertises AP mode."""
     rc, out = _run(["iw", "dev", ifname, "info"], runner)
     if rc != 0 or not out:

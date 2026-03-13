@@ -1,5 +1,6 @@
 # Psilia Edge — Spatial Runtime
 
+
 ## Filesystem Layout
 
 The key mental model is as follows: The user clones and install the repository at a location of their choice (repo directory). Once installed the CLI is up. The CLI has its own state storage (config directory) under `~/.psilia/`. The runtime is the "product". A set up runtime has it's own additional user-facing and user-specified folder (runtime home), e.g. `~/psilia-runtime-home/`.
@@ -30,10 +31,11 @@ This is where the runtime lives. Intentionally visible and not hidden — the us
 
 ```
 psilia-runtime-home/
-  ros/                      # colcon workspace, mounted into Docker at runtime
-  data/                     # MCAP recordings
-  log/                      # runtime logs
-  runtime_config.yaml       # user-editable: what nodes to start, topics to record, etc.
+  ros/            # colcon workspace, mounted into Docker at runtime
+  data/           # MCAP recordings
+  log/            # runtime logs
+  conf/           # Default place to put alternative runtime configs
+  runtime.yaml    # user-editable: what nodes to start, topics to record, etc.
 ```
 
 
@@ -47,21 +49,28 @@ psilia-runtime-home/
 **`~/.psilia/psilia.yaml`** is the single unified config file for the psilia tooling on any machine.
 Its path is `psilia_edge.runtime.config.CONFIG/"psilia.yaml"` and stored additionally in `psilia_edge.runtime.config.CONFIG_PATH`.
 
-It has two independent main sections (potentially more in the future) — either or both may be present depending on what the machine does:
+It can be split into two main part (potentially more in the future) — either or both may be present depending on what the machine does:
+- Runtime specific: where the runtimes home folder is, and where to find the runtime configuration file, but also edge device information (e.g. how to access the hotspot)
+- Device and Data Management:
 
 ```yaml
+# written by `psilia runtime setup`
 runtime:
-  home_path: ~/psilia-runtime-home   # written by `psilia runtime setup`
+  home_path: ~/psilia-runtime-home
+  config_path: ~/psilia-runtime-home/runtime.yaml.
 
-hotspot:                             # written by `psilia runtime setup` (Jetson only)
+# written by `psilia runtime setup` (Jetson only)
+hotspot:
   ssid: my-jetson-ap                 # NOTE: hardware may change between boots —
   password: psilia1234               # these values can be stale if dongle is swapped
   interface: wlx...                  # or camera is unplugged. live detection TBD.
 
-camera:                              # written by `psilia runtime setup` (optional)
+# written by `psilia runtime setup` (optional)
+camera:
   type: null                         # e.g. zed2i, oak-d, realsense
 
-registered_devices:                 # written by `psilia pair`
+# written by `psilia pair`
+registered_devices:
   my-jetson:
     host: my-jetson.local
     user: nvidia
@@ -70,7 +79,22 @@ registered_devices:                 # written by `psilia pair`
 
 A machine with `runtime.home_path` set has a local runtime installed. A machine with `registered_devices` set manages one or more remote runtimes. A laptop in dev mode can have both. This replaces the old role-detection heuristic of checking for a Jetson-specific file — the CLI now simply checks whether `runtime.home_path` is present.
 
-**`{home_path}/runtime_config.yaml`** is user-editable and controls what nodes to start, which topics to record, and so on. Created with defaults by `psilia runtime setup`. Its path is stored in `psilia_edge.runtime.config.RUNTIME_CONFIG_PATH`.
+**`{home_path}/runtime.yaml`** is user-editable and controls what nodes to start, which topics to record, and so on. Created with defaults by `psilia runtime setup`. Its path is stored in `psilia_edge.runtime.config.RUNTIME_CONFIG_PATH`.
+
+```yaml
+name: Default-Runtime
+# TBD
+```
+
+## Two Roles
+
+The same `psilia-edge` package is installed on both your laptop and Jetson device, but each takes on a distinct role:
+
+**Runtime host** (Jetson) — runs the spatial perception stack. Hosts the base layer daemon, the ROS layer in Docker, and serves the Control UI. Anything you called `psilia runimte setup` on, which basically means it has a "runtime home".
+
+**Device/Data manager** (Laptop) — manages one or more runtime hosts. Handles pairing, bootstrapping over SSH, and data operations (pull, sync, cloud push). Keeps a registry of registered devices in `~/.psilia/psilia.yaml`.
+
+The role distinction is intentional and usually distinct for a given machine — a Jetson is usually  a runtime host, a laptop is usually a device/data manager. However, a single machine *can* play both roles, but that is used mainly during development.
 
 
 ## Environment and important config variables
@@ -121,9 +145,12 @@ ROS 2 Humble, CUDA / JetPack-compatible base, camera drivers, MCAP recorder, Fox
 The container mounts two directories from the host:
 
 ```
-Host                          Container
-~/.psilia/run/            →   /psilia/run/       status files written by core_node
-{runtime_home}/ros/       →   /opt/psilia/ros/   colcon workspace (built on startup)
+Host                             Container
+{runtime_home}/ros/          →   /psilia/ros/            colcon workspace (built on startup)
+{runtime_home}/log/          →   /psilia/log/            runtime logs
+{runtime_home}/data/         →   /psilia/data/           MCAP recordings
+{runtime_home}/runtime.yaml  →   /psilia/runtime.yaml    runtime config (read-only)
+~/.psilia/run/               →   /psilia/run/            status files written by core_node
 ```
 
 `/psilia/run/` is the shared state channel between the ROS layer and the host:
@@ -132,11 +159,16 @@ Host                          Container
 
 The colcon workspace layout inside the container mirrors the host:
 ```
-/opt/psilia/ros/
-  src/psilia_runtime/     # mounted from host — editable without rebuilding image
-  build/                  # created by colcon on container startup
-  install/
-  log/
+/psilia/
+  ros/
+    src/psilia_runtime/   # mounted from host — editable without rebuilding image
+    build/                # created by colcon on container startup
+    install/
+    log/
+  log/                    # runtime logs (mounted from host)
+  data/                   # MCAP recordings (mounted from host)
+  runtime.yaml            # runtime config (mounted read-only from host)
+  run/                    # status files written by core_node (mounted from host)
 ```
 
 The entrypoint runs `colcon build --packages-select psilia_runtime` on every startup (incremental — fast after first build), sources the workspace, then launches `ros2 launch psilia_runtime default.launch.py`.
@@ -175,9 +207,65 @@ The web UI talks to two separate services on the Jetson:
 - Used by the host Python code to publish to `/psilia/status_request` (triggers `core_node` to write `status.json`)
 - Future: recording control (start/stop MCAP recorder via ROS topic)
 
-The split of responsibilities is intentional: FastAPI owns lifecycle and config; rosbridge owns all live ROS interaction. The host never runs `ros2` CLI tools directly — it either reads files from the shared `run/` mount or publishes via rosbridge.
+The split of responsibilities is intentional: FastAPI owns lifecycle and config; rosbridge owns all live ROS interaction. As a soft guideline, the host avoids running `ros2` CLI tools directly — preferring the shared `run/` mount or rosbridge — but dropping into the container via `docker exec` and using `ros2` CLI is a valid escape hatch for debugging and dev.
+
+<!-- ### Communication Matrix
+
+The table below shows how each part of the system communicates with the others. Each cell describes the channel that the **row** uses to talk to the **column**. Parentheses indicate an indirect path. A `—` means no direct communication.
+
+|  | **Browser** | **Terminal** | **Runtime** | **Docker** | **ROS** |
+|---|---|---|---|---|---|
+| **Browser** | — | — | REST :8080 | — | WS :9090 |
+| **Terminal** | — | — | CLI | docker CLI | WS :9090, *(ros2 CLI)* |
+| **Runtime** | REST :8080 | CLI | — | docker CLI, shared mount | shared mount, *(ros2 CLI)* |
+| **Docker** | — | — | shared mount, ports | — | ros2 CLI |
+| **ROS** | WS :9090 | — | shared mount | — | — |
+
+- **REST :8080** — FastAPI server on the host; handles lifecycle (start/stop), status, and config.
+- **WS :9090** — rosbridge WebSocket inside Docker; exposes live ROS topics to the outside world.
+- **CLI** — the `psilia` command-line tool; runs locally on the laptop or forwarded over SSH.
+- **docker CLI  (docker exec)** — used to start/stop the container or shell into it.
+- **shared mount** — `~/.psilia/run/` mounted into the container; `core_node` writes `heartbeat.json` and `status.json`, Runtime reads them. The mount is bidirectional by nature.
+- **ros2 CLI** — used by Docker's entrypoint to launch ROS (`ros2 launch`); also available as an escape hatch via `docker exec`. -->
 
 
-## Notes & Ideas
+## V0 Features
+
+- **WebUI:**
+  - Camera stream, throttled and downsampled (configurable in RT config)
+  - Spatial RT start/stop
+    - Choose RT config to use on next start (options from `RT_HOME/config`)
+  - Recording start/stop
+    - choose which topics to record; defaults from RT config
+    - easy way of nameing the recording `{device}_{session}_{counter}_{time}.mcap`; random default for sessions from a hidden configuration file (some cool names).
+
+- **CLI**
+  - `psilia pair [host] [pass]`
+  - `psilia devices`
+  - `psilia runtime init <device>`: initialize runtime home, dirs, entry to `psilia.yaml`, minimal setup so the runtime runs locally (dev-mode basically), but without sensors or hotspot
+  - `psilia runtime start <device> [--config]`: start the runtime with an optional path to a runtime config file (DEFAULT: None or an empty dict I guess)
+  - `psilia runtime stop <device>`
+  - `psilia runtime status <device>`
+  - `psilia runtime attach <device>`: live-view
+  - `psilia runtime configure <device> [--hotspot] [--camera] [--file]`: configures `psilia.yaml` and `runtime.yaml`
+
+- CLI nice help visualization
+
+### Future Versions
+ - IMU and other sensors
+
+## TODOs
+
+- show logs in live view, ros2 logs and so on
+- Design how the spatial runtime ros node configuration and so on can be configured.
+- Add validation for config files (`psilia.yaml`, `runtime.yaml`) — schema check on read, clear error messages for missing or malformed fields.
+- Set up structured logging across `psilia_edge` (currently using `logging.getLogger(__name__)` in places but no root config). Warnings like rosbridge publish failures currently go nowhere.
+- Check Runtime status reliability: `status.json` and `heartbeat.json` are ephemeral (cleared on container start), and `_read_heartbeat()` now checks file mtime to detect stale data. But `_read_ros_status()` still depends on the rosbridge WebSocket publish succeeding — if that fails, `status.json` won't be refreshed and the ros section will be missing. Needs a reliable trigger mechanism (WebSocket, ROS topic, or direct container exec).
+- Add a `psilia runtime status --reliable` (or `--slow`) mode that fetches ROS nodes and topics directly via `docker exec ros2 node list` / `ros2 topic list` — slower but ground-truth, doesn't depend on rosbridge or status.json.
+- `psilia runtime status` should never show stale state from a previous session. Any data sourced from files (`heartbeat.json`, `status.json`) must either pass a freshness check or be shown as unavailable.
+- `run_streamed` and any `docker run` calls should avoid the `-t` (pseudo-TTY) flag when not running interactively — `-t` causes the container to emit `\r\n` line endings, which produce staircase rendering in Rich when piped.
+
+## Notes & Ideas & Keep-in-minds
 
 - "runtime home" has a nice ring to it — `runtime.home_path` in the config reads naturally. Settled on `psilia-runtime-home` as the default directory name.
+- The ROS workspace (`psilia_runtime`) is copied to the runtime home and mounted into the container at runtime — it is NOT baked into the Docker image. This keeps it visible and editable on the host without rebuilding the image. May revisit if we ever want a fully self-contained image.

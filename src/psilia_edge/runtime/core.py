@@ -16,6 +16,7 @@ from psilia_edge.runtime.config import read_config
 # TODO: Should port be read from somewhere?
 def start_runtime(host: str = "0.0.0.0", port: int = 8080) -> dict:
     """Start base layer then spatial layer. Returns a combined result dict."""
+
     base = start_base_layer(host=host, port=port)
     if base.get("status") == "error":
         return {"base": base, "spatial": {"status": "skipped"}}
@@ -64,15 +65,16 @@ def start_base_layer(host: str = "0.0.0.0", port: int = 8080) -> dict:
     time.sleep(1.5)  # give uvicorn a moment to bind
 
     hostname = socket.gethostname().split(".")[0]
+    # UDP trick: connect to Google's public DNS (8.8.8.8) — no packet is sent,
+    # but the OS picks the outbound interface, so getsockname() returns our LAN IP.
+    _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        # UDP trick: connect to Google's public DNS (8.8.8.8) — no packet is sent,
-        # but the OS picks the outbound interface, so getsockname() returns our LAN IP.
-        _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         _s.connect(("8.8.8.8", 80))
         lan_ip = _s.getsockname()[0]
-        _s.close()
     except OSError:
         lan_ip = None
+    finally:
+        _s.close()
 
     return {
         "status": "started",
@@ -92,17 +94,29 @@ def stop_base_layer() -> dict:
 
 
 def start_spatial_layer() -> dict:
-    """Start the ROS Docker container. Returns a result dict."""
-    from psilia_edge.runtime.docker import is_docker_running, start_container
+    """Start the ROS Docker container and launch the ROS stack. Returns a result dict."""
+    from psilia_edge.runtime.docker import (
+        is_docker_daemon_running,
+        launch_runtime_container,
+    )
+    from psilia_edge.runtime.config import get_launch_script
 
-    if not is_docker_running():
+    if not is_docker_daemon_running():
         return {"status": "error", "error": "Docker daemon is not running."}
 
-    return start_container()
+    launch_script = get_launch_script()
+    rc, _, err = launch_runtime_container(launch_script)
+    if rc != 0:
+        return {"status": "error", "error": err}
+
+    return {"status": "started", "launch": launch_script}
 
 
 def stop_spatial_layer() -> dict:
     """Stop the ROS Docker container. Returns a result dict."""
-    from psilia_edge.runtime.docker import stop_container
+    from psilia_edge.runtime.docker import stop_runtime_container
 
-    return stop_container()
+    rc, _, err = stop_runtime_container()
+    if rc != 0:
+        return {"status": "error", "error": err}
+    return {"status": "stopped"}

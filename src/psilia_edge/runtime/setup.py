@@ -6,14 +6,12 @@ Entry point (called by scripts/bootstrap.sh):
 
 from __future__ import annotations
 
-import getpass
 import shutil
-import subprocess
 from pathlib import Path
 
 from rich.prompt import Prompt
 
-from psilia_edge.utils import run, run_streamed, sudo
+from psilia_edge.utils import run, run_streamed, sudo, write_yaml, load_yaml
 from psilia_edge import ui
 from psilia_edge.ui import console
 from psilia_edge.runtime.config import (
@@ -21,10 +19,13 @@ from psilia_edge.runtime.config import (
     DEFAULT_RUNTIME_HOME,
     RUNTIME_DIRS,
     get_repo_dir,
+    get_docker_dir,
     get_ros_dir,
     get_docker_image,
     read_config,
     write_config,
+    DEFAULT_RUNTIME_CONFIG_NAME,
+    INITIAL_RUNTIME_CONFIG_PATH,
 )
 
 _DEFAULT_HOTSPOT_PASSWORD = "psilia1234"
@@ -35,11 +36,25 @@ _PSILIA_REPO_BRANCH = "dev"
 # TODO: What is a cool pattern, for running steps, printing to ui what has been done, and returning a config.
 #   and keeping the cli command and the work separated. Like which function should have ui calls, and
 #   which should just return dicts that the cli command can print?
-def runtime_home_init(runtime_home: Path) -> None:
-    """Initialize runtime"""
+def runtime_home_init(runtime_home: Path, create: bool = False) -> None:
+    """Initialize the runtime home directory.
+
+    - Creates the runtime home directory structure
+    - Copies the psilia_runtime ROS package into the runtime home
+    - Builds the Docker image
+    - Writes runtime home path into psilia.yaml
+    - Writes a default runtime.yaml
+    """
     # TODO: Requires docker for instance. Should have a check whether all
     #   dependencies are met before we run through init?
 
+    if not runtime_home.exists() and not create:
+        raise RuntimeError(
+            f"Runtime home directory '{runtime_home}' does not exist."
+            f"Run with --create (-c) to create it."
+        )
+
+    runtime_home = runtime_home.expanduser().resolve()
     config = read_config()
     ui.status("Creating directories")
     config |= _step_create_dirs(runtime_home)
@@ -53,18 +68,31 @@ def runtime_home_init(runtime_home: Path) -> None:
     write_config(config)
     ui.ok(f"Config written to {CONFIG_PATH}")
     ui.print_tree(config, label=f"'{CONFIG_PATH.name}'")
+
+    runtime_config_path = runtime_home / DEFAULT_RUNTIME_CONFIG_NAME
+    runtime_config = load_yaml(INITIAL_RUNTIME_CONFIG_PATH)
+    write_yaml(runtime_config_path, runtime_config)
+    ui.ok(f"Runtime config written {runtime_config_path.name}")
+    ui.print_tree(runtime_config, label=f"'{runtime_config_path.name}'")
+
     return config
 
 
-def run_setup(runtime_home: Path) -> None:
-    """Run the setup wizard locally on the Jetson.
+def run_setup(runtime_home: Path, skip_init=False) -> None:
+    """Run the full setup wizard locally on the Jetson.
 
     Reads install paths from ~/.psilia/psilia.yaml, which is written
     by scripts/bootstrap.sh before this wizard is invoked.
+
+    - Creates the runtime home directory
+    - Runs runtime_home_init (dirs, ROS package, Docker image, configs)
+    - Configures the wifi hotspot
+    - Writes the final psilia.yaml
     """
 
-    runtime_home.mkdir(parents=True, exist_ok=True)
-    runtime_home_init(runtime_home)
+    if skip_init:
+        runtime_home.mkdir(parents=True, exist_ok=True)
+        runtime_home_init(runtime_home)
 
     _, name, _ = run("hostname")
     name = name.strip()
@@ -81,7 +109,12 @@ def run_setup(runtime_home: Path) -> None:
 
 
 def runtime_home_update() -> None:
-    """Pull latest repo and rebuild Docker image locally (runs on the Jetson)."""
+    """Pull latest changes and rebuild the Docker image locally (runs on the Jetson).
+
+    - Copies the updated psilia_runtime ROS package into the runtime home
+    - Clears the colcon build cache (build/, install/, log/)
+    - Rebuilds the Docker image
+    """
 
     ui.info("Updating ROS workspace ...")
     _step_copy_ros()
@@ -90,14 +123,11 @@ def runtime_home_update() -> None:
     # Dirs are owned by root (created inside Docker), so we clear them by running
     # a temporary container — no sudo needed on the host.
     #
-    # Option A (cleaner long-term): pass --user uid:gid to docker run so build
+    # Option (cleaner long-term): pass --user uid:gid to docker run so build
     # artifacts are owned by the calling user and can be deleted directly. Requires
     # setting HOME=/tmp inside the container since the UID has no /etc/passwd entry.
     ros_dir = get_ros_dir()
-    image = get_docker_image()
-    run_streamed(
-        f"docker run --rm -v {ros_dir}:/ws {image} rm -rf /ws/build /ws/install /ws/log"
-    )
+    run_streamed(f"rm -r {ros_dir}/build {ros_dir}/install {ros_dir}/log")
     ui.ok("Colcon build cache cleared")
     ui.ok("ROS package updated")
     ui.info("Re-Building Docker image…")
@@ -133,9 +163,7 @@ def _step_copy_ros() -> None:
 def _step_build_image(image_name) -> None:
     # TODO: path to docker file should be a configurable? not hardcoded?
 
-    rc = run_streamed(
-        f"docker build --network=host -t {image_name} {get_repo_dir()}/ros"
-    )
+    rc = run_streamed(f"docker build --network=host -t {image_name} {get_docker_dir()}")
     if rc != 0:
         raise RuntimeError(f"Docker build failed with code {rc}")
 
@@ -187,70 +215,78 @@ def _step_pull() -> bool:
     return True
 
 
-def _step_docker() -> None:
-    ui.title("Install Docker")
-    with ui.status("Checking Docker…"):
-        rc, ver, _ = run("docker --version")
-    if rc == 0:
-        ui.ok(f"Docker already installed ({ver.strip()})")
-        return
+# def _step_docker() -> None:
+#     ui.title("Install Docker")
+#     with ui.status("Checking Docker…"):
+#         rc, ver, _ = run("docker --version")
+#     if rc == 0:
+#         ui.ok(f"Docker already installed ({ver.strip()})")
+#         return
 
-    ui.info("Docker not found — installing…")
-    with ui.status("Downloading Docker install script…"):
-        rc, _, err = run("curl -fsSL https://get.docker.com -o /tmp/_get-docker.sh")
-    if rc != 0:
-        ui.fail(f"Failed to download Docker install script: {err.strip()}")
-        return
-    with ui.status("Installing Docker (this may take a while)…"):
-        rc, _, err = sudo("sh /tmp/_get-docker.sh")
-        run("rm -f /tmp/_get-docker.sh")
-    if rc != 0:
-        ui.fail(f"Docker install failed: {err.strip()}")
-        return
+#     ui.info("Docker not found — installing…")
+#     with ui.status("Downloading Docker install script…"):
+#         rc, _, err = run("curl -fsSL https://get.docker.com -o /tmp/_get-docker.sh")
+#     if rc != 0:
+#         ui.fail(f"Failed to download Docker install script: {err.strip()}")
+#         return
+#     with ui.status("Installing Docker (this may take a while)…"):
+#         rc, _, err = sudo("sh /tmp/_get-docker.sh")
+#         run("rm -f /tmp/_get-docker.sh")
+#     if rc != 0:
+#         ui.fail(f"Docker install failed: {err.strip()}")
+#         return
 
-    user = getpass.getuser()
-    ui.info("[dim]sudo needed to add user to docker group[/dim]")
-    sudo(f"usermod -aG docker {user}")
-    _, ver, _ = run("docker --version")
-    ui.ok(f"Docker installed ({ver.strip()})")
-    ui.ok(f"User '{user}' added to docker group")
-    return {}
+#     user = getpass.getuser()
+#     ui.info("[dim]sudo needed to add user to docker group[/dim]")
+#     sudo(f"usermod -aG docker {user}")
+#     _, ver, _ = run("docker --version")
+#     ui.ok(f"Docker installed ({ver.strip()})")
+#     ui.ok(f"User '{user}' added to docker group")
+#     return {}
 
 
 def _step_network(name: str) -> dict:
+    """Configure a wifi hotspot on the Jetson so it is reachable in the field.
+
+    Flow:
+    - Detect all wifi interfaces via nmcli
+    - Check if an active hotspot already exists — offer to replace it
+    - Pick the best interface: USB dongle > built-in wifi, AP-capable preferred
+    - Prompt for SSID and password
+    - Create and bring up the hotspot via nmcli (requires sudo)
+    - Write ssid and password into psilia.yaml under 'hotspot'
+    """
     from psilia_edge.network.hotspot import create_hotspot, find_active_hotspot
     from psilia_edge.network.probe import list_interfaces
 
     ui.title("Network Setup")
     ui.info("Configures a wifi hotspot on the Jetson (USB dongle preferred)")
-    ui.info("[dim]so you can reach it in the field without a router.[/dim]")
+    ui.info("[dim]So you can reach it in the field without a router.[/dim]")
 
-    def runner(cmd: list[str], **_) -> subprocess.CompletedProcess:
-        return subprocess.run(cmd, capture_output=True, text=True)
-
-    def sudo_runner(cmd: list[str], **_) -> subprocess.CompletedProcess:
-        return subprocess.run(["sudo"] + list(cmd), capture_output=True, text=True)
-
+    # --- detect wifi interfaces and any existing hotspot ---
     with ui.status("Detecting wifi interfaces and existing hotspot…"):
-        ifaces = list_interfaces(runner)
+        ifaces = list_interfaces()
         wifi_ifaces = [i for i in ifaces if i.is_wifi]
         existing_hotspot = None
         for wi in wifi_ifaces:
-            existing_hotspot = find_active_hotspot(wi.name, runner)
+            existing_hotspot = find_active_hotspot(wi.name)
             if existing_hotspot:
                 break
 
+    # --- pick best interface: USB dongle preferred, AP-capable preferred ---
     usb = [i for i in wifi_ifaces if i.is_usb_wifi]
     candidates = usb or wifi_ifaces
     ap_capable = [i for i in candidates if i.supports_ap] or candidates
     iface = ap_capable[0] if ap_capable else None
 
+    # --- handle existing hotspot ---
     if existing_hotspot:
         ui.ok(f"Existing hotspot found: [bold]{existing_hotspot}[/bold]")
         if not ui.confirm("Replace it?", default=False):
             ui.info("[dim]Keeping existing hotspot — config unchanged.[/dim]")
             return {}
 
+    # --- bail if no usable interface found ---
     if iface is None:
         ui.warn("No wifi interface found — skipping network setup.")
         ui.info(
@@ -265,6 +301,7 @@ def _step_network(name: str) -> dict:
             "[dim]Note: built-in wifi can't act as hotspot and client simultaneously on all hardware.[/dim]"
         )
 
+    # --- prompt for hotspot config ---
     ssid = ui.ask("  Hotspot SSID", default=f"{name}-ap")
     password = ui.ask("  Hotspot password", default=_DEFAULT_HOTSPOT_PASSWORD)
     ui.detail("interface", f"[bold]{iface.name}[/bold]")
@@ -272,13 +309,14 @@ def _step_network(name: str) -> dict:
     ui.detail("password", f"[bold]{password}[/bold]")
     ui.detail("ip", "[bold]10.42.0.1[/bold] (fixed, Jetson side)")
 
+    # --- create and bring up the hotspot ---
     with ui.status("  Creating hotspot…"):
         ok_result, err = create_hotspot(
             ifname=iface.name,
             password=password,
             ssid=ssid,
             con_name=f"{ssid}-Hotspot",
-            runner=sudo_runner,
+            runner=sudo,
         )
     if ok_result:
         ui.ok(f"Hotspot '{ssid}' is up")

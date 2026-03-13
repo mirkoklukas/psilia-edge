@@ -8,26 +8,27 @@ connects to an existing router.
 from __future__ import annotations
 
 import re
-import subprocess
 from collections.abc import Callable
 
-Runner = Callable[..., subprocess.CompletedProcess]
+from psilia_edge.utils import run
+
+Runner = Callable[[list[str]], tuple[int, str, str]]
 
 HOTSPOT_CON_NAME = "Borne-Hotspot"
 HOTSPOT_SSID = "Borne"
 
 
-def _run(cmd: list[str], runner: Runner = subprocess.run) -> tuple[int, str, str]:
+def _run(cmd: list[str], runner: Runner = run) -> tuple[int, str, str]:
     try:
-        result = runner(cmd, capture_output=True, text=True)
-        return result.returncode, result.stdout.strip(), result.stderr.strip()
+        rc, out, err = runner(cmd)
+        return rc, out.strip(), err.strip()
     except FileNotFoundError:
         return 127, "", "command not found"
 
 
 def hotspot_exists(
     con_name: str = HOTSPOT_CON_NAME,
-    runner: Runner = subprocess.run,
+    runner: Runner = run,
 ) -> bool:
     """Return True if a hotspot connection profile already exists."""
     rc, out, _ = _run(["nmcli", "-t", "-f", "NAME", "connection", "show"], runner)
@@ -38,7 +39,7 @@ def hotspot_exists(
 
 def hotspot_is_active(
     con_name: str = HOTSPOT_CON_NAME,
-    runner: Runner = subprocess.run,
+    runner: Runner = run,
 ) -> bool:
     """Return True if the hotspot connection profile is active (per nmcli)."""
     rc, out, _ = _run(
@@ -56,7 +57,7 @@ def hotspot_is_active(
 
 def hotspot_is_broadcasting(
     con_name: str = HOTSPOT_CON_NAME,
-    runner: Runner = subprocess.run,
+    runner: Runner = run,
 ) -> bool:
     """Return True if the hotspot is actually broadcasting in AP mode.
 
@@ -84,7 +85,7 @@ def hotspot_is_broadcasting(
 
 def find_active_hotspot(
     ifname: str,
-    runner: Runner = subprocess.run,
+    runner: Runner = run,
 ) -> str | None:
     """
     Return the active connection name if `ifname` is currently running as an AP.
@@ -120,7 +121,7 @@ def create_hotspot(
     password: str,
     ssid: str = HOTSPOT_SSID,
     con_name: str = HOTSPOT_CON_NAME,
-    runner: Runner = subprocess.run,
+    runner: Runner = run,
 ) -> tuple[bool, str]:
     """
     Create and bring up a WiFi hotspot on `ifname`.
@@ -187,7 +188,7 @@ def create_hotspot(
 
 def bring_up_hotspot(
     con_name: str = HOTSPOT_CON_NAME,
-    runner: Runner = subprocess.run,
+    runner: Runner = run,
 ) -> bool:
     """Bring up an existing hotspot profile."""
     rc, _, _ = _run(["nmcli", "connection", "up", con_name], runner)
@@ -196,7 +197,7 @@ def bring_up_hotspot(
 
 def bring_down_hotspot(
     con_name: str = HOTSPOT_CON_NAME,
-    runner: Runner = subprocess.run,
+    runner: Runner = run,
 ) -> bool:
     """Bring down the hotspot without deleting the profile."""
     rc, _, _ = _run(["nmcli", "connection", "down", con_name], runner)

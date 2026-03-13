@@ -1,0 +1,14 @@
+modifiers:
+  cosmic:  [nova, lunar, stellar, orbit, nebula, zenith, solar, cosmic]
+  terrain: [iron, frost, ember, silent, storm, deep, copper, cedar]
+  deep_colors:  [crimson, silver, cobalt, amber, onyx, jade, azure, velvet]
+  basic_colors: [red, blue, green, yellow, orange, purple, pink, teal, indigo, grey]
+  activities:   [eating, yawning, sleeping, running, dancing, dreaming, wandering,
+                 stumbling, mumbling, whistling, floating, climbing, hiding, waiting]
+
+nouns:
+  creatures:      [falcon, wolf, fox, lynx, raven, tiger, crane, elk]
+  landscape:      [canyon, peak, ridge, mesa, basin, hollow, ridge, shore]
+  atmosphere:     [drift, echo, gaze, pulse, wake, haze, dusk, dawn]
+  film_characters: [maverick, ripley, morpheus, clarice, miyagi, venkman,
+                    mcclane, marty, goose, blade, leeloo, vincent, truman, egon]

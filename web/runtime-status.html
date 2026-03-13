@@ -4,12 +4,39 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Psilia Edge — Status</title>
+  <!-- TODO: roslibjs loaded from CDN. In the field there may be no internet access.
+             Consider vendoring roslib.min.js into web/vendor/ and updating this path. -->
+  <script src="https://unpkg.com/roslib@1/build/roslib.min.js"></script>
   <link rel="stylesheet" href="/psilia.css">
   <style>
     .row { align-items: baseline; }
     .row .value { word-break: break-all; text-align: right; max-width: 60%; }
     #load-status { font-size: 0.75rem; color: #555; margin-bottom: 1.25rem; }
     #refresh { margin-bottom: 1.5rem; }
+
+    #hb-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #4ecca3;
+      transform: scale(0.35);
+      opacity: 0.3;
+      margin: 1rem auto 0.25rem;
+    }
+    #hb-circle.beat {
+      animation: hb-pulse 2s ease-in forwards;
+    }
+    /* @keyframes hb-pulse {
+      0%   { transform: scale(0.35); opacity: 0.3; }
+      10%  { transform: scale(1.1);  opacity: 1;   }
+      100% { transform: scale(0.35); opacity: 0.3; }
+    } */
+    @keyframes hb-pulse {
+      0%   { transform: scale(0.8); opacity: 0.3; }
+      3%   { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(0.8); opacity: 0.3; }
+    }
+    #hb-ros-status { font-size: 0.75rem; color: #555; text-align: center; margin-top: 0.25rem; }
   </style>
 </head>
 <body>
@@ -19,8 +46,15 @@
     <a href="/">status</a>
     <a href="/runtime-status.html" class="active">runtime status</a>
     <a href="/runtime-test.html">runtime test</a>
+    <a href="/recording.html">recording</a>
     <a href="/config.html">config</a>
   </nav>
+
+  <div class="card">
+    <h2>/psilia/heartbeat</h2>
+    <div id="hb-circle"></div>
+    <div id="hb-ros-status">connecting…</div>
+  </div>
 
   <button id="refresh">refresh</button>
   <div id="load-status"></div>
@@ -109,6 +143,23 @@
       return frag;
     }
 
+    // --- rosbridge + heartbeat ---
+    const ros = new ROSLIB.Ros({ url: `ws://${location.hostname}:9090` });
+    const rosStatus = document.getElementById('hb-ros-status');
+    const circle    = document.getElementById('hb-circle');
+
+    ros.on('connection', () => { rosStatus.textContent = ''; });
+    ros.on('error',      () => { rosStatus.textContent = 'rosbridge error'; });
+    ros.on('close',      () => { rosStatus.textContent = 'rosbridge disconnected'; });
+
+    new ROSLIB.Topic({ ros, name: '/psilia/heartbeat', messageType: 'std_msgs/String' })
+      .subscribe(() => {
+        circle.classList.remove('beat');
+        void circle.offsetWidth; // force reflow to restart animation
+        circle.classList.add('beat');
+      });
+
+    // --- refresh button + initial load ---
     document.getElementById('refresh').addEventListener('click', load);
     load();
   </script>

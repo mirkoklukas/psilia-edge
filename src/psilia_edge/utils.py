@@ -7,6 +7,18 @@ from pathlib import Path
 
 import paramiko
 import psilia_edge.ui as ui
+import yaml
+
+
+def write_yaml(path: Path, data: dict, parents=True, exist_ok=True) -> None:
+    path.parent.mkdir(parents=parents, exist_ok=exist_ok)
+    path.write_text(yaml.dump(dict(**data), default_flow_style=False))
+
+
+def load_yaml(path: Path) -> dict:
+    if not path.exists():
+        return None
+    return yaml.safe_load(path.read_text())
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -57,30 +69,32 @@ def connect(
     return client
 
 
-def run(cmd: str, stdin_data: str | None = None) -> tuple[int, str, str]:
-    result = subprocess.run(
-        cmd, shell=True, capture_output=True, text=True, input=stdin_data
-    )
-    return result.returncode, result.stdout, result.stderr
+def run(cmd: str | list[str], stdin_data: str | None = None) -> tuple[int, str, str]:
+    return _run_subprocess(cmd, input=stdin_data)
 
 
-def sudo(cmd: str) -> tuple[int, str, str]:
-    check = subprocess.run("sudo -n true", shell=True, capture_output=True)
-    if check.returncode != 0:
-        from psilia_edge.ui import ask
+def sudo(cmd: str | list[str], password: str | None = None) -> tuple[int, str, str]:
+    if password is None:
+        check = subprocess.run("sudo -n true", shell=True, capture_output=True)
+        if check.returncode != 0:
+            from psilia_edge.ui import ask
 
-        password = ask("sudo password", password=True)
-        result = subprocess.run(
-            f"sudo -S {cmd}",
-            shell=True,
-            capture_output=True,
-            text=True,
-            input=password + "\n",
-        )
+            password = ask("sudo password", password=True)
+
+    if password is not None:
+        full_cmd = ["sudo", "-S"] + cmd if isinstance(cmd, list) else f"sudo -S {cmd}"
+        return _run_subprocess(full_cmd, input=password + "\n")
     else:
-        result = subprocess.run(
-            f"sudo {cmd}", shell=True, capture_output=True, text=True
-        )
+        full_cmd = ["sudo"] + cmd if isinstance(cmd, list) else f"sudo {cmd}"
+        return _run_subprocess(full_cmd)
+
+
+def _run_subprocess(
+    cmd: str | list[str], input: str | None = None
+) -> tuple[int, str, str]:
+    result = subprocess.run(
+        cmd, shell=isinstance(cmd, str), capture_output=True, text=True, input=input
+    )
     return result.returncode, result.stdout, result.stderr
 
 

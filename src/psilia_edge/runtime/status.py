@@ -16,9 +16,12 @@ from psilia_edge.runtime.config import (
 )
 from psilia_edge.runtime.daemon import LOG_FILE, get_pid
 from psilia_edge.runtime.docker import (
-    container_status,
-    is_docker_running,
-    request_ros_status,
+    ROSBRIDGE_PORT,
+    check_container_status,
+    is_docker_daemon_running,
+    is_port_open,
+    list_ros_nodes,
+    list_ros_topics,
 )
 
 
@@ -26,35 +29,24 @@ def live_status() -> dict:
     """Snapshot of time-sensitive status for the live view."""
     return {
         "runtime": {"base": _base_section(), "spatial": _spatial_section()},
-        "heartbeat": _read_heartbeat(),
+        # "heartbeat": _read_heartbeat(),
     }
 
 
-def runtime_status(debug: bool = False) -> dict:
+def runtime_status() -> dict:
     from psilia_edge.runtime.core import is_runtime_host
 
-    def _timed(name, fn):
-        t = time.time()
-        result = fn()
-        if debug:
-            print(f"  {name}: {time.time() - t:.3f}s")
-        return result
-
-    t0 = time.time()
     status: dict = {
-        "runtime": {"base": _timed("base", _base_section)},
-        "hotspot": _timed("hotspot", _hotspot_section),
-        "sensors": _timed("sensors", _sensors_section),
+        "runtime": {"base": _base_section()},
+        "hotspot": _hotspot_section(),
+        "sensors": _sensors_section(),
     }
 
     if is_runtime_host():
-        status["runtime"]["spatial"] = _timed(
-            "spatial", lambda: _spatial_section(debug=debug)
-        )
-        status["storage"] = _timed("storage", _storage_section)
+        status["runtime"]["spatial"] = _spatial_section()
+        status["storage"] = _storage_section()
 
-    if debug:
-        print(f"  total: {time.time() - t0:.3f}s")
+    status["health"] = _health_section()
 
     return status
 
@@ -70,15 +62,16 @@ def _base_section() -> dict:
         return section
 
     hostname = socket.gethostname().split(".")[0]
+    # UDP trick: connect to Google's public DNS (8.8.8.8) — no packet is sent,
+    # but the OS picks the outbound interface, so getsockname() returns our LAN IP.
+    _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        # UDP trick: connect to Google's public DNS (8.8.8.8) — no packet is sent,
-        # but the OS picks the outbound interface, so getsockname() returns our LAN IP.
-        _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         _s.connect(("8.8.8.8", 80))
         lan_ip = _s.getsockname()[0]
-        _s.close()
     except OSError:
         lan_ip = None
+    finally:
+        _s.close()
 
     section |= {
         "uptime": _process_uptime(pid),
@@ -90,30 +83,27 @@ def _base_section() -> dict:
     return section
 
 
-def _spatial_section(debug: bool = False) -> dict:
-    def _timed(name, fn):
-        t = time.time()
-        result = fn()
-        if debug:
-            print(f"    spatial/{name}: {time.time() - t:.3f}s")
-        return result
-
-    docker_running = _timed("is_docker_running", is_docker_running)
-    section: dict = {"docker": {"running": docker_running}}
-
-    if not docker_running:
-        return section
-
-    status = _timed("container_status", container_status)
+def _spatial_section() -> dict:
+    status = check_container_status()
     container_running = status == "running"
-    section["docker"]["container"] = {
-        "name": CONTAINER_NAME,
-        "running": container_running,
-        "state": status,
+    section: dict = {
+        "container": {
+            "name": CONTAINER_NAME,
+            "running": container_running,
+            "state": status,
+        }
     }
 
     if container_running:
-        section["ros"] = _timed("ros_status", _read_ros_status)
+        section["ros"] = {
+            "heartbeat": _heartbeat_section(),
+            "nodes": list_ros_nodes(),
+            "topics": list_ros_topics(),
+            "rosbridge": {
+                "port": ROSBRIDGE_PORT,
+                "open": is_port_open(ROSBRIDGE_PORT),
+            },
+        }
 
     return section
 
@@ -183,22 +173,27 @@ def _storage_section() -> dict:
     return section
 
 
-def _read_heartbeat() -> dict | None:
-    """Read heartbeat.json written by core_node on every heartbeat tick."""
-    try:
-        return json.loads((RUN_DIR / "heartbeat.json").read_text())
-    except (OSError, json.JSONDecodeError):
-        return None
+def _health_section() -> dict:
+    return {"docker_daemon": is_docker_daemon_running()}
 
 
-def _read_ros_status() -> dict | None:
-    """Trigger core_node to write status.json via /psilia/status_request, then read it."""
+_HEARTBEAT_MAX_AGE = 5.0  # seconds — core_node publishes at 1Hz
+
+
+def _heartbeat_section() -> dict:
+    """Read heartbeat.json written by core_node at 1Hz.
+
+    Returns a dict with status='ros_not_running' if the file is missing or stale.
+    """
+    path = RUN_DIR / "heartbeat.json"
+    result = {}
     try:
-        request_ros_status()
-    except Exception:
-        return None
-    time.sleep(0.2)
-    try:
-        return json.loads((RUN_DIR / "status.json").read_text())
+        age = time.time() - path.stat().st_mtime
+        result["age"] = f"{age:0.3f} s"
+        if age < _HEARTBEAT_MAX_AGE:
+            result["status"] = "ok"
+        else:
+            result["status"] = "stale"
+        return result
     except (OSError, json.JSONDecodeError):
-        return None
+        return {"status": "no-signal", "age": None}

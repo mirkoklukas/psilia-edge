@@ -11,6 +11,7 @@
 
 # Project Context
 
+@docs/*
 @docs/design.md
 @design-docs/about.md
 @design-docs/description.md

@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import os
-import shutil
 import signal
 import subprocess
+import sys
 
 from psilia_edge.runtime.config import LOG_DIR, RUN_DIR
 
@@ -13,6 +13,11 @@ PID_FILE = RUN_DIR / "psilia-edge.pid"
 LOG_FILE = LOG_DIR / "psilia-edge.log"
 
 
+# TODO: `get_pid()` and `is_running()` only detect the daemon if it was started via
+#   `start_daemon()` (i.e. a PID file exists). If the server was started any other way
+#   (e.g. `uvicorn` directly), these return False even though the port is bound.
+#   Consider falling back to a port check (see `is_port_open()` in docker.py).
+#   To kill a rogue process manually: `lsof -ti :8080 | xargs kill`
 def get_pid() -> int | None:
     """Return the PID of the running daemon, or None if not running."""
     if not PID_FILE.exists():
@@ -41,14 +46,14 @@ def start_daemon(host: str = "0.0.0.0", port: int = 8080) -> int:
     if is_running():
         raise RuntimeError(f"psilia base layer is already running (PID {get_pid()})")
 
-    entry_point = shutil.which("psilia")
-    if entry_point is None:
-        raise RuntimeError("psilia executable not found on PATH")
-
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     log_fh = LOG_FILE.open("a")
     proc = subprocess.Popen(
-        [entry_point, "serve", host, str(port)],
+        [
+            sys.executable,
+            "-c",
+            f"from psilia_edge.runtime.server import serve; serve('{host}', {port})",
+        ],
         stdout=log_fh,
         stderr=subprocess.STDOUT,
         start_new_session=True,  # detach from controlling terminal
