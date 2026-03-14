@@ -29,7 +29,6 @@ from pathlib import Path
 import typer
 
 from psilia_edge import ui
-from psilia_edge.ui import console
 
 
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
@@ -145,7 +144,6 @@ def start(
         start_spatial_layer,
         start_runtime,
     )
-    from psilia_edge.runtime.config import read_runtime_config
 
     ui.header(["Runtime", "Start"])
 
@@ -169,9 +167,7 @@ def start(
 
     # default: start both layers
     with ui.status("Starting runtime…"):
-        result = start_runtime(
-            host=host, port=port, runtime_config=read_runtime_config()
-        )
+        result = start_runtime(host=host, port=port)
 
     ui.detail("check runtime status", "psilia runtime status [device]")
     ui.detail("live view", "psilia runtime attach [device]")
@@ -233,33 +229,49 @@ def status() -> None:
     ui.print_tree(runtime_status(), label="Runtime Status")
 
 
-@app.command("attach")
-@device_decorator
-def live_view() -> None:
-    """Live status display. Runs until Ctrl-C."""
-    import time
-    from rich.console import Group
-    from rich.live import Live
-    from rich.panel import Panel
-    from rich.text import Text
-    from psilia_edge import ui
-    from psilia_edge.runtime.status import live_status
-    from psilia_edge.runtime.daemon import read_log_tail
+# @app.command(hidden=True)
+# @device_decorator
+# def attach() -> None:
+#     """Live status display. Runs until Ctrl-C."""
+#     import time
+#     from rich.console import Group
+#     from rich.live import Live
+#     from rich.panel import Panel
+#     from rich.text import Text
+#     from psilia_edge import ui
+#     from psilia_edge.runtime.status import live_status
+#     from psilia_edge.runtime.daemon import read_log_tail
 
-    ui.header(["Runtime", "Live View"], "Ctrl-C to detach…")
-    try:
-        with Live(refresh_per_second=1, screen=False) as live:
-            while True:
-                log = Text("\n".join(read_log_tail(5)), style="dim", overflow="fold")
-                live.update(
-                    Group(
-                        ui.build_tree(live_status(), label="status"),
-                        Panel(log, title="log", border_style="dim"),
-                    )
-                )
-                time.sleep(1.0)
-    except KeyboardInterrupt:
-        console.print("\n[dim]Detached.[/dim]")
+#     ui.header(["Runtime", "Live View"], "Ctrl-C to detach…")
+#     try:
+#         with Live(refresh_per_second=1, screen=False) as live:
+#             while True:
+#                 log = Text("\n".join(read_log_tail(5)), style="dim", overflow="fold")
+#                 live.update(
+#                     Group(
+#                         ui.build_tree(live_status(), label="status"),
+#                         Panel(log, title="log", border_style="dim"),
+#                     )
+#                 )
+#                 time.sleep(1.0)
+#     except KeyboardInterrupt:
+#         console.print("\n[dim]Detached.[/dim]")
+
+
+@app.command(hidden=True)
+def scan() -> Path:
+    """Print the runtime home directory path."""
+    from psilia_edge.runtime.hotplug import scan_cameras
+
+    ui.header(["Runtime", "Scan"], "Scanning for connected cameras…")
+    cameras = scan_cameras()
+    if not cameras:
+        ui.warn("No cameras found.")
+    else:
+        ui.info("Found cameras:")
+        ui.print_tree(cameras, label="cameras")
+        # for cam in cameras:
+        # ui.print(f"  [green]✓[/green] {cam}")
 
 
 @app.command(hidden=True)

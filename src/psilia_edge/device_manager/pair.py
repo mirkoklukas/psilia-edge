@@ -8,7 +8,6 @@ once the UX is proven, but err on the side of too much information for now.
 from __future__ import annotations
 
 import os
-import re
 from pathlib import Path
 
 import paramiko
@@ -49,8 +48,8 @@ def run_pair_wizard() -> None:
         _, name, _ = ssh_run(client, "hostname")
         name = name.strip()
         key_path = _step_ssh_keypair(client, name)
-        _step_write_ssh_config(name, key_path, user)
         _step_register_device(name, user, key_path)
+        _step_sync_ssh_config(name)
 
     ui.done(
         f"{name} paired.",
@@ -107,94 +106,75 @@ def _step_ssh_keypair(client: paramiko.SSHClient, name: str) -> Path:
     return key_path
 
 
-# ── step 4: write SSH config ──────────────────────────────────────────────────
-
-
-def _remove_device_hosts(section: str, name: str) -> str:
-    """Remove Host blocks for `name` and `name-hotspot` from a config section."""
-    parts = re.split(r"(?=^Host )", section, flags=re.MULTILINE)
-    kept = [
-        p
-        for p in parts
-        if not re.match(rf"^Host {re.escape(name)}(-hotspot)?\s*$", p.split("\n")[0])
-    ]
-    return "".join(kept).strip()
-
-
-def _step_write_ssh_config(name: str, key_path: Path, user: str) -> None:
-    ui.title("Write SSH Config")
-
-    new_block = (
-        f"Host {name}\n"
-        f"    HostName {name}.local\n"
-        f"    User {user}\n"
-        f"    IdentityFile {key_path}\n"
-        f"\n"
-        f"Host {name}-hotspot\n"
-        f"    HostName 10.42.0.1\n"
-        f"    User {user}\n"
-        f"    IdentityFile {key_path}"
-    )
-
-    _SSH_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    existing = _SSH_CONFIG_PATH.read_text() if _SSH_CONFIG_PATH.exists() else ""
-
-    if _SSH_SECTION_START in existing:
-        start_idx = existing.index(_SSH_SECTION_START)
-        inner_start = start_idx + len(_SSH_SECTION_START)
-        end_idx = existing.index(_SSH_SECTION_END)
-        inner = existing[inner_start:end_idx].strip("\n")
-
-        cleaned = _remove_device_hosts(inner, name)
-        new_inner = (
-            (cleaned.rstrip("\n") + "\n\n" + new_block) if cleaned else new_block
-        )
-
-        before = existing[:start_idx]
-        after = existing[end_idx + len(_SSH_SECTION_END) :]
-        new_file = (
-            before
-            + _SSH_SECTION_START
-            + "\n"
-            + new_inner
-            + "\n"
-            + _SSH_SECTION_END
-            + after
-        )
-    else:
-        sep = "\n" if existing and not existing.endswith("\n") else ""
-        new_file = (
-            existing
-            + sep
-            + "\n"
-            + _SSH_SECTION_START
-            + "\n"
-            + new_block
-            + "\n"
-            + _SSH_SECTION_END
-            + "\n"
-        )
-
-    _SSH_CONFIG_PATH.write_text(new_file)
-    ui.ok(f"SSH config updated ({_SSH_CONFIG_PATH})")
-    ui.item(f"Host {name}         → {name}.local")
-    ui.item(f"Host {name}-hotspot  → 10.42.0.1")
-    ui.detail("connect with", f"ssh {name}")
-
-
-# ── step 5: register device ───────────────────────────────────────────────────
+# ── step 4: register device ───────────────────────────────────────────────────
 
 
 def _step_register_device(name: str, user: str, key_path: Path) -> None:
     ui.title("Register Device")
     from psilia_edge.device_manager.config import register_device
+    from psilia_edge.runtime.config import CONFIG_PATH
 
     register_device(name=name, host=f"{name}.local", user=user, key_path=key_path)
-
-    from psilia_edge.runtime.config import CONFIG_PATH
 
     ui.ok(f"Device registered in {CONFIG_PATH}")
     ui.detail("name", name)
     ui.detail("host", f"{name}.local")
     ui.detail("user", user)
     ui.detail("key", str(key_path))
+
+
+# ── step 5: sync SSH config ───────────────────────────────────────────────────
+
+
+def _step_sync_ssh_config(name: str) -> None:
+    ui.title("Write SSH Config")
+    sync_ssh_config()
+    ui.ok(f"SSH config updated ({_SSH_CONFIG_PATH})")
+    ui.detail("connect with", f"ssh {name}")
+
+
+def _render_ssh_block(devices: dict) -> str:
+    """Render all registered devices into SSH Host blocks."""
+    blocks = []
+    for name, dev in devices.items():
+        block = (
+            f"Host {name}\n"
+            f"    HostName {dev['host']}\n"
+            f"    User {dev['user']}\n"
+            f"    IdentityFile {dev['key']}"
+        )
+        blocks.append(block)
+
+        if hotspot_ip := dev.get("hotspot_ip"):
+            hotspot_block = (
+                f"Host {name}-hotspot\n"
+                f"    HostName {hotspot_ip}\n"
+                f"    User {dev['user']}\n"
+                f"    IdentityFile {dev['key']}"
+            )
+            blocks.append(hotspot_block)
+
+    return "\n\n".join(blocks)
+
+
+def sync_ssh_config() -> None:
+    """Re-render the psilia section in ~/.ssh/config from registered_devices in psilia.yaml."""
+    from psilia_edge.runtime.config import read_config
+
+    devices = read_config().get("registered_devices", {})
+    rendered = _render_ssh_block(devices)
+
+    _SSH_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    existing = _SSH_CONFIG_PATH.read_text() if _SSH_CONFIG_PATH.exists() else ""
+
+    new_section = f"{_SSH_SECTION_START}\n{rendered}\n{_SSH_SECTION_END}"
+
+    if _SSH_SECTION_START in existing:
+        start_idx = existing.index(_SSH_SECTION_START)
+        end_idx = existing.index(_SSH_SECTION_END) + len(_SSH_SECTION_END)
+        new_file = existing[:start_idx] + new_section + existing[end_idx:]
+    else:
+        sep = "\n" if existing and not existing.endswith("\n") else ""
+        new_file = existing + sep + "\n" + new_section + "\n"
+
+    _SSH_CONFIG_PATH.write_text(new_file)

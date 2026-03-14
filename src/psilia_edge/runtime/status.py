@@ -25,12 +25,12 @@ from psilia_edge.runtime.docker import (
 )
 
 
-def live_status() -> dict:
-    """Snapshot of time-sensitive status for the live view."""
-    return {
-        "runtime": {"base": _base_section(), "spatial": _spatial_section()},
-        # "heartbeat": _read_heartbeat(),
-    }
+# def live_status() -> dict:
+#     """Snapshot of time-sensitive status for the live view."""
+#     return {
+#         "runtime": {"base": _base_section(), "spatial": _spatial_section()},
+#         # "heartbeat": _read_heartbeat(),
+#     }
 
 
 def runtime_status() -> dict:
@@ -158,18 +158,33 @@ def _sensors_section() -> dict:
 
 
 def _storage_section() -> dict:
+    from psilia_edge.utils import run
+
     data_dir = get_data_dir()
     section: dict = {"data_dir": str(data_dir)}
     try:
-        usage = shutil.disk_usage(data_dir)
-        section["free_gb"] = round(usage.free / 1e9, 1)
-        section["total_gb"] = round(usage.total / 1e9, 1)
+        # du -s . | cut -f1 returns the total size of the directory in bytes,
+        # without counting subdirectories separately.
+        rc, stdout, _ = run(f"du -s {data_dir} | cut -f1")
+        if rc == 0:
+            data_bytes = int(stdout.strip())
+            used_gb = round(data_bytes / 1e9, 3)
+            section["used_gb"] = used_gb
+            section["used_bytes"] = data_bytes
+        # disk_usage uses the path only to identify the partition and
+        # returns partition-level stats, not the directory size
+        partition = shutil.disk_usage(data_dir)
+        section["free_gb"] = round(partition.free / 1e9, 3)
     except OSError:
         pass
     try:
-        section["num_mcap_files"] = len(list(data_dir.glob("*.mcap")))
+        section["num_bag_files"] = len(
+            list(data_dir.glob("**/*.mcap"))
+            + list(data_dir.glob("**/*.db3"))
+            + list(data_dir.glob("**/*.bag"))
+        )
     except OSError:
-        section["num_mcap_files"] = 0
+        section["num_bag_files"] = 0
     return section
 
 

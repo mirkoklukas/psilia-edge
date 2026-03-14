@@ -15,11 +15,8 @@ from psilia_edge.runtime.config import read_config
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # TODO: Should port be read from somewhere?
 def start_runtime(host: str = "0.0.0.0", port: int = 8080) -> dict:
-    """Start base layer then spatial layer. Returns a combined result dict."""
-
+    """Start base and spatial layer of the runtime. Returns a combined result dict."""
     base = start_base_layer(host=host, port=port)
-    if base.get("status") == "error":
-        return {"base": base, "spatial": {"status": "skipped"}}
     spatial = start_spatial_layer()
     return {"base": base, "spatial": spatial}
 
@@ -36,27 +33,6 @@ def stop_runtime() -> dict:
 #   Utils and Helper
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-def is_runtime_host() -> bool:
-    """Return True if a local runtime has been provisioned on this machine.
-
-    Heuristic: runtime.home_path is set in ~/.psilia/psilia.yaml after `psilia runtime setup` has run.
-    """
-    return bool(read_config().get("runtime", {}).get("home_path"))
-
-
-def require_runtime_host(device_hint: str) -> None:
-    """Exit with a clear message if not running on a runtime host (Jetson)."""
-    import typer
-    from psilia_edge.ui import error
-
-    if not is_runtime_host():
-        error(
-            f"[red]No local runtime found. Run `psilia runtime setup` first.[/red]\n"
-            f"To target a registered device: [bold]psilia {device_hint}[/bold]"
-        )
-        raise typer.Exit(1)
-
-
 def start_base_layer(host: str = "0.0.0.0", port: int = 8080) -> dict:
     """Start the base layer daemon. Returns a result dict."""
     from psilia_edge.runtime.daemon import LOG_FILE, start_daemon
@@ -65,7 +41,7 @@ def start_base_layer(host: str = "0.0.0.0", port: int = 8080) -> dict:
     time.sleep(1.5)  # give uvicorn a moment to bind
 
     hostname = socket.gethostname().split(".")[0]
-    # UDP trick: connect to Google's public DNS (8.8.8.8) — no packet is sent,
+    # UDP trick to get LAN IP: connect to Google's public DNS (8.8.8.8) — no packet is sent,
     # but the OS picks the outbound interface, so getsockname() returns our LAN IP.
     _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -120,3 +96,24 @@ def stop_spatial_layer() -> dict:
     if rc != 0:
         return {"status": "error", "error": err}
     return {"status": "stopped"}
+
+
+def is_runtime_host() -> bool:
+    """Return True if a local runtime has been provisioned on this machine.
+
+    Heuristic: runtime.home_path is set in ~/.psilia/psilia.yaml after `psilia runtime setup` has run.
+    """
+    return bool(read_config().get("runtime", {}).get("home_path"))
+
+
+def require_runtime_host(device_hint: str) -> None:
+    """Exit with a clear message if not running on a runtime host (Jetson)."""
+    import typer
+    from psilia_edge.ui import error
+
+    if not is_runtime_host():
+        error(
+            f"[red]No local runtime found. Run `psilia runtime setup` first.[/red]\n"
+            f"To target a registered device: [bold]psilia {device_hint}[/bold]"
+        )
+        raise typer.Exit(1)

@@ -93,6 +93,9 @@ def get_repo_dir() -> Path:
     """Return the repository root directory, derived from the installed package location.
 
     Assumes `pip install -e .` (editable install) — always the case for v0.
+    TODO: This breaks for a non-editable PyPI install. Before publishing, anything
+    sourced from the repo dir (e.g. web assets) must move to package data via
+    `importlib.resources`.
     """
     return Path(__file__).resolve().parents[3]
 

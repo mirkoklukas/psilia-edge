@@ -37,6 +37,7 @@ def launch_runtime_container(launch_script: str) -> tuple[int, str, str]:
         f"-v {str(get_data_dir())}:/psilia/data "
         f"-v {str(get_runtime_config_path())}:/psilia/runtime.yaml:ro "
         f"-v {RUN_DIR}:/psilia/run "
+        f"-e ROS_LOG_DIR=/psilia/log "
         f"--hostname {platform.node().split('.')[0]} "
         f"--name {CONTAINER_NAME} "
         f"{get_docker_image()} {launch_script}"

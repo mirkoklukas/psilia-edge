@@ -20,6 +20,7 @@ def register_device(name: str, host: str, user: str, key_path: Path) -> None:
         "host": host,
         "user": user,
         "key": str(key_path),
+        "hotspot_ip": None,
     }
     config.setdefault("defaults", {}).setdefault(
         "pull_to", str(Path.home() / "psilia-data")

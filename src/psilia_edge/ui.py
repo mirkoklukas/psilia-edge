@@ -10,94 +10,27 @@ from rich.text import Text
 from rich.pretty import pprint
 import yaml as _yaml_mod
 
-from psilia_edge import __version__ as psilia_version
+from psilia_edge import __version__
 
 
 console = Console()
 
 PADDING_LEFT = 2
 
-psilia_version = "v" + psilia_version.replace("alpha", "α").replace("beta", "β")
-LOGO = """
-  ▄
-▚ █ ▞
-  █
-  ▀
-""".strip("\n")
-
-HEADER = f"""
-  ▄
-▚ █ ▞  [bold]Psilia·Edge[/bold] [dim]{psilia_version}[/dim]
-  █    Spatial Runtime for Embodied AI.
-  ▀
-""".strip("\n")
-
-HEADER_COLOR = f"""
-[magenta]  ▄
-[magenta]▚ █ ▞  [bold bright_magenta]Psilia·Edge[/bold bright_magenta] [not bold]{psilia_version}            [/]
-[cyan]  █    Spatial Runtime for Embodied AI.[/]
-[cyan]  ▀                                    [/]
-""".strip("\n")
-
-HEADER_COLOR_LIGHT = f"""
-[magenta]  ▄  [/magenta]
-[magenta]▚ █ ▞[/magenta]  [bold]Psilia·Edge[/bold] [not bold]{psilia_version}            [/]
-[cyan]  █[/cyan]    Spatial Runtime for Embodied AI.
-[cyan]  ▀[/cyan]
-""".strip("\n")
+psilia_version = "v" + __version__.replace("alpha", "α").replace("beta", "β")
 
 
-def _banner_bw() -> None:
-    b = Padding(HEADER, (1, 5), expand=False, style="")
-    console.print(b, highlight=False)
-
-
-def _banner_color_light() -> None:
-    b = Padding(HEADER_COLOR_LIGHT, (1, 5), expand=False, style="")
-    console.print(Padding(b, (1, 1), expand=False))
-
-
-def _banner_color() -> None:
-    b = Padding(HEADER_COLOR, (1, 5), expand=False, style="on black")
-    console.print(Padding(b, (1, 1), expand=False))
-
-
-def banner() -> None:
-    _banner_color()
-
-
-# LOGO_SMALL = (
-#     f"▚┃▞\n"
-#     f" ┃ "
-# )
-# LOGO_SMALL = "Ψ"
-# LOGO_SMALL = (
-#     f"\|/\n"
-#     f" | "
-# )
-LOGO_SMALL = (
-    """
-◟|◞
- |
-"""
-).strip("\n")
-
-# LOGO_SMALL = (
-#     f"▚╏▞\n"
-#     f" ┃ "
-# )
-# LOGO_SMALL = (
-#     f"▚╻▞\n"
-#     f" ┃ "
-# )
-LOGO_BIG = (
-    """
-  ▄
-▚ █ ▞
-  █
-  ▀
-"""
-).strip("\n")
+LOGOS = {
+    "1x1_psi_upper": ["Ψ"],
+    "1x1_psi_lower": ["ψ"],
+    "2x3_psi": ["◟|◞", " | "],
+    "2x3_psi_thin": ["◟|◞", " | "],
+    "2x3_psi_simple": ["\|/", " | "],
+    "2x3_psi_var": ["▚┃▞", " ┃ "],
+    "4x5_psi": ["  ▄  ", "▚ █ ▞", "  █  ", "  ▀  "],
+    "4x5_psi_fat": ["  ▄  ", "▚ █ ▞", "  █  ", "  ▀  "],
+}
+LOGO = LOGOS["4x5_psi"]
 
 
 def banner_nav(path, descr=None) -> None:
@@ -105,18 +38,23 @@ def banner_nav(path, descr=None) -> None:
         descr = "…"
     title = " → ".join([*path[:-1], f"[bold]{path[-1]}[/bold ]"])
     descr_lines = [f"{line}" for line in descr.split("\n")]
-    lines = ["", title, *descr_lines]
-    logo_lines = LOGO_BIG.split("\n")
 
-    if len(lines) < len(logo_lines):
-        lines += [""] * (len(logo_lines) - len(lines))
+    h = len(LOGO)
+    w = len(LOGO[0])
+
+    lines = [""] * (h // 2 - 1) + [title, *descr_lines]
+
+    logo_lines = LOGO
+
+    if len(lines) < h:
+        lines += [""] * (h - len(lines))
 
     if len(lines) > 1:
-        logo_lines += [" " * len(logo_lines[0])] * len(lines[1:])
+        logo_lines += [" " * w] * len(lines[1:])
 
     s = []
     for i, (ell, t) in enumerate(zip(logo_lines, lines)):
-        if i <= 1:
+        if i <= (h // 2 - 1):
             s.append(f" {ell}  {t}   ")
         else:
             s.append(f" {ell}  {t}   ")
@@ -166,6 +104,13 @@ def title(text: str) -> None:
     """Simple title line with bold text."""
     console.print(
         Padding(Text(text, style="bold"), (1, PADDING_LEFT), style="", expand=False)
+    )
+
+
+def print(text: str, padding_left=PADDING_LEFT, highlight=True) -> None:
+    """Simple line of text."""
+    console.print(
+        Padding(text, (0, padding_left), style="", expand=False), highlight=highlight
     )
 
 
@@ -270,7 +215,7 @@ def _yaml2(d) -> None:
 
 
 def build_tree(
-    d: dict,
+    d: dict | list,
     label: str = "",
     key_style: str = "cyan",
     value_style: str = "normal",
@@ -280,27 +225,44 @@ def build_tree(
     """Build and return a Rich Tree from a nested dict (without printing)."""
     from rich.tree import Tree
 
-    def _add(node, d: dict) -> None:
-        for key, value in d.items():
-            if isinstance(value, dict):
-                branch = node.add(f"[{key_style}]{key}[/{key_style}]")
-                _add(branch, value)
-            elif isinstance(value, list):
-                branch = node.add(f"[{key_style}]{key}[/{key_style}]")
-                for it in value:
-                    if isinstance(it, dict):
-                        _add(branch, it)
-                    else:
-                        branch.add(f"[{value_style}]{it}[/{value_style}]")
-            else:
-                node.add(
-                    f"[{key_style}]{key}:[/{key_style}] [{value_style}]{value}[/{value_style}]"
-                )
+    def _add_dict_leaf(node, key, value) -> None:
+        node.add(
+            f"[{key_style}]{key}:[/{key_style}] [{value_style}]{value}[/{value_style}]"
+        )
 
-    tree = Tree(
-        Padding(label, (0, 0, 1, 0), style=label_style, expand=False),
-        guide_style=guide_style,
-    )
+    def _add_list_leaf(node, value) -> None:
+        node.add(f"[{key_style}][/{key_style}][{value_style}]{value}[/{value_style}]")
+
+    def _add(node, d: dict | list) -> None:
+        if isinstance(d, dict):
+            for key, value in d.items():
+                if isinstance(value, dict) or isinstance(value, list):
+                    branch = node.add(f"[{key_style}]{key}[/{key_style}]")
+                    _add(branch, value)
+                else:
+                    _add_dict_leaf(node, key, value)
+        elif isinstance(d, list):
+            for value in d:
+                if isinstance(value, dict) or isinstance(value, list):
+                    branch = node.add(f"[{key_style}]*[/{key_style}]")
+                    _add(branch, value)
+                else:
+                    _add_list_leaf(node, value)
+
+    # tree = Tree(
+    # Padding(label, (0, 0, 1, 0), style=label_style, expand=False),
+    # guide_style=guide_style,
+    # )
+    if isinstance(d, list):
+        tree = Tree(
+            f"[{label_style}]{label}\n[dim][][/dim][/{label_style}]",
+            guide_style=guide_style,
+        )
+    else:
+        tree = Tree(
+            f"[{label_style}]{label}\n[dim]{{}}[/dim][/{label_style}]",
+            guide_style=guide_style,
+        )
     _add(tree, d)
     return Padding(tree, (0, 0, 1, PADDING_LEFT))
 
@@ -358,13 +320,7 @@ def print_yaml(d: dict, key_color="") -> None:
 
 def _demo() -> None:
     """Print a fake wizard flow to preview all UI helpers."""
-    _banner_bw()
-    nav_path(
-        ["Device Manager", "Pair with Device"],
-        "Pair a Jetson: connect, generate SSH keypair, register device.",
-    )
 
-    _banner_color()
     nav_path(
         ["Device Manager", "Pair with Device"],
         "Pair a Jetson: connect, generate SSH keypair, register device.",
@@ -418,6 +374,11 @@ def _demo() -> None:
         ["Runtime", "Status"],
         descr="Check if the runtime is running and healthy.\n"
         "Shows device status, runtime version, and recent logs.",
+    )
+
+    print_tree(
+        ["a", "b", {"c": [1, 2, 3]}, "d"],
+        label="A list with a dict inside",
     )
 
 
