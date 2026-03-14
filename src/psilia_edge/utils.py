@@ -73,6 +73,22 @@ def run(cmd: str | list[str], stdin_data: str | None = None) -> tuple[int, str, 
     return _run_subprocess(cmd, input=stdin_data)
 
 
+def prompt_sudo_password() -> str | None:
+    """Prompt for sudo password if passwordless sudo is not available.
+
+    Call this before entering a ui.status() spinner — prompts inside spinners
+    are hidden and will hang indefinitely waiting for input.
+
+    Returns the password string, or None if sudo -n succeeds (no password needed).
+    """
+    check = subprocess.run("sudo -n true", shell=True, capture_output=True)
+    if check.returncode != 0:
+        from psilia_edge.ui import ask
+
+        return ask("sudo password", password=True)
+    return None
+
+
 def sudo(cmd: str | list[str], password: str | None = None) -> tuple[int, str, str]:
     if password is None:
         check = subprocess.run("sudo -n true", shell=True, capture_output=True)

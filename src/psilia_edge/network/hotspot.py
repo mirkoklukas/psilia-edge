@@ -121,7 +121,7 @@ def create_hotspot(
     password: str,
     ssid: str = HOTSPOT_SSID,
     con_name: str = HOTSPOT_CON_NAME,
-    runner: Runner = run,
+    sudo_runner: Runner = run,
 ) -> tuple[bool, str]:
     """
     Create and bring up a WiFi hotspot on `ifname`.
@@ -134,13 +134,13 @@ def create_hotspot(
     """
     # Delete any AP already running on this interface — bring-down alone isn't
     # enough since autoconnect would immediately restore it.
-    active = find_active_hotspot(ifname, runner)
+    active = find_active_hotspot(ifname, sudo_runner)
     if active and active != con_name:
-        _run(["nmcli", "connection", "delete", active], runner)
+        _run(["nmcli", "connection", "delete", active], sudo_runner)
 
     # Remove stale profile with the same name if it exists.
-    if hotspot_exists(con_name, runner):
-        _run(["nmcli", "connection", "delete", con_name], runner)
+    if hotspot_exists(con_name, sudo_runner):
+        _run(["nmcli", "connection", "delete", con_name], sudo_runner)
 
     rc, _, err = _run(
         [
@@ -166,20 +166,20 @@ def create_hotspot(
             "connection.autoconnect",
             "yes",
         ],
-        runner,
+        sudo_runner,
     )
     if rc != 0:
         return False, err or "nmcli connection add failed"
 
-    rc, _, err = _run(["nmcli", "connection", "up", con_name], runner)
+    rc, _, err = _run(["nmcli", "connection", "up", con_name], sudo_runner)
     if rc != 0:
         return False, err or "nmcli connection up failed"
 
     # Some drivers activate in managed mode on first up — cycle to ensure AP mode.
     _, iw_out, _ = _run(["iw", "dev", ifname, "info"])
     if "type AP" not in iw_out:
-        _run(["nmcli", "connection", "down", con_name], runner)
-        rc, _, err = _run(["nmcli", "connection", "up", con_name], runner)
+        _run(["nmcli", "connection", "down", con_name], sudo_runner)
+        rc, _, err = _run(["nmcli", "connection", "up", con_name], sudo_runner)
         if rc != 0:
             return False, err or "nmcli connection up failed on retry"
 
@@ -188,17 +188,17 @@ def create_hotspot(
 
 def bring_up_hotspot(
     con_name: str = HOTSPOT_CON_NAME,
-    runner: Runner = run,
+    sudo_runner: Runner = run,
 ) -> bool:
     """Bring up an existing hotspot profile."""
-    rc, _, _ = _run(["nmcli", "connection", "up", con_name], runner)
+    rc, _, _ = _run(["nmcli", "connection", "up", con_name], sudo_runner)
     return rc == 0
 
 
 def bring_down_hotspot(
     con_name: str = HOTSPOT_CON_NAME,
-    runner: Runner = run,
+    sudo_runner: Runner = run,
 ) -> bool:
     """Bring down the hotspot without deleting the profile."""
-    rc, _, _ = _run(["nmcli", "connection", "down", con_name], runner)
+    rc, _, _ = _run(["nmcli", "connection", "down", con_name], sudo_runner)
     return rc == 0

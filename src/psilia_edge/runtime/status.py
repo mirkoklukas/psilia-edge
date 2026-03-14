@@ -136,6 +136,17 @@ def _hotspot_section() -> dict:
     cfg = read_config().get("hotspot", {})
     ssid = cfg.get("ssid")
     con_name = f"{ssid}-Hotspot" if ssid else None
+
+    if con_name is None:
+        from psilia_edge.network.hotspot import find_active_hotspot
+        from psilia_edge.network.probe import list_interfaces
+
+        for iface in list_interfaces():
+            if iface.is_wifi:
+                con_name = find_active_hotspot(iface.name)
+                if con_name:
+                    break
+
     active = hotspot_is_broadcasting(con_name) if con_name else False
 
     section: dict = {"running": active}

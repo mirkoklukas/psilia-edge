@@ -11,7 +11,14 @@ from pathlib import Path
 
 from rich.prompt import Prompt
 
-from psilia_edge.utils import run, run_streamed, sudo, write_yaml, load_yaml
+from psilia_edge.utils import (
+    run,
+    run_streamed,
+    sudo,
+    prompt_sudo_password,
+    write_yaml,
+    load_yaml,
+)
 from psilia_edge import ui
 from psilia_edge.ui import console
 from psilia_edge.runtime.config import (
@@ -320,6 +327,14 @@ def _step_network(name: str) -> dict:
     ui.detail("password", f"[bold]{password}[/bold]")
     ui.detail("ip", "[bold]10.42.0.1[/bold] (fixed, Jetson side)")
 
+    # --- prompt for sudo password before spinner (prompts inside ui.status() are hidden) ---
+    # TODO: ui.status() (Rich Live spinner) blocks interactive prompts — any code path
+    #   that may need user input must prompt *before* entering the spinner context.
+    sudo_password = prompt_sudo_password()
+
+    def _runner(cmd):
+        return sudo(cmd, password=sudo_password)
+
     # --- create and bring up the hotspot ---
     with ui.status("  Creating hotspot…"):
         ok_result, err = create_hotspot(
@@ -327,7 +342,7 @@ def _step_network(name: str) -> dict:
             password=password,
             ssid=ssid,
             con_name=f"{ssid}-Hotspot",
-            runner=sudo,
+            sudo_runner=_runner,
         )
     if ok_result:
         ui.ok(f"Hotspot '{ssid}' is up")
