@@ -33,12 +33,19 @@ _PSILIA_REPO_URL = "https://github.com/mirkoklukas/psilia-edge.git"
 _PSILIA_REPO_BRANCH = "dev"
 
 
+def runtime_init() -> None:
+    """
+    Creates psilia.yaml if it doesn't exist.
+    """
+
+
 # TODO: What is a cool pattern, for running steps, printing to ui what has been done, and returning a config.
 #   and keeping the cli command and the work separated. Like which function should have ui calls, and
 #   which should just return dicts that the cli command can print?
 def runtime_home_init(runtime_home: Path, create: bool = False) -> None:
     """Initialize the runtime home directory.
 
+    - Creates psilia.yaml if it doesn't exist (with runtime.home_path set to runtime_home)
     - Creates the runtime home directory structure
     - Copies the psilia_runtime ROS package into the runtime home
     - Builds the Docker image
@@ -59,15 +66,19 @@ def runtime_home_init(runtime_home: Path, create: bool = False) -> None:
     ui.status("Creating directories")
     config |= _step_create_dirs(runtime_home)
     ui.ok("Directories ready")
-    _step_copy_ros()
-    ui.ok("ROS package copied")
     ui.info("Building Docker image…")
     with ui.status("This may take a while…"):
-        config |= _step_build_image(get_docker_image())
+        config |= _step_build_image(get_docker_image(), get_docker_dir())
         ui.ok("Docker image built")
+
+    # NOTE: Make sure up to this point none of the steps need an existing config.
+    #   There is no psilia.yaml until until now.
     write_config(config)
     ui.ok(f"Config written to {CONFIG_PATH}")
     ui.print_tree(config, label=f"'{CONFIG_PATH.name}'")
+
+    _step_copy_ros()
+    ui.ok("ROS package copied")
 
     runtime_config_path = runtime_home / DEFAULT_RUNTIME_CONFIG_NAME
     runtime_config = load_yaml(INITIAL_RUNTIME_CONFIG_PATH)
@@ -132,7 +143,7 @@ def runtime_home_update() -> None:
     ui.ok("ROS package updated")
     ui.info("Re-Building Docker image…")
     with ui.status("This may take a while…"):
-        _step_build_image(get_docker_image())
+        _step_build_image(get_docker_image(), get_docker_dir())
         ui.ok("Docker image re-built")
 
 
@@ -160,10 +171,10 @@ def _step_copy_ros() -> None:
 # TODO: we might want to copy the docker file to the ros directory.
 #   And use that to build the image, so that users can modify it if needed.
 #   But for now we can just point to the one in the repo.
-def _step_build_image(image_name) -> None:
+def _step_build_image(image_name, docker_dir) -> None:
     # TODO: path to docker file should be a configurable? not hardcoded?
 
-    rc = run_streamed(f"docker build --network=host -t {image_name} {get_docker_dir()}")
+    rc = run_streamed(f"docker build --network=host -t {image_name} {docker_dir}")
     if rc != 0:
         raise RuntimeError(f"Docker build failed with code {rc}")
 
