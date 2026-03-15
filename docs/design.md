@@ -1,6 +1,7 @@
 # Psilia Edge — Spatial Runtime
 
 
+
 ## Filesystem Layout
 
 The key mental model is as follows: The user clones and install the repository at a location of their choice (repo directory). Once installed the CLI is up. The CLI has its own state storage (config directory) under `~/.psilia/`. The runtime is the "product". A set up runtime has it's own additional user-facing and user-specified folder (runtime home), e.g. `~/psilia-runtime-home/`.
@@ -43,6 +44,16 @@ psilia-runtime-home/
 
 `psilia pair` also adds a managed section to `~/.ssh/config` (bounded by `# >>> psilia-edge` / `# <<< psilia-edge` markers) with one entry per registered device. Nothing outside that section is touched.
 
+## Two Roles
+
+The same `psilia-edge` package is installed on both your laptop and Jetson device, but each takes on a distinct role:
+
+**(Spatial) Runtime host** (Jetson) — runs the spatial perception stack. Hosts the base layer daemon, the ROS layer in Docker, and serves the Control UI. Anything you called `psilia runimte setup` on, which basically means it has a "runtime home".
+
+**Device/Data manager** (Laptop) — manages one or more runtime hosts. Handles pairing, bootstrapping over SSH, and data operations (pull, sync, cloud push). Keeps a registry of registered devices in `~/.psilia/psilia.yaml`.
+
+The role distinction is intentional and usually distinct for a given machine — a Jetson is usually  a runtime host, a laptop is usually a device/data manager. However, a single machine *can* play both roles, but that is used mainly during development.
+
 
 ## Key Config Files
 
@@ -50,10 +61,14 @@ psilia-runtime-home/
 Its path is `psilia_edge.runtime.config.CONFIG/"psilia.yaml"` and stored additionally in `psilia_edge.runtime.config.CONFIG_PATH`.
 
 It can be split into two main part (potentially more in the future) — either or both may be present depending on what the machine does:
-- Runtime specific: where the runtimes home folder is, and where to find the runtime configuration file, but also edge device information (e.g. how to access the hotspot)
-- Device and Data Management:
+- (Spatial) Runtime specific: where the runtimes home folder is, and where to find the runtime configuration file, but also edge device information (e.g. how to access the hotspot)
+- Device and Data Management
 
 ```yaml
+#|
+#|  Role 1: Runtime host
+#|  (typically Jetson)
+#|
 # written by `psilia runtime setup`
 runtime:
   home_path: ~/psilia-runtime-home
@@ -61,14 +76,18 @@ runtime:
 
 # written by `psilia runtime setup` (Jetson only)
 hotspot:
-  ssid: my-jetson-ap                 # NOTE: hardware may change between boots —
-  password: psilia1234               # these values can be stale if dongle is swapped
-  interface: wlx...                  # or camera is unplugged. live detection TBD.
+  ssid: my-jetson-ap       # NOTE: hardware may change between boots —
+  password: psilia1234     # these values can be stale if dongle is swapped
+  interface: wlx...        # or camera is unplugged. live detection TBD.
 
 # written by `psilia runtime setup` (optional)
 camera:
-  type: null                         # e.g. zed2i, oak-d, realsense
+  type: null               # e.g. zed2i, oak-d, realsense
 
+#|
+#|  Role 2: Device and Data Management
+#|  (typically Laptop)
+#|
 # written by `psilia pair`
 registered_devices:
   my-jetson:
@@ -79,22 +98,19 @@ registered_devices:
 
 A machine with `runtime.home_path` set has a local runtime installed. A machine with `registered_devices` set manages one or more remote runtimes. A laptop in dev mode can have both. This replaces the old role-detection heuristic of checking for a Jetson-specific file — the CLI now simply checks whether `runtime.home_path` is present.
 
-**`{home_path}/runtime.yaml`** is user-editable and controls what nodes to start, which topics to record, and so on. Created with defaults by `psilia runtime setup`. Its path is stored in `psilia_edge.runtime.config.RUNTIME_CONFIG_PATH`.
+**`{home_path}/runtime.yaml`** is user-editable and controls what nodes to start, which topics to record, and so on. Created with defaults by `psilia runtime setup`. Its path is stored in `psilia_edge.runtime.config.RUNTIME_CONFIG_PATH`. Everything runtime-specifig configurable information should go in here.
 
+The default runtime config (`runtime.default.yaml`):
 ```yaml
-name: Default-Runtime
-# TBD
+name: My Runtime Config
+ros:
+  launch: default.launch.py
+  recording:
+    topics:
+      - /psilia/interface
+      - /psilia/heartbeat
 ```
 
-## Two Roles
-
-The same `psilia-edge` package is installed on both your laptop and Jetson device, but each takes on a distinct role:
-
-**Runtime host** (Jetson) — runs the spatial perception stack. Hosts the base layer daemon, the ROS layer in Docker, and serves the Control UI. Anything you called `psilia runimte setup` on, which basically means it has a "runtime home".
-
-**Device/Data manager** (Laptop) — manages one or more runtime hosts. Handles pairing, bootstrapping over SSH, and data operations (pull, sync, cloud push). Keeps a registry of registered devices in `~/.psilia/psilia.yaml`.
-
-The role distinction is intentional and usually distinct for a given machine — a Jetson is usually  a runtime host, a laptop is usually a device/data manager. However, a single machine *can* play both roles, but that is used mainly during development.
 
 
 ## Environment and important config variables
@@ -142,7 +158,7 @@ ROS 2 Humble, CUDA / JetPack-compatible base, camera drivers, MCAP recorder, Fox
 
 ## Docker Container Layout
 
-The container mounts two directories from the host:
+The container mounts a few directories from the host:
 
 ```
 Host                             Container

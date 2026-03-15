@@ -1,5 +1,0 @@
-name: Default-Runtime
-ros:
-  launch: default.launch.py
-  recording:
-    topics: ['/psilia/interface', '/psilia/heartbeat']

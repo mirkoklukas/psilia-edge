@@ -1,4 +1,19 @@
-"""Path constants and config access for the psilia tooling."""
+"""Path constants and config access for the psilia tooling.
+
+
+Rough dependency structure:
+
+
+    psilia.yaml
+        ├──> Device & Data Management (Non-host specific)
+        └──> Runtime home (user-specified)
+                ├──> Runtime subdirs (ros/, data/, log/, conf/)
+                └──> runtime.yaml (runtime config, generated from default and user overrides)
+
+    psilia-edge repository (read-only, derived from package location)
+        ├──> Dockerfile and related files (e.g. entrypoint.sh)
+        └──> Web assets
+"""
 
 from __future__ import annotations
 
@@ -6,38 +21,52 @@ import importlib.resources
 import os
 from pathlib import Path
 
-import yaml
 
-from psilia_edge.utils import NestedDict
+from psilia_edge.utils import NestedDict, read_yaml, write_yaml
 
-# Default runtime config shipped with the package.
-INITIAL_RUNTIME_CONFIG_PATH = (
-    importlib.resources.files("psilia_edge.runtime") / "runtime.default.yaml"
-)
-
-# Hidden CLI-internal directory — ~/.psilia/ on any machine.
+#
+# -- "System-level directories" --
+#
+# Hidden CLI-internal directory — ~/.psilia/ on any machine and
+# Unified config file — ~/.psilia/psilia.yaml
 CONFIG_DIR = Path(os.environ.get("PSILIA_DIR", "~/.psilia")).expanduser()
-
+CONFIG_PATH = CONFIG_DIR / "psilia.yaml"
 RUN_DIR = Path(os.environ.get("PSILIA_RUN_DIR", "~/.psilia/run")).expanduser()
 LOG_DIR = Path(os.environ.get("PSILIA_LOG_DIR", "~/.psilia/log")).expanduser()
 
-# Unified config file — ~/.psilia/psilia.yaml
-CONFIG_PATH = CONFIG_DIR / "psilia.yaml"
+#
+# -- "Runtime-level directories" --
+#
+# These are the subdirs of the runtime home that we create and manage.
+# The repo dir is not included here since it's not necessarily a subdir of the runtime home.
+# The runtime home is set by the user during init and is
+# where all runtime-related files go — ROS workspace, data, logs, and runtime config.
+RUNTIME_DIRS = ["ros", "data", "log", "conf"]
+# Runtime config file name inside the runtime home.
+# The full path is stored in the main config.
+DEFAULT_RUNTIME_CONFIG_NAME = "runtime.yaml"
+# Default runtime config shipped with the package.
+INITIAL_RUNTIME_CONFIG_PATH = (
+    importlib.resources.files("psilia_edge.runtime") / "runtime.initial.yaml"
+)
 
-# Default runtime home — user-facing directory where the runtime lives.
-# TODO: Not sure why we need a env var for this.
-DEFAULT_RUNTIME_HOME = Path(
-    os.environ.get("PSILIA_DEFAULT_RUNTIME_HOME", "~/psilia-runtime-home")
-).expanduser()
-
+#
+# -- Docker-related constants --
+#
 CONTAINER_NAME = "psilia-runtime"
 DEFAULT_DOCKER_IMAGE = "psilia/runtime:latest"
 
-DEFAULT_RUNTIME_CONFIG_NAME = "runtime.yaml"
 
-# These are the subdirs of the runtime home that we create and manage.
-# The repo dir is not included here since it's not necessarily a subdir of the runtime home.
-RUNTIME_DIRS = ["ros", "data", "log", "conf"]
+# TODO: Check dependency structure. We should make explicit who reads from what,
+#   who has default fall-back values, and who overwrites these values.
+#   For example, we're tryint to read the docker image from the runtime config, but
+#   fall back to the default image if it's not set.
+# TODO: all getter that read the config, explicitly or explicitly,
+#   should have an optional config argument. If provided they should read from that
+#   instead of the default config path. E.g. `get_ros_dir(config: NestedDict | None = None)`,
+#   `get_runtime_home(config: NestedDict | None = None)`, etc. Note that in the
+#   example above `get_ros_dir` should then hand down the config to `get_runtime_home`.
+# TODO: We need validators for the configs.
 
 
 # TODO: Should we raise an error if the config file doesn't exist?
@@ -45,16 +74,13 @@ def read_config() -> NestedDict:
     """Read ~/.psilia/psilia.yaml, returning {} if missing or unreadable."""
     if not CONFIG_PATH.exists():
         return NestedDict()
-    try:
-        return NestedDict(yaml.safe_load(CONFIG_PATH.read_text()) or {})
-    except yaml.YAMLError:
-        return NestedDict()
+    else:
+        return NestedDict(read_yaml(CONFIG_PATH))
 
 
 def write_config(config: dict | NestedDict) -> None:
     """Write config dict to ~/.psilia/psilia.yaml."""
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(yaml.dump(dict(**config), default_flow_style=False))
+    write_yaml(CONFIG_PATH, config, parents=True)
 
 
 def get_runtime_home() -> Path:
@@ -75,10 +101,6 @@ def get_ros_dir() -> Path:
     return get_runtime_home() / "ros"
 
 
-def get_docker_dir() -> Path:
-    return get_repo_dir() / "ros" / "docker"
-
-
 def get_data_dir() -> Path:
     """Return the data directory where MCAP recordings are stored."""
     return get_runtime_home() / "data"
@@ -89,25 +111,11 @@ def get_log_dir() -> Path:
     return get_runtime_home() / "log"
 
 
-def get_repo_dir() -> Path:
-    """Return the repository root directory, derived from the installed package location.
-
-    Assumes `pip install -e .` (editable install) — always the case for v0.
-    TODO: This breaks for a non-editable PyPI install. Before publishing, anything
-    sourced from the repo dir (e.g. web assets) must move to package data via
-    `importlib.resources`.
-    """
-    return Path(__file__).resolve().parents[3]
-
-
-def get_docker_image() -> str | None:
-    """Return the name of the Docker image to use for the runtime container or None."""
-    return read_config().get("runtime", {}).get("image", DEFAULT_DOCKER_IMAGE)
-
-
 def set_runtime_config_path(path: str) -> None:
     """Set the path to the runtime config file in the main config."""
     config = read_config()
+    if "runtime" not in config:
+        config["runtime"] = {}
     config["runtime"]["config_path"] = path.expanduser()
     write_config(config)
 
@@ -117,6 +125,7 @@ def get_runtime_config_path() -> Path:
     # `if (p := os.environ.get("PSILIA_RUNTIME_CONFIG_PATH")): return Path(p).expanduser()`
     value = read_config().get("runtime", {}).get("config_path", None)
     if value:
+        # If path is set, great. Use it.
         rt_config_path = Path(value).expanduser()
     else:
         # Try the default location in the runtime home directory if not set in config.
@@ -130,30 +139,17 @@ def get_runtime_config_path() -> Path:
     return rt_config_path
 
 
-def read_runtime_config(config_path: Path | None = None) -> NestedDict:
-    if config_path is not None:
-        rt_config_path = config_path.expanduser()
-    else:
-        rt_config_path = get_runtime_config_path()
-
+def read_runtime_config() -> NestedDict:
+    rt_config_path = get_runtime_config_path()
     if not rt_config_path.exists():
-        raise RuntimeError(
-            f"Runtime config file `{rt_config_path}` not found. Run `psilia runtime configure` first."
-        )
-    try:
-        return NestedDict(yaml.safe_load(rt_config_path.read_text()) or {})
-    except yaml.YAMLError as e:
-        raise RuntimeError(f"Error parsing runtime config: {e}") from e
-
-
-def write_runtime_config(
-    config: dict | NestedDict, config_path: Path | None = None
-) -> None:
-    if config_path is not None:
-        rt_config_path = config_path.expanduser()
+        return NestedDict(read_yaml(INITIAL_RUNTIME_CONFIG_PATH))
     else:
-        rt_config_path = get_runtime_config_path()
-    rt_config_path.write_text(yaml.dump(dict(**config), default_flow_style=False))
+        return NestedDict(read_yaml(rt_config_path))
+
+
+def write_runtime_config(runtime_config: dict | NestedDict) -> None:
+    rt_config_path = get_runtime_config_path()
+    write_yaml(rt_config_path, runtime_config, parents=True)
 
 
 def get_launch_script() -> Path:
@@ -161,3 +157,23 @@ def get_launch_script() -> Path:
     rt_config = read_runtime_config()
     launch_script = rt_config.get("ros", {}).get("launch", "default.launch.py")
     return launch_script
+
+
+def get_repo_dir() -> Path:
+    """Return the repository root directory, derived from the installed package location.
+
+    Assumes `pip install -e .` (editable install) — always the case for v0.
+    TODO: This breaks for a non-editable PyPI install. Before publishing, anything
+    sourced from the repo dir (e.g. web assets) must move to package data via
+    `importlib.resources`.
+    """
+    return Path(__file__).resolve().parents[3]
+
+
+def get_docker_dir() -> Path:
+    return get_repo_dir() / "ros" / "docker"
+
+
+def get_docker_image() -> str:
+    """Return the name of the Docker image to use for the runtime container."""
+    return read_runtime_config().get("docker", {}).get("image", DEFAULT_DOCKER_IMAGE)

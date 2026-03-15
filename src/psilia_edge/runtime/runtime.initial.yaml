@@ -1,0 +1,7 @@
+name: My Runtime Config
+ros:
+  launch: default.launch.py
+  recording:
+    topics:
+      - /psilia/interface
+      - /psilia/heartbeat

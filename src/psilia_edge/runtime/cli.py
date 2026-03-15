@@ -66,11 +66,11 @@ def init(
     runtime_home: Annotated[
         Path, typer.Argument(help="The path to the runtime home directory.")
     ] = Path("./"),
-    create: Annotated[
+    mkdir: Annotated[
         bool,
         typer.Option(
-            "--create",
-            "-c",
+            "--mkdir",
+            "-m",
             help="Create the runtime home directory if it doesn't exist.",
         ),
     ] = False,
@@ -78,17 +78,17 @@ def init(
     """Initializes a runtime home directory."""
     from psilia_edge.runtime.setup import runtime_home_init
 
-    if not runtime_home.exists() and not create:
+    if not runtime_home.exists() and not mkdir:
         ui.error(
             f"Runtime home directory '{runtime_home}' does not exist."
-            f"Run with --create (-c) to create it."
+            f"Run with --mkdir (-m) to create it."
         )
         raise typer.Exit(1)
 
     ui.banner_nav(
         ["Runtime", "Initialize"], "Initializing the runtime home directory ..."
     )
-    runtime_home_init(runtime_home or Path.cwd(), create=create)
+    runtime_home_init(runtime_home or Path.cwd(), mkdir=mkdir)
 
 
 @app.command(hidden=True)
@@ -99,7 +99,7 @@ def setup(
     ),
 ) -> None:
     """Pull latest psilia-edge and rebuild the Docker image."""
-    from psilia_edge.runtime.config import get_runtime_home, DEFAULT_RUNTIME_HOME
+    from psilia_edge.runtime.config import get_runtime_home
     from psilia_edge.runtime.setup import run_setup
 
     ui.banner_nav(["Runtime", "Setup"], "Setting up a runtime ...")
@@ -107,9 +107,8 @@ def setup(
     if skip_init:
         home = get_runtime_home()
         ui.info(f"Skipping runtime home initialization. Using: \{home}")
-
     else:
-        home = ui.ask("Runtime home directory", default=DEFAULT_RUNTIME_HOME)
+        home = ui.ask("Runtime home directory")
 
     run_setup(home, skip_init=skip_init)
 

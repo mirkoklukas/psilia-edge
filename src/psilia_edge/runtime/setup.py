@@ -16,14 +16,11 @@ from psilia_edge.utils import (
     run_streamed,
     sudo,
     prompt_sudo_password,
-    write_yaml,
-    load_yaml,
 )
 from psilia_edge import ui
 from psilia_edge.ui import console
 from psilia_edge.runtime.config import (
     CONFIG_PATH,
-    DEFAULT_RUNTIME_HOME,
     RUNTIME_DIRS,
     get_repo_dir,
     get_docker_dir,
@@ -31,8 +28,9 @@ from psilia_edge.runtime.config import (
     get_docker_image,
     read_config,
     write_config,
-    DEFAULT_RUNTIME_CONFIG_NAME,
-    INITIAL_RUNTIME_CONFIG_PATH,
+    read_runtime_config,
+    write_runtime_config,
+    get_runtime_config_path,
 )
 
 _DEFAULT_HOTSPOT_PASSWORD = "psilia1234"
@@ -40,16 +38,10 @@ _PSILIA_REPO_URL = "https://github.com/mirkoklukas/psilia-edge.git"
 _PSILIA_REPO_BRANCH = "dev"
 
 
-def runtime_init() -> None:
-    """
-    Creates psilia.yaml if it doesn't exist.
-    """
-
-
 # TODO: What is a cool pattern, for running steps, printing to ui what has been done, and returning a config.
 #   and keeping the cli command and the work separated. Like which function should have ui calls, and
 #   which should just return dicts that the cli command can print?
-def runtime_home_init(runtime_home: Path, create: bool = False) -> None:
+def runtime_home_init(runtime_home: Path, mkdir: bool = False) -> None:
     """Initialize the runtime home directory.
 
     - Creates psilia.yaml if it doesn't exist (with runtime.home_path set to runtime_home)
@@ -62,38 +54,39 @@ def runtime_home_init(runtime_home: Path, create: bool = False) -> None:
     # TODO: Requires docker for instance. Should have a check whether all
     #   dependencies are met before we run through init?
 
-    if not runtime_home.exists() and not create:
+    if not runtime_home.exists() and not mkdir:
         raise RuntimeError(
             f"Runtime home directory '{runtime_home}' does not exist."
             f"Run with --create (-c) to create it."
         )
 
     runtime_home = runtime_home.expanduser().resolve()
+
     config = read_config()
+    config.update({"runtime": {"home_path": str(runtime_home)}})
+    write_config(config)
+
+    runtime_config = read_runtime_config()
+    write_runtime_config(runtime_config)
+
     ui.status("Creating directories")
-    config |= _step_create_dirs(runtime_home)
+    _step_create_dirs(runtime_home)
     ui.ok("Directories ready")
+
     ui.info("Building Docker image…")
     with ui.status("This may take a while…"):
-        config |= _step_build_image(get_docker_image(), get_docker_dir())
+        _step_build_image(get_docker_image(), get_docker_dir())
         ui.ok("Docker image built")
 
-    # NOTE: Make sure up to this point none of the steps need an existing config.
-    #   There is no psilia.yaml until until now.
-    write_config(config)
-    ui.ok(f"Config written to {CONFIG_PATH}")
-    ui.print_tree(config, label=f"'{CONFIG_PATH.name}'")
-
+    # Depends on runtime home being set in config,
+    # and directories being created since it copies into the ros dir.
     _step_copy_ros()
     ui.ok("ROS package copied")
 
-    runtime_config_path = runtime_home / DEFAULT_RUNTIME_CONFIG_NAME
-    runtime_config = load_yaml(INITIAL_RUNTIME_CONFIG_PATH)
-    write_yaml(runtime_config_path, runtime_config)
-    ui.ok(f"Runtime config written {runtime_config_path.name}")
-    ui.print_tree(runtime_config, label=f"'{runtime_config_path.name}'")
+    ui.print_tree(config, label=f"'{CONFIG_PATH.name}'")
+    ui.print_tree(runtime_config, label=f"'{get_runtime_config_path().name}'")
 
-    return config
+    return config, runtime_config
 
 
 def run_setup(runtime_home: Path, skip_init=False) -> None:
@@ -108,9 +101,8 @@ def run_setup(runtime_home: Path, skip_init=False) -> None:
     - Writes the final psilia.yaml
     """
 
-    if skip_init:
-        runtime_home.mkdir(parents=True, exist_ok=True)
-        runtime_home_init(runtime_home)
+    if not skip_init:
+        runtime_home_init(runtime_home, mkdir=True)
 
     _, name, _ = run("hostname")
     name = name.strip()
@@ -119,7 +111,6 @@ def run_setup(runtime_home: Path, skip_init=False) -> None:
     config |= _step_network(name)
     # config |= _step_camera()
     # config |= _step_systemd()
-
     write_config(config)
     ui.print_tree(config, label=f"'{CONFIG_PATH.name}'")
 
@@ -155,12 +146,11 @@ def runtime_home_update() -> None:
 
 
 def _step_create_dirs(runtime_home: Path) -> None:
-    update = {"runtime": {"home_path": str(runtime_home)}}
     for d in RUNTIME_DIRS:
         dir_path = runtime_home / d
         if not dir_path.exists():
             dir_path.mkdir(parents=True, exist_ok=True)
-    return update
+    return {}
 
 
 def _step_copy_ros() -> None:
@@ -406,7 +396,7 @@ def _step_install_path(conn) -> dict:
         "[dim]Use a path with plenty of free space — an SSD is strongly recommended.[/dim]"
     )
     console.print()
-    base = Prompt.ask("  Install path", default=DEFAULT_RUNTIME_HOME)
+    base = Prompt.ask("  Install path")
     data_path = f"{base}/data"
     console.print()
     ui.detail("repo", f"[bold]{base}/psilia-edge[/bold]")
@@ -465,23 +455,3 @@ def _step_clone(conn, base: str) -> None:
         ui.fail(f"pip install failed: {err.strip()}")
     else:
         ui.ok("psilia-edge installed")
-
-
-# NOTE: unused — handled by bootstrap.sh
-def _make_bootstrap_config(
-    base_dir: str | Path = DEFAULT_RUNTIME_HOME,
-    ros_dir: str | Path = DEFAULT_RUNTIME_HOME / "ros",
-    data_dir: str | Path = DEFAULT_RUNTIME_HOME / "data",
-    repo_dir: str | Path = DEFAULT_RUNTIME_HOME / "psilia-edge",
-) -> dict:
-    """Create a minimal device_config dict with default paths,
-    so the setup wizard can read/write it."""
-    config = {
-        "runtime": {
-            "base_dir": str(base_dir),
-            "ros_dir": str(ros_dir),
-            "data_dir": str(data_dir),
-            "repo_dir": str(repo_dir),
-        }
-    }
-    return config
