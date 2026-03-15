@@ -24,6 +24,11 @@ from pathlib import Path
 
 from psilia_edge.utils import NestedDict, read_yaml, write_yaml
 
+
+class ConfigurationError(Exception):
+    """Raised when psilia configuration is missing or invalid."""
+
+
 #
 # -- "System-level directories" --
 #
@@ -69,13 +74,17 @@ DEFAULT_DOCKER_IMAGE = "psilia/runtime:latest"
 # TODO: We need validators for the configs.
 
 
-# TODO: Should we raise an error if the config file doesn't exist?
-def read_config() -> NestedDict:
-    """Read ~/.psilia/psilia.yaml, returning {} if missing or unreadable."""
+def read_config(missing_ok: bool = True) -> NestedDict:
+    """Read ~/.psilia/psilia.yaml.
+
+    If missing_ok is True (default), returns {} when the file doesn't exist.
+    If missing_ok is False, raises FileNotFoundError.
+    """
     if not CONFIG_PATH.exists():
-        return NestedDict()
-    else:
-        return NestedDict(read_yaml(CONFIG_PATH))
+        if missing_ok:
+            return NestedDict()
+        raise ConfigurationError(f"Config file not found: {CONFIG_PATH}")
+    return NestedDict(read_yaml(CONFIG_PATH))
 
 
 def write_config(config: dict | NestedDict) -> None:
@@ -88,11 +97,9 @@ def get_runtime_home() -> Path:
 
     Raises RuntimeError if not set — run `psilia runtime setup` first.
     """
-    value = read_config().get("runtime", {}).get("home_path")
+    value = read_config(missing_ok=False).get("runtime", {}).get("home_path")
     if not value:
-        raise RuntimeError(
-            "No runtime home configured. Run `psilia runtime setup` first."
-        )
+        raise ConfigurationError("No runtime home configured in the main config.")
     return Path(value).expanduser()
 
 
@@ -120,35 +127,44 @@ def set_runtime_config_path(path: str) -> None:
     write_config(config)
 
 
-def get_runtime_config_path() -> Path:
+def get_runtime_config_path(missing_ok: bool = False) -> Path:
     # TODO: We could make an env var for the runtime config path and return it here if set.
     # `if (p := os.environ.get("PSILIA_RUNTIME_CONFIG_PATH")): return Path(p).expanduser()`
-    value = read_config().get("runtime", {}).get("config_path", None)
-    if value:
-        # If path is set, great. Use it.
-        rt_config_path = Path(value).expanduser()
-    else:
-        # Try the default location in the runtime home directory if not set in config.
-        rt_config_path = get_runtime_home() / DEFAULT_RUNTIME_CONFIG_NAME
 
+    # home is required!
+    rt_config_path = get_runtime_home() / DEFAULT_RUNTIME_CONFIG_NAME
+
+    if rt_config_path.exists() or missing_ok:
+        return rt_config_path
+
+    raise ConfigurationError(f"Runtime config file `{rt_config_path}` not found. ")
+
+
+def read_runtime_config(missing_ok: bool = True) -> NestedDict:
+    """Read the runtime config file (runtime.yaml).
+
+    If missing_ok is True (default), returns an initial runtime config when the file doesn't exist.
+    If missing_ok is False, and the runtime.yaml file doesn't exist, raises FileNotFoundError.
+    """
+
+    rt_config_path = get_runtime_config_path(missing_ok=missing_ok)
     if not rt_config_path.exists():
-        raise RuntimeError(
-            f"Runtime config file `{rt_config_path}` not found. "
-            f"Check runtime path in `{CONFIG_PATH}` and/or your runtime home `{get_runtime_home()}`."
-        )
-    return rt_config_path
+        if missing_ok:
+            return initial_runime_config()
+        raise ConfigurationError(f"Runtime config file not found: {rt_config_path}")
+
+    return NestedDict(read_yaml(rt_config_path))
 
 
-def read_runtime_config() -> NestedDict:
-    rt_config_path = get_runtime_config_path()
-    if not rt_config_path.exists():
-        return NestedDict(read_yaml(INITIAL_RUNTIME_CONFIG_PATH))
-    else:
-        return NestedDict(read_yaml(rt_config_path))
+def initial_runime_config() -> NestedDict:
+    """Return the initial runtime config as a dict."""
+    return NestedDict(read_yaml(INITIAL_RUNTIME_CONFIG_PATH))
 
 
-def write_runtime_config(runtime_config: dict | NestedDict) -> None:
-    rt_config_path = get_runtime_config_path()
+def write_runtime_config(
+    runtime_config: dict | NestedDict, missing_ok: bool = True
+) -> None:
+    rt_config_path = get_runtime_config_path(missing_ok=missing_ok)
     write_yaml(rt_config_path, runtime_config, parents=True)
 
 
@@ -177,3 +193,58 @@ def get_docker_dir() -> Path:
 def get_docker_image() -> str:
     """Return the name of the Docker image to use for the runtime container."""
     return read_runtime_config().get("docker", {}).get("image", DEFAULT_DOCKER_IMAGE)
+
+
+def _check_paths(path_dict) -> None:
+    """Check that all important paths exist and are directories.
+
+    Raises FileNotFoundError if any path is missing or not a directory.
+    """
+    import psilia_edge.ui as ui
+
+    for name, path in path_dict.items():
+        if callable(path):
+            name = f"{name} = [not bold]{path.__name__}()[/not bold]"
+            try:
+                path = path()
+            except ConfigurationError as e:
+                ui.fail(f"[red]{name}[/red]: [dim]{e}[/dim]")
+                continue
+        if path.exists():
+            ui.ok(f"[green]{name}[/green]: [dim]{path}[/dim]")
+        else:
+            ui.fail(f"[red]{name}[/red]: [dim]{path}[/dim]")
+
+
+def _check_config() -> None:
+    import psilia_edge.ui as ui
+
+    _check_paths(
+        {
+            "repo_dir": get_repo_dir,
+            "docker_dir": get_docker_dir,
+            "config_dir": CONFIG_DIR,
+            "system_run_dir": RUN_DIR,
+            "system_log_dir": LOG_DIR,
+            "main_config": CONFIG_PATH,
+            "home_dir": get_runtime_home,
+            "ros_dir": get_ros_dir,
+            "data_dir": get_data_dir,
+            "log_dir": get_log_dir,
+            "runtime_config": get_runtime_config_path,
+        }
+    )
+
+    try:
+        ui.print_tree(
+            read_config(missing_ok=True), label="read_config(missing_ok=True)"
+        )
+    except ConfigurationError:
+        pass
+    try:
+        ui.print_tree(
+            read_runtime_config(missing_ok=True),
+            label="read_runtime_config(missing_ok=True)",
+        )
+    except ConfigurationError:
+        pass

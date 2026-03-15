@@ -62,11 +62,11 @@ def runtime_home_init(runtime_home: Path, mkdir: bool = False) -> None:
 
     runtime_home = runtime_home.expanduser().resolve()
 
-    config = read_config()
+    config = read_config(missing_ok=True)
     config.update({"runtime": {"home_path": str(runtime_home)}})
     write_config(config)
 
-    runtime_config = read_runtime_config()
+    runtime_config = read_runtime_config(missing_ok=True)
     write_runtime_config(runtime_config)
 
     ui.status("Creating directories")

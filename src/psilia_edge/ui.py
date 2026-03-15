@@ -249,26 +249,26 @@ def build_tree(
                 else:
                     _add_list_leaf(node, value)
 
-    # tree = Tree(
-    # Padding(label, (0, 0, 1, 0), style=label_style, expand=False),
-    # guide_style=guide_style,
-    # )
-    if isinstance(d, list):
-        tree = Tree(
-            f"[{label_style}]{label}\n[dim][][/dim][/{label_style}]",
-            guide_style=guide_style,
-        )
+    # Check if dict of list has any entries.
+    if len(d) > 0:
+        if isinstance(d, list):
+            tree = Tree(
+                f"[{label_style}]{label}[/{label_style}]",
+                guide_style=guide_style,
+            )
+        else:
+            tree = Tree(
+                f"[{label_style}]{label}[/{label_style}]",
+                guide_style=guide_style,
+            )
+        _add(tree, d)
     else:
-        tree = Tree(
-            f"[{label_style}]{label}\n[dim]{{}}[/dim][/{label_style}]",
-            guide_style=guide_style,
-        )
-    _add(tree, d)
-    return Padding(tree, (0, 0, 1, PADDING_LEFT))
+        tree = f"[{label_style}]{label}[/{label_style}]\n{d}"
+    return Padding(tree, (0, 0, 0, PADDING_LEFT))
 
 
 def print_tree(
-    d: dict,
+    d: dict | list,
     label: str = "",
     key_style: str = "cyan",
     value_style: str = "normal",

@@ -29,6 +29,7 @@ from pathlib import Path
 import typer
 
 from psilia_edge import ui
+from psilia_edge.runtime.config import _check_config
 
 
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
@@ -287,3 +288,10 @@ def repo() -> Path:
     from psilia_edge.runtime.config import get_repo_dir
 
     print(get_repo_dir())
+
+
+@app.command(hidden=True)
+def conf() -> None:
+    """Print the runtime configuration as YAML."""
+
+    _check_config()
