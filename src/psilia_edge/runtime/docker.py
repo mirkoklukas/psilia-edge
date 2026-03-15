@@ -70,6 +70,8 @@ def is_container_running() -> bool:
 
 
 def is_docker_daemon_running() -> bool:
+    # TODO: `docker info` is slow (~1-2s). Consider `docker ps -q` or checking
+    #   the Docker socket directly. Also evaluate if this check is needed at all.
     rc, _, _ = run("docker info")
     return rc == 0
 
