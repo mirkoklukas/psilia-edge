@@ -95,11 +95,7 @@ def prompt_sudo_password() -> str | None:
 
 def sudo(cmd: str | list[str], password: str | None = None) -> tuple[int, str, str]:
     if password is None:
-        check = subprocess.run("sudo -n true", shell=True, capture_output=True)
-        if check.returncode != 0:
-            from psilia_edge.ui import ask
-
-            password = ask("sudo password", password=True)
+        password = prompt_sudo_password()
 
     if password is not None:
         full_cmd = ["sudo", "-S"] + cmd if isinstance(cmd, list) else f"sudo -S {cmd}"
@@ -140,21 +136,21 @@ def sudo_streamed(cmd: str, password: str | None = None, prefix: str = "") -> in
 
     Prompts for the sudo password if not provided. Returns the exit code.
     """
-    import getpass
-
     if password is None:
-        password = getpass.getpass("sudo password: ")
+        password = prompt_sudo_password()
 
+    sudo_cmd = f"sudo -S {cmd}" if password else f"sudo {cmd}"
     process = subprocess.Popen(
-        f"sudo -S {cmd}",
+        sudo_cmd,
         shell=True,
-        stdin=subprocess.PIPE,
+        stdin=subprocess.PIPE if password else None,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
     )
-    process.stdin.write(password + "\n")
-    process.stdin.close()
+    if password:
+        process.stdin.write(password + "\n")
+        process.stdin.close()
 
     for line in process.stdout:
         line = line.rstrip()
