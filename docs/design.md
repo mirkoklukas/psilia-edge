@@ -245,6 +245,53 @@ The table below shows how each part of the system communicates with the others. 
 - **ros2 CLI** — used by Docker's entrypoint to launch ROS (`ros2 launch`); also available as an escape hatch via `docker exec`. -->
 
 
+## Network Setup
+
+To reach the web UI and rosbridge, the phone (or laptop) and the Jetson must be on the same network. Psilia supports two modes, configured via `psilia runtime configure --network` and stored in `psilia.yaml` under `network:`. That command is the entrypoint to the network setup wizard — it detects available interfaces, prompts for mode and credentials, writes the config, and sets up NetworkManager for autoconnect.
+
+**Mode 1 — Jetson AP** (dongle or built-in WiFi) · **Mode 2 — Jetson client** (connects to phone hotspot)
+
+### Config (`psilia.yaml`)
+
+```yaml
+network:
+  mode: ap          # ap | client
+  ap:
+    ssid: psilia-ap
+    password: psilia1234
+    interfaces:
+      - name: wlx...        # detected during setup
+        type: usb-dongle    # usb-dongle | built-in
+      - name: wlan0
+        type: built-in
+    autostart: true         # nmcli autoconnect on boot
+    start_on_runtime: true  # brought up on `psilia runtime start`
+  client:
+    ssid: MyPhone
+    password: secret
+    autostart: true
+    start_on_runtime: true
+```
+
+### Wizard Flow (`psilia runtime configure --network`)
+
+1. Enumerate AP-capable interfaces; detect type via `wlx` prefix and `lsusb` cross-reference
+2. Collect SSID and password (shared across all interfaces)
+3. Create one NM connection profile per interface with the same SSID/password
+4. Prompt for `autostart` and `start_on_runtime` preferences
+5. Write config to `psilia.yaml`
+
+Having the same SSID on dongle and built-in means the phone reconnects seamlessly regardless of which interface is active.
+
+For **Mode 2 (client)**, the wizard collects the phone hotspot SSID and password and creates a single NM client profile. `psilia runtime start` calls `nmcli connection up` if not already connected.
+
+### Network Test (`/network-test.html`)
+
+The web UI includes a network test page where the user can verify the connection is sufficient for camera streaming. The target is low-res image streaming (e.g. 320×240 @ 5 fps). The latency and throughput tests on the page should be calibrated against this requirement — pass/fail thresholds set accordingly.
+
+When both a dongle and built-in WiFi are present, the Jetson can act as its own client: host the AP on one interface and connect to it with the other, then run the throughput test over that link. Traffic goes over the air so it's a real measurement, useful for validating an interface during setup before a phone is connected.
+
+
 ## V0 Features
 
 - **WebUI:**

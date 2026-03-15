@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Psilia Edge — Network Debug</title>
+  <title>Psilia Edge — Network Test</title>
   <link rel="stylesheet" href="/psilia.css">
   <style>
     button {
@@ -32,7 +32,7 @@
     <a href="/runtime-test.html">runtime test</a>
     <a href="/recording.html">recording</a>
     <a href="/config.html">config</a>
-    <a href="/network-debug.html" class="active">network debug</a>
+    <a href="/network-test.html" class="active">network test</a>
   </nav>
 
   <div class="card">
@@ -60,17 +60,17 @@
       <span class="value dim" id="thr-size">—</span>
     </div>
     <div class="row">
-      <span class="label">time</span>
+      <span class="label">time (avg)</span>
       <span class="value dim" id="thr-time">—</span>
     </div>
     <div class="row">
-      <span class="label">speed</span>
+      <span class="label">speed (avg)</span>
       <span class="value dim" id="thr-speed">—</span>
     </div>
   </div>
 
   <script>
-    const PROBE_SIZE = 2_000_000; // 2 MB
+    const PROBE_SIZE = 256_000; // 256 KB
 
     async function runLatency() {
       const btn = document.getElementById('lat-btn');
@@ -115,18 +115,23 @@
         document.getElementById(id).className = 'value dim';
       });
 
-      document.getElementById('thr-size').textContent = `${(PROBE_SIZE / 1e6).toFixed(1)} MB`;
+      const N = 10;
+      document.getElementById('thr-size').textContent = `${(PROBE_SIZE / 1e6).toFixed(2)} MB × ${N}`;
 
       try {
-        const t0 = performance.now();
-        const r = await fetch(`/api/network/probe?size=${PROBE_SIZE}`);
-        await r.arrayBuffer();
-        const elapsed = (performance.now() - t0) / 1000;
-        const mbps = (PROBE_SIZE / 1e6) / elapsed;
-        const color = mbps > 5 ? 'green' : mbps > 1 ? 'yellow' : 'red';
+        const speeds = [];
+        for (let i = 0; i < N; i++) {
+          const t0 = performance.now();
+          const r = await fetch(`/api/network/probe?size=${PROBE_SIZE}`);
+          await r.arrayBuffer();
+          const elapsed = (performance.now() - t0) / 1000;
+          speeds.push((PROBE_SIZE / 1e6) / elapsed);
+        }
+        const avg = speeds.reduce((a, b) => a + b, 0) / speeds.length;
+        const color = avg > 2 ? 'green' : avg > 1.5 ? 'yellow' : 'red';
 
-        document.getElementById('thr-time').textContent  = `${elapsed.toFixed(2)} s`;
-        document.getElementById('thr-speed').textContent = `${mbps.toFixed(2)} MB/s`;
+        document.getElementById('thr-time').textContent  = `${(PROBE_SIZE / 1e6 / avg * 1000).toFixed(0)} ms`;
+        document.getElementById('thr-speed').textContent = `${avg.toFixed(2)} MB/s`;
         ['thr-time','thr-speed'].forEach(id =>
           document.getElementById(id).className = 'value ' + color
         );
