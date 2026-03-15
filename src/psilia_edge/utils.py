@@ -135,6 +135,35 @@ def run_streamed(cmd: str, prefix: str = "") -> int:
     return process.returncode
 
 
+def sudo_streamed(cmd: str, password: str | None = None, prefix: str = "") -> int:
+    """Run a command under sudo, streaming output live to the terminal via Rich.
+
+    Prompts for the sudo password if not provided. Returns the exit code.
+    """
+    import getpass
+
+    if password is None:
+        password = getpass.getpass("sudo password: ")
+
+    process = subprocess.Popen(
+        f"sudo -S {cmd}",
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    process.stdin.write(password + "\n")
+    process.stdin.close()
+
+    for line in process.stdout:
+        line = line.rstrip()
+        ui.print_line(f"[dim]{prefix}{line}[/dim]", highlight=False)
+
+    process.wait()
+    return process.returncode
+
+
 def ssh_run(client: paramiko.SSHClient, cmd: str) -> tuple[int, str, str]:
     _, stdout, stderr = client.exec_command(cmd)
     rc = stdout.channel.recv_exit_status()

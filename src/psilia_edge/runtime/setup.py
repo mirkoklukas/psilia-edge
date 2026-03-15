@@ -14,6 +14,7 @@ from rich.prompt import Prompt
 from psilia_edge.utils import (
     run,
     run_streamed,
+    sudo_streamed,
     sudo,
     prompt_sudo_password,
 )
@@ -136,7 +137,7 @@ def runtime_home_update() -> None:
     # artifacts are owned by the calling user and can be deleted directly. Requires
     # setting HOME=/tmp inside the container since the UID has no /etc/passwd entry.
     ros_dir = get_ros_dir()
-    run_streamed(f"rm -r {ros_dir}/build {ros_dir}/install {ros_dir}/log")
+    sudo_streamed(f"rm -rf {ros_dir}/build {ros_dir}/install {ros_dir}/log")
     ui.ok("Colcon build cache cleared")
     ui.ok("ROS package updated")
     ui.info("Re-Building Docker image…")
