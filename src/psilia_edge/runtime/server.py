@@ -47,6 +47,19 @@ async def api_spatial_stop() -> JSONResponse:
     return JSONResponse(stop_spatial_layer())
 
 
+@app.get("/api/network/ping")
+async def api_network_ping() -> JSONResponse:
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/network/probe")
+async def api_network_probe(size: int = 100_000):
+    from fastapi.responses import Response
+
+    size = min(max(size, 0), 5_000_000)
+    return Response(content=bytes(size), media_type="application/octet-stream")
+
+
 # ── Static files (catch-all, must come last) ─────────────────────────────────
 
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="static")

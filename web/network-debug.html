@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Psilia Edge — Network Debug</title>
+  <link rel="stylesheet" href="/psilia.css">
+  <style>
+    button {
+      width: 100%;
+      padding: 0.75rem;
+      background: #4ecca3;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 0.5rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.75rem;
+    }
+    button:active { opacity: 0.8; }
+    button:disabled { opacity: 0.4; cursor: default; }
+  </style>
+</head>
+<body>
+  <h1>Psilia Edge</h1>
+  <div class="subtitle">spatial perception runtime</div>
+  <nav>
+    <a href="/">status</a>
+    <a href="/runtime-status.html">runtime status</a>
+    <a href="/runtime-test.html">runtime test</a>
+    <a href="/recording.html">recording</a>
+    <a href="/config.html">config</a>
+    <a href="/network-debug.html" class="active">network debug</a>
+  </nav>
+
+  <div class="card">
+    <h2>Latency</h2>
+    <button id="lat-btn" onclick="runLatency()">Run latency test</button>
+    <div class="row">
+      <span class="label">min</span>
+      <span class="value dim" id="lat-min">—</span>
+    </div>
+    <div class="row">
+      <span class="label">avg</span>
+      <span class="value dim" id="lat-avg">—</span>
+    </div>
+    <div class="row">
+      <span class="label">max</span>
+      <span class="value dim" id="lat-max">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Throughput</h2>
+    <button id="thr-btn" onclick="runThroughput()">Run throughput test</button>
+    <div class="row">
+      <span class="label">size</span>
+      <span class="value dim" id="thr-size">—</span>
+    </div>
+    <div class="row">
+      <span class="label">time</span>
+      <span class="value dim" id="thr-time">—</span>
+    </div>
+    <div class="row">
+      <span class="label">speed</span>
+      <span class="value dim" id="thr-speed">—</span>
+    </div>
+  </div>
+
+  <script>
+    const PROBE_SIZE = 2_000_000; // 2 MB
+
+    async function runLatency() {
+      const btn = document.getElementById('lat-btn');
+      btn.disabled = true;
+      btn.textContent = 'Running…';
+      ['lat-min','lat-avg','lat-max'].forEach(id => {
+        document.getElementById(id).textContent = '—';
+        document.getElementById(id).className = 'value dim';
+      });
+
+      const N = 10;
+      const times = [];
+      for (let i = 0; i < N; i++) {
+        const t0 = performance.now();
+        try { await fetch('/api/network/ping'); } catch { break; }
+        times.push(performance.now() - t0);
+      }
+
+      if (times.length) {
+        const min = Math.min(...times);
+        const max = Math.max(...times);
+        const avg = times.reduce((a, b) => a + b, 0) / times.length;
+        const color = avg < 50 ? 'green' : avg < 200 ? 'yellow' : 'red';
+        document.getElementById('lat-min').textContent = `${min.toFixed(1)} ms`;
+        document.getElementById('lat-avg').textContent = `${avg.toFixed(1)} ms`;
+        document.getElementById('lat-max').textContent = `${max.toFixed(1)} ms`;
+        ['lat-min','lat-avg','lat-max'].forEach(id =>
+          document.getElementById(id).className = 'value ' + color
+        );
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Run latency test';
+    }
+
+    async function runThroughput() {
+      const btn = document.getElementById('thr-btn');
+      btn.disabled = true;
+      btn.textContent = 'Downloading…';
+      ['thr-size','thr-time','thr-speed'].forEach(id => {
+        document.getElementById(id).textContent = '—';
+        document.getElementById(id).className = 'value dim';
+      });
+
+      document.getElementById('thr-size').textContent = `${(PROBE_SIZE / 1e6).toFixed(1)} MB`;
+
+      try {
+        const t0 = performance.now();
+        const r = await fetch(`/api/network/probe?size=${PROBE_SIZE}`);
+        await r.arrayBuffer();
+        const elapsed = (performance.now() - t0) / 1000;
+        const mbps = (PROBE_SIZE / 1e6) / elapsed;
+        const color = mbps > 5 ? 'green' : mbps > 1 ? 'yellow' : 'red';
+
+        document.getElementById('thr-time').textContent  = `${elapsed.toFixed(2)} s`;
+        document.getElementById('thr-speed').textContent = `${mbps.toFixed(2)} MB/s`;
+        ['thr-time','thr-speed'].forEach(id =>
+          document.getElementById(id).className = 'value ' + color
+        );
+      } catch(e) {
+        document.getElementById('thr-speed').textContent = 'failed';
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Run throughput test';
+    }
+  </script>
+</body>
+</html>
