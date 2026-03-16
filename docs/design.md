@@ -120,9 +120,9 @@ ros:
 | `CONFIG_DIR` | `PSILIA_DIR` | `~/.psilia` | Override the hidden psilia dir (e.g. `/ssd/.psilia` on Jetson)|
 |`CONFIG_PATH`| - | - | Path to psilia config file `{CONFIG_DIR}/psilia.yaml`|
 |`get_runtime_home()`| - | *(from psilia.yaml)* | Points to the runtime home directory |
-|`RUN_DIR`| `PSILIA_RUN_DIR` | `~/.psilia/run` | Override the PID file directory (e.g. `/run/psilia` on Jetson) |
-|`LOG_DOR`| `PSILIA_LOG_DIR` | `~/.psilia/log` | Override the log file directory (e.g. `/var/log/psilia` on Jetson) |
 |- | `PSILIA_SSH_CONFIG_PATH`| `~/.ssh/config`| Managing ssh connection for registered devices |
+<!-- |`RUN_DIR`| `PSILIA_RUN_DIR` (REMOVED) | `CONFIG_DIR/run` | Override the PID file directory (e.g. `/run/psilia` on Jetson) |
+|`LOG_DOR`| `PSILIA_LOG_DIR` (REMOVED) | `CONFIG_DIR/log` | Override the log file directory (e.g. `/var/log/psilia` on Jetson) | -->
 
 The env vars exist primarily for testing and CI.
 
@@ -247,7 +247,7 @@ The table below shows how each part of the system communicates with the others. 
 
 ## Network Setup
 
-To reach the web UI and rosbridge, the phone (or laptop) and the Jetson must be on the same network. Psilia supports two modes, configured via `psilia runtime configure --network` and stored in `psilia.yaml` under `network:`. That command is the entrypoint to the network setup wizard — it detects available interfaces, prompts for mode and credentials, writes the config, and sets up NetworkManager for autoconnect.
+To reach the web UI and rosbridge, the phone (or laptop) and the Jetson must be on the same network. Psilia supports two modes, configured via `psilia runtime setup --network` and stored in `psilia.yaml` under `network:`. That command is the entrypoint to the network setup wizard — it detects available interfaces, prompts for mode and credentials, writes the config, and sets up NetworkManager for autoconnect.
 
 **Mode 1 — Jetson AP** (dongle or built-in WiFi) · **Mode 2 — Jetson client** (connects to phone hotspot)
 
@@ -273,7 +273,7 @@ network:
     start_on_runtime: true
 ```
 
-### Wizard Flow (`psilia runtime configure --network`)
+### Wizard Flow (`psilia runtime setup --network`)
 
 1. Enumerate AP-capable interfaces; detect type via `wlx` prefix and `lsusb` cross-reference
 2. Collect SSID and password (shared across all interfaces)
@@ -310,7 +310,7 @@ When both a dongle and built-in WiFi are present, the Jetson can act as its own 
   - `psilia runtime stop <device>`
   - `psilia runtime status <device>`
   - `psilia runtime attach <device>`: live-view
-  - `psilia runtime configure <device> [--hotspot] [--camera] [--file]`: configures `psilia.yaml` and `runtime.yaml`
+  - `psilia runtime setup <device> [--network] [--camera]`: configures `psilia.yaml` and `runtime.yaml`
 
 - CLI nice help visualization
 

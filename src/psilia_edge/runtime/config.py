@@ -36,8 +36,8 @@ class ConfigurationError(Exception):
 # Unified config file — ~/.psilia/psilia.yaml
 CONFIG_DIR = Path(os.environ.get("PSILIA_DIR", "~/.psilia")).expanduser()
 CONFIG_PATH = CONFIG_DIR / "psilia.yaml"
-RUN_DIR = Path(os.environ.get("PSILIA_RUN_DIR", "~/.psilia/run")).expanduser()
-LOG_DIR = Path(os.environ.get("PSILIA_LOG_DIR", "~/.psilia/log")).expanduser()
+RUN_DIR = CONFIG_DIR / "run"
+LOG_DIR = CONFIG_DIR / "log"
 
 #
 # -- "Runtime-level directories" --

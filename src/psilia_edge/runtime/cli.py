@@ -95,23 +95,34 @@ def init(
 @app.command(hidden=True)
 @device_decorator
 def setup(
-    skip_init: bool = typer.Option(
-        False, "--skip-init", "-s", help="...skip_init", hidden=False
+    # home: Optional[Path] = typer.Option(None, "--home", "-h", help="The path to the runtime home directory."),
+    # mkdir: bool = typer.Option(True, "--mkdir", "-m", help="Whether to create the runtime home directory if it doesn't exist."),
+    init: bool = typer.Option(
+        False,
+        "--init/--skip-init",
+        "-i",
+        help="Whether to initialize the runtime home directory",
+    ),
+    network: bool = typer.Option(
+        True, "--network/--no-network", "-n", help="Run network setup"
     ),
 ) -> None:
     """Pull latest psilia-edge and rebuild the Docker image."""
     from psilia_edge.runtime.config import get_runtime_home
-    from psilia_edge.runtime.setup import run_setup
+    from psilia_edge.runtime.setup import run_runtime_init, run_network_setup
 
     ui.banner_nav(["Runtime", "Setup"], "Setting up a runtime ...")
-
-    if skip_init:
+    if init:
+        home = ui.ask("Runtime home directory")
+        run_runtime_init(home, mkdir=True)
+    else:
         home = get_runtime_home()
         ui.info(f"Skipping runtime home initialization. Using: \{home}")
-    else:
-        home = ui.ask("Runtime home directory")
 
-    run_setup(home, skip_init=skip_init)
+    ui.info(f"{network}")
+    if network:
+        ui.info("Running network setup ...")
+        run_network_setup()
 
 
 @app.command()

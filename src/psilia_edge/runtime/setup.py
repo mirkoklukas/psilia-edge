@@ -42,7 +42,7 @@ _PSILIA_REPO_BRANCH = "dev"
 # TODO: What is a cool pattern, for running steps, printing to ui what has been done, and returning a config.
 #   and keeping the cli command and the work separated. Like which function should have ui calls, and
 #   which should just return dicts that the cli command can print?
-def runtime_home_init(runtime_home: Path, mkdir: bool = False) -> None:
+def run_runtime_init(runtime_home: Path, mkdir: bool = False) -> None:
     """Initialize the runtime home directory.
 
     - Creates psilia.yaml if it doesn't exist (with runtime.home_path set to runtime_home)
@@ -90,28 +90,117 @@ def runtime_home_init(runtime_home: Path, mkdir: bool = False) -> None:
     return config, runtime_config
 
 
-def run_setup(runtime_home: Path, skip_init=False) -> None:
-    """Run the full setup wizard locally on the Jetson.
+def run_network_setup() -> None:
+    """Configure a WiFi hotspot (AP mode) on the Jetson so it is reachable in the field.
 
-    Reads install paths from ~/.psilia/psilia.yaml, which is written
-    by scripts/bootstrap.sh before this wizard is invoked.
+    Flow:
+    - Detect all AP-capable wifi interfaces via nmcli/iw
+    - Check for any active hotspots — offer to replace them
+    - Prompt for SSID, password, autostart, and start_on_runtime preferences
+    - Create one NM connection profile per AP-capable interface (same SSID/password)
+    - Write network config into psilia.yaml under 'network'
 
-    - Creates the runtime home directory
-    - Runs runtime_home_init (dirs, ROS package, Docker image, configs)
-    - Configures the wifi hotspot
-    - Writes the final psilia.yaml
+    TODO: client mode — connect to a phone hotspot instead of acting as AP.
     """
-
-    if not skip_init:
-        runtime_home_init(runtime_home, mkdir=True)
+    from psilia_edge.network.hotspot import create_hotspot, find_active_hotspot
+    from psilia_edge.network.probe import list_interfaces
 
     _, name, _ = run("hostname")
     name = name.strip()
 
     config = read_config()
-    config |= _step_network(name)
-    # config |= _step_camera()
-    # config |= _step_systemd()
+
+    ui.title("Network Setup — AP Mode")
+    ui.info("Creates a WiFi hotspot on all AP-capable interfaces so phones and laptops")
+    ui.info("can connect to the Jetson in the field.")
+
+    # --- detect AP-capable wifi interfaces ---
+    with ui.status("Detecting wifi interfaces…"):
+        ifaces = list_interfaces()
+        ap_ifaces = [i for i in ifaces if i.is_wifi and i.supports_ap]
+
+    if not ap_ifaces:
+        ui.warn("No AP-capable wifi interfaces found — skipping network setup.")
+        ui.info(
+            "[dim]Connect a USB wifi dongle and re-run 'psilia runtime setup --network'.[/dim]"
+        )
+        return {}
+
+    ui.info("AP-capable interfaces:")
+    for iface in ap_ifaces:
+        itype = "USB dongle" if iface.is_usb_wifi else "built-in"
+        ui.ok(f"  {iface.name}  [dim]({itype})[/dim]")
+
+    # --- check for existing hotspots on any interface ---
+    existing = []
+    for iface in ap_ifaces:
+        con = find_active_hotspot(iface.name)
+        if con:
+            existing.append((iface.name, con))
+
+    if existing:
+        for ifname, con in existing:
+            ui.ok(f"Existing hotspot on [bold]{ifname}[/bold]: [bold]{con}[/bold]")
+        if not ui.confirm("Replace existing hotspot(s)?", default=False):
+            ui.info("[dim]Keeping existing hotspots — config unchanged.[/dim]")
+            return {}
+
+    # --- prompt for hotspot config ---
+    ssid = ui.ask("  Hotspot SSID", default=f"{name}-ap")
+    password = ui.ask("  Hotspot password", default=_DEFAULT_HOTSPOT_PASSWORD)
+    autostart = ui.confirm("  Autostart on boot?", default=True)
+    start_on_runtime = ui.confirm("  Bring up on 'psilia runtime start'?", default=True)
+
+    ui.info("Summary:")
+    for iface in ap_ifaces:
+        itype = "usb-dongle" if iface.is_usb_wifi else "built-in"
+        ui.detail("  interface", f"[bold]{iface.name}[/bold] ({itype})")
+    ui.detail("  ssid", f"[bold]{ssid}[/bold]")
+    ui.detail("  password", f"[bold]{password}[/bold]")
+    ui.detail("  ip", "[bold]10.42.0.1[/bold] (fixed, Jetson side)")
+    ui.detail("  autostart", f"[bold]{autostart}[/bold]")
+    ui.detail("  start_on_runtime", f"[bold]{start_on_runtime}[/bold]")
+
+    # --- prompt for sudo password before spinner (prompts inside ui.status() are hidden) ---
+    sudo_password = prompt_sudo_password()
+
+    def _runner(cmd):
+        return sudo(cmd, password=sudo_password)
+
+    # --- create one NM profile per interface ---
+    iface_configs = []
+    for iface in ap_ifaces:
+        itype = "usb-dongle" if iface.is_usb_wifi else "built-in"
+        con_name = f"{ssid}-{iface.name}"
+        with ui.status(f"  Creating hotspot on {iface.name}…"):
+            ok_result, err = create_hotspot(
+                ifname=iface.name,
+                password=password,
+                ssid=ssid,
+                con_name=con_name,
+                sudo_runner=_runner,
+            )
+        if ok_result:
+            ui.ok(f"  Hotspot '{ssid}' is up on {iface.name}")
+        else:
+            ui.fail(f"  Failed on {iface.name}: {err}")
+            ui.info("[dim]  Configure manually with nmcli.[/dim]")
+        iface_configs.append({"name": iface.name, "type": itype})
+
+    # --- write config (replace legacy 'hotspot' key with 'network') ---
+    config.pop("hotspot", None)
+    config["network"] = {
+        "mode": "ap",
+        "ap": {
+            "ssid": ssid,
+            "password": password,
+            "interfaces": iface_configs,
+            "autostart": autostart,
+            "start_on_runtime": start_on_runtime,
+        },
+        # TODO: client mode (connect to phone hotspot instead of acting as AP)
+    }
+
     write_config(config)
     ui.print_tree(config, label=f"'{CONFIG_PATH.name}'")
 
@@ -254,94 +343,7 @@ def _step_pull() -> bool:
 #     return {}
 
 
-def _step_network(name: str) -> dict:
-    """Configure a wifi hotspot on the Jetson so it is reachable in the field.
-
-    Flow:
-    - Detect all wifi interfaces via nmcli
-    - Check if an active hotspot already exists — offer to replace it
-    - Pick the best interface: USB dongle > built-in wifi, AP-capable preferred
-    - Prompt for SSID and password
-    - Create and bring up the hotspot via nmcli (requires sudo)
-    - Write ssid and password into psilia.yaml under 'hotspot'
-    """
-    from psilia_edge.network.hotspot import create_hotspot, find_active_hotspot
-    from psilia_edge.network.probe import list_interfaces
-
-    ui.title("Network Setup")
-    ui.info("Configures a wifi hotspot on the Jetson (USB dongle preferred)")
-    ui.info("[dim]So you can reach it in the field without a router.[/dim]")
-
-    # --- detect wifi interfaces and any existing hotspot ---
-    with ui.status("Detecting wifi interfaces and existing hotspot…"):
-        ifaces = list_interfaces()
-        wifi_ifaces = [i for i in ifaces if i.is_wifi]
-        existing_hotspot = None
-        for wi in wifi_ifaces:
-            existing_hotspot = find_active_hotspot(wi.name)
-            if existing_hotspot:
-                break
-
-    # --- pick best interface: USB dongle preferred, AP-capable preferred ---
-    usb = [i for i in wifi_ifaces if i.is_usb_wifi]
-    candidates = usb or wifi_ifaces
-    ap_capable = [i for i in candidates if i.supports_ap] or candidates
-    iface = ap_capable[0] if ap_capable else None
-
-    # --- handle existing hotspot ---
-    if existing_hotspot:
-        ui.ok(f"Existing hotspot found: [bold]{existing_hotspot}[/bold]")
-        if not ui.confirm("Replace it?", default=False):
-            ui.info("[dim]Keeping existing hotspot — config unchanged.[/dim]")
-            return {}
-
-    # --- bail if no usable interface found ---
-    if iface is None:
-        ui.warn("No wifi interface found — skipping network setup.")
-        ui.info(
-            "[dim]Connect a USB wifi dongle and re-run 'psilia runtime setup'.[/dim]"
-        )
-        return {}
-    elif iface.is_usb_wifi:
-        ui.ok(f"USB wifi dongle detected: [bold]{iface.name}[/bold]")
-    else:
-        ui.warn(f"No USB dongle — using built-in wifi: [bold]{iface.name}[/bold]")
-        ui.info(
-            "[dim]Note: built-in wifi can't act as hotspot and client simultaneously on all hardware.[/dim]"
-        )
-
-    # --- prompt for hotspot config ---
-    ssid = ui.ask("  Hotspot SSID", default=f"{name}-ap")
-    password = ui.ask("  Hotspot password", default=_DEFAULT_HOTSPOT_PASSWORD)
-    ui.detail("interface", f"[bold]{iface.name}[/bold]")
-    ui.detail("ssid", f"[bold]{ssid}[/bold]")
-    ui.detail("password", f"[bold]{password}[/bold]")
-    ui.detail("ip", "[bold]10.42.0.1[/bold] (fixed, Jetson side)")
-
-    # --- prompt for sudo password before spinner (prompts inside ui.status() are hidden) ---
-    # TODO: ui.status() (Rich Live spinner) blocks interactive prompts — any code path
-    #   that may need user input must prompt *before* entering the spinner context.
-    sudo_password = prompt_sudo_password()
-
-    def _runner(cmd):
-        return sudo(cmd, password=sudo_password)
-
-    # --- create and bring up the hotspot ---
-    with ui.status("  Creating hotspot…"):
-        ok_result, err = create_hotspot(
-            ifname=iface.name,
-            password=password,
-            ssid=ssid,
-            con_name=f"{ssid}-Hotspot",
-            sudo_runner=_runner,
-        )
-    if ok_result:
-        ui.ok(f"Hotspot '{ssid}' is up")
-    else:
-        ui.fail(f"Failed to create hotspot: {err}")
-        ui.info("[dim]Configure manually with nmcli.[/dim]")
-
-    return {"hotspot": {"ssid": ssid, "password": password}}
+# def _step_network(name: str) -> dict:
 
 
 # TODO: implement this...
