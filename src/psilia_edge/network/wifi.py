@@ -18,7 +18,7 @@ CLIENT_AUTOCONNECT_PRIORITY = 20
 def _run(cmd: list[str], runner: Runner = subprocess.run) -> tuple[int, str]:
     from psilia_edge import ui
 
-    ui.info(f"RUN: {' '.join(cmd)}")
+    ui.info(f"[dim]RUN: {' '.join(cmd)}[/dim]")
     try:
         result = runner(cmd, capture_output=True, text=True)
         return result.returncode, result.stdout.strip()
