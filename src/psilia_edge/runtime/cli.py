@@ -285,14 +285,13 @@ def scan() -> Path:
     from psilia_edge.runtime.hotplug import scan_cameras
 
     ui.header(["Runtime", "Scan"], "Scanning for connected cameras…")
-    cameras = scan_cameras()
-    if not cameras:
+    groups = scan_cameras()
+    if not groups:
         ui.warn("No cameras found.")
     else:
-        ui.info("Found cameras:")
-        ui.print_tree(cameras, label="cameras")
-        # for cam in cameras:
-        # ui.print(f"  [green]✓[/green] {cam}")
+        # for i, group in enumerate(groups):
+        # ui.print_tree(group, label=f"camera {i}")
+        ui.print_tree(groups, label="cameras")
 
 
 @app.command(hidden=True)

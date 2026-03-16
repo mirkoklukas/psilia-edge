@@ -316,9 +316,7 @@ def run_wifi_setup() -> None:
             )
         ui.info(f"  [{len(networks) + 1}] Enter SSID manually")
 
-        choice = ui.ask_int(
-            "  Select network", choices=list(range(1, len(networks) + 2))
-        )
+        choice = ui.ask_int("Select network", choices=list(range(1, len(networks) + 2)))
         ssid = networks[choice - 1].ssid if choice <= len(networks) else ui.ask("SSID")
 
     already_connected = iface.connection == ssid

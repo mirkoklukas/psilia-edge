@@ -31,6 +31,49 @@ ssh user@jetson.local
 
 This works without knowing or setting any IP addresses. If the Jetson's IP changes, jetson.local still resolves correctly.
 
+## USB Camera Detection on Linux
+
+On Linux, camera devices are exposed as `/dev/videoX` nodes. When a USB camera is plugged in, the kernel's USB subsystem:
+
+1. Enumerates the device and its interfaces
+2. Binds the `uvcvideo` driver to the video interfaces
+3. Creates `/dev/videoX` nodes
+4. Creates the corresponding sysfs tree under `/sys/devices/...`
+5. Creates symlinks in `/sys/class/video4linux/videoX/device` pointing into that sysfs tree
+
+`/sys/class/` is a view organized by device class (video4linux, input, net, etc.), with symlinks back to the actual device entries under `/sys/devices/`.
+
+To list all video nodes:
+```bash
+ls /dev/video*
+```
+
+To get the sysfs path for a node:
+```bash
+readlink -f /sys/class/video4linux/video0/device
+# e.g. /sys/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2.1/1-2.1:1.0/video4linux/video0
+```
+
+The path breaks down as:
+```
+platform/bus@0/3610000.usb   — USB controller (SoC-integrated on Jetson; pci0000:00/... on PC)
+usb1        — USB controller root
+1-2         — USB hub
+1-2.2       — the physical USB device (bus_id) — shared by all nodes from the same camera
+1-2.2:1.0   — USB interface (config 1, interface 0)
+video4linux/
+  video0    — the V4L2 device node
+```
+
+A stereo camera typically exposes two `/dev/videoX` nodes. They share the same `bus_id` and USB serial number, which is how you can tell they belong to the same physical device. Some cameras expose one interface per sensor (`1-2.2:1.0`, `1-2.2:1.1`); others expose both nodes from the same interface (`1-2.2:1.0` for both). In the latter case the interface number cannot be used to distinguish left from right — the kernel's enumeration order (video0=left, video1=right) is the de facto convention.
+
+Device metadata (vendor ID, product ID, manufacturer, serial) lives at the `bus_id` level in sysfs:
+```bash
+cat /sys/bus/usb/devices/1-2.1/idVendor
+cat /sys/bus/usb/devices/1-2.1/manufacturer
+cat /sys/bus/usb/devices/1-2.1/serial
+```
+
 ## Development
 
 ### Local environment variables (direnv)
