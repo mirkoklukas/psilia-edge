@@ -1,5 +1,23 @@
 # Psilia Edge — Cheatsheet
 
+## Network
+```bash
+# Show all available networks on the jetson
+nmcli device wifi list
+
+# All wifi interfaces
+nmcli device status | grep wifi
+
+# New connection
+nmcli dev wifi connect "SSID" password "yourpassword"
+nmcli dev wifi connect "SSID" password "yourpassword" ifname wlan0
+
+# Delete connection
+nmcli connection delete "name"
+
+# Activate connection
+nmcli connection up "name"
+```
 ## Docker
 
 ```bash
