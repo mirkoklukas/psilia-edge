@@ -229,20 +229,46 @@ def _usb_device_info(dev_path: Path) -> dict:
     return info
 
 
+def _usb_subtree(dev_path: Path, usb_devices: Path, addr: str) -> dict:
+    """Recursively build a USB device node, descending into hubs."""
+    info = _usb_device_info(dev_path)
+
+    num_ports_file = dev_path / "bNumPorts"
+    if num_ports_file.exists():
+        num_ports = int(num_ports_file.read_text().strip())
+        info["class"] = "hub"
+        ports: dict[int, dict | None] = {}
+        for port in range(1, num_ports + 1):
+            child_addr = f"{addr}.{port}"
+            child_path = usb_devices / child_addr
+            ports[port] = (
+                _usb_subtree(child_path, usb_devices, child_addr)
+                if child_path.exists()
+                else None
+            )
+        info["ports"] = ports
+
+    return info
+
+
 def usb_bus_tree() -> dict:
     """Return USB bus topology as a nested dict.
 
-    Walks /sys/bus/usb/devices/ to build a tree of controllers and their ports.
+    Walks /sys/bus/usb/devices/ recursively, descending into hubs.
     Empty ports are represented as None.
 
     Example:
         {
-            "usb1": {
-                "name": "NVIDIA Tegra xUSB",
+            "usb2": {
+                "name": "xHCI Host Controller",
                 "ports": {
-                    1: {"product": "ZED 2i", "class": "camera", "nodes": [...]},
-                    2: {"product": "3D USB Camera", "class": "camera", ...},
-                    3: None,  # empty
+                    1: {
+                        "class": "hub",
+                        "ports": {
+                            1: {"product": "ZED 2i", "class": "camera", "nodes": [...]},
+                            2: None,
+                        }
+                    }
                 }
             }
         }
@@ -266,8 +292,13 @@ def usb_bus_tree() -> dict:
 
         ports: dict[int, dict | None] = {}
         for port in range(1, num_ports + 1):
-            dev_path = usb_devices / f"{bus_num}-{port}"
-            ports[port] = _usb_device_info(dev_path) if dev_path.exists() else None
+            child_addr = f"{bus_num}-{port}"
+            child_path = usb_devices / child_addr
+            ports[port] = (
+                _usb_subtree(child_path, usb_devices, child_addr)
+                if child_path.exists()
+                else None
+            )
 
         name = (
             (entry / "product").read_text().strip()
