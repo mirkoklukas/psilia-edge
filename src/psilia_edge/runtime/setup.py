@@ -335,7 +335,7 @@ def run_wifi_setup() -> None:
             networks[choice - 1].ssid if choice <= len(networks) else ui.ask("  SSID")
         )
 
-    password = ui.ask("  Password", password=True)
+    password = ui.ask("  Password")
     autoconnect = ui.confirm(
         "  Auto-connect when interface is available?", default=True
     )
