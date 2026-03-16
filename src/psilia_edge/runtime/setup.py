@@ -126,23 +126,31 @@ def run_network_setup() -> None:
         )
         return {}
 
-    ui.info("AP-capable interfaces:")
-    for iface in ap_ifaces:
+    # --- pick interface ---
+    if len(ap_ifaces) == 1:
+        iface = ap_ifaces[0]
         itype = "USB dongle" if iface.is_usb_wifi else "built-in"
-        ui.ok(f"  {iface.name}  [dim]({itype})[/dim]")
+        ui.ok(f"Using {iface.name}  [dim]({itype})[/dim]")
+    else:
+        from rich.prompt import IntPrompt
 
-    # --- check for existing hotspots on any interface ---
-    existing = []
-    for iface in ap_ifaces:
-        con = find_active_hotspot(iface.name)
-        if con:
-            existing.append((iface.name, con))
+        ui.info("AP-capable interfaces:")
+        for i, iface in enumerate(ap_ifaces):
+            itype = "USB dongle" if iface.is_usb_wifi else "built-in"
+            ui.info(f"  [{i + 1}] {iface.name}  [dim]({itype})[/dim]")
+        choice = IntPrompt.ask(
+            f"{' ' * ui.PADDING_LEFT}  Select interface",
+            choices=[str(i + 1) for i in range(len(ap_ifaces))],
+        )
+        iface = ap_ifaces[choice - 1]
+        itype = "USB dongle" if iface.is_usb_wifi else "built-in"
 
+    # --- check for existing hotspot on the selected interface ---
+    existing = find_active_hotspot(iface.name)
     if existing:
-        for ifname, con in existing:
-            ui.ok(f"Existing hotspot on [bold]{ifname}[/bold]: [bold]{con}[/bold]")
-        if not ui.confirm("Replace existing hotspot(s)?", default=False):
-            ui.info("[dim]Keeping existing hotspots — config unchanged.[/dim]")
+        ui.ok(f"Existing hotspot on [bold]{iface.name}[/bold]: [bold]{existing}[/bold]")
+        if not ui.confirm("Replace it?", default=False):
+            ui.info("[dim]Keeping existing hotspot — config unchanged.[/dim]")
             return {}
 
     # --- prompt for hotspot config ---
@@ -152,9 +160,7 @@ def run_network_setup() -> None:
     start_on_runtime = ui.confirm("  Bring up on 'psilia runtime start'?", default=True)
 
     ui.info("Summary:")
-    for iface in ap_ifaces:
-        itype = "usb-dongle" if iface.is_usb_wifi else "built-in"
-        ui.detail("  interface", f"[bold]{iface.name}[/bold] ({itype})")
+    ui.detail("  interface", f"[bold]{iface.name}[/bold] ({itype})")
     ui.detail("  ssid", f"[bold]{ssid}[/bold]")
     ui.detail("  password", f"[bold]{password}[/bold]")
     ui.detail("  ip", "[bold]10.42.0.1[/bold] (fixed, Jetson side)")
@@ -167,26 +173,24 @@ def run_network_setup() -> None:
     def _runner(cmd):
         return sudo(cmd, password=sudo_password)
 
-    # --- create one NM profile per interface ---
-    iface_configs = []
-    for iface in ap_ifaces:
-        itype = "usb-dongle" if iface.is_usb_wifi else "built-in"
-        con_name = f"{ssid}-{iface.name}"
-        with ui.status(f"  Creating hotspot on {iface.name}…"):
-            ok_result, err = create_hotspot(
-                ifname=iface.name,
-                password=password,
-                ssid=ssid,
-                con_name=con_name,
-                autoconnect=autostart,
-                sudo_runner=_runner,
-            )
-        if ok_result:
-            ui.ok(f"  Hotspot '{ssid}' is up on {iface.name}")
-        else:
-            ui.fail(f"  Failed on {iface.name}: {err}")
-            ui.info("[dim]  Configure manually with nmcli.[/dim]")
-        iface_configs.append({"name": iface.name, "type": itype})
+    # --- create NM profile for the selected interface ---
+    con_name = f"{ssid}-{iface.name}"
+    with ui.status(f"  Creating hotspot on {iface.name}…"):
+        ok_result, err = create_hotspot(
+            ifname=iface.name,
+            password=password,
+            ssid=ssid,
+            con_name=con_name,
+            autoconnect=autostart,
+            sudo_runner=_runner,
+        )
+    if ok_result:
+        ui.ok(f"  Hotspot '{ssid}' is up on {iface.name}")
+    else:
+        ui.fail(f"  Failed on {iface.name}: {err}")
+        ui.info("[dim]  Configure manually with nmcli.[/dim]")
+
+    itype_key = "usb-dongle" if iface.is_usb_wifi else "built-in"
 
     # --- write config (replace legacy 'hotspot' key with 'network') ---
     config.pop("hotspot", None)
@@ -195,9 +199,14 @@ def run_network_setup() -> None:
         "ap": {
             "ssid": ssid,
             "password": password,
-            "interfaces": iface_configs,
-            "autostart": autostart,
-            "start_on_runtime": start_on_runtime,
+            "interfaces": [
+                {
+                    "name": iface.name,
+                    "type": itype_key,
+                    "autostart": autostart,
+                    "start_on_runtime": start_on_runtime,
+                }
+            ],
         },
         # TODO: client mode (connect to phone hotspot instead of acting as AP)
     }

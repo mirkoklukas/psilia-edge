@@ -262,10 +262,8 @@ network:
     interfaces:
       - name: wlx...        # detected during setup
         type: usb-dongle    # usb-dongle | built-in
-      - name: wlan0
-        type: built-in
-    autostart: true         # nmcli autoconnect on boot
-    start_on_runtime: true  # brought up on `psilia runtime start`
+        autostart: true     # nmcli autoconnect when interface is available (boot or plug-in)
+        start_on_runtime: true  # brought up on `psilia runtime start`
   client:
     ssid: MyPhone
     password: secret
@@ -276,12 +274,10 @@ network:
 ### Wizard Flow (`psilia runtime setup --network`)
 
 1. Enumerate AP-capable interfaces; detect type via `wlx` prefix and `lsusb` cross-reference
-2. Collect SSID and password (shared across all interfaces)
-3. Create one NM connection profile per interface with the same SSID/password
-4. Prompt for `autostart` and `start_on_runtime` preferences
+2. If multiple, let the user pick one
+3. Prompt for SSID, password, `autostart`, and `start_on_runtime` for the selected interface
+4. Create an NM connection profile for that interface
 5. Write config to `psilia.yaml`
-
-Having the same SSID on dongle and built-in means the phone reconnects seamlessly regardless of which interface is active.
 
 For **Mode 2 (client)**, the wizard collects the phone hotspot SSID and password and creates a single NM client profile. `psilia runtime start` calls `nmcli connection up` if not already connected.
 
