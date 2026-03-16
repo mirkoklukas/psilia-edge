@@ -59,7 +59,7 @@ ls /dev/tty.usb*
 # Connect (115200 baud):
 screen /dev/tty.usbmodem... 115200
 
-# --- Option 3: mDNS (if avahi/hostname already configured) ---
+# --- Option 2: mDNS (if avahi/hostname already configured) ---
 # Default JetPack hostname is usually 'nvidia' or 'tegra-ubuntu':
 ping nvidia.local
 ssh nvidia@nvidia.local
