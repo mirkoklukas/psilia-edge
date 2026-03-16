@@ -49,6 +49,22 @@ psilia attach borne
 psilia update borne
 ```
 
+## Getting into a headless Jetson (no monitor, no existing SSH)
+
+```bash
+# --- Option 1: USB serial console ---
+# Connect Mac to Jetson via USB-A to micro-USB (or USB-C).
+# Find the device:
+ls /dev/tty.usb*
+# Connect (115200 baud):
+screen /dev/tty.usbmodem... 115200
+
+# --- Option 3: mDNS (if avahi/hostname already configured) ---
+# Default JetPack hostname is usually 'nvidia' or 'tegra-ubuntu':
+ping nvidia.local
+ssh nvidia@nvidia.local
+```
+
 ## ROS (inside container)
 
 ```bash
