@@ -77,9 +77,10 @@ def activate_connection(
     ifname: str | None = None,
     autoconnect: bool = True,
     priority: int = CLIENT_AUTOCONNECT_PRIORITY,
+    bring_up: bool = True,
     runner: Runner = subprocess.run,
 ) -> bool:
-    """Bring up an existing NM connection profile and update autoconnect settings."""
+    """Update autoconnect settings on an existing NM profile and optionally bring it up."""
     _run(
         [
             "nmcli",
@@ -93,6 +94,8 @@ def activate_connection(
         ],
         runner,
     )
+    if not bring_up:
+        return True
     cmd = ["nmcli", "connection", "up", con_name]
     if ifname:
         cmd += ["ifname", ifname]

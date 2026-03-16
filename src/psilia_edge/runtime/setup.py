@@ -355,6 +355,7 @@ def run_wifi_setup() -> None:
                 ifname=iface.name,
                 autoconnect=autoconnect,
                 priority=priority,
+                bring_up=False,
             )
     else:
         with ui.status(f"  Connecting to '{ssid}'…"):
