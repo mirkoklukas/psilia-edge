@@ -227,25 +227,31 @@ def _usb_device_info(dev_path: Path) -> dict:
         if f.exists():
             info[key] = f.read_text().strip()
 
-    # Camera: device registered one or more video4linux nodes.
-    # rglob descends into interface subdirs (e.g. 1-2.2:1.0/video4linux/video0).
-    video_nodes = sorted(
-        f"/dev/{node.name}"
-        for vl in dev_path.rglob("video4linux")
-        for node in vl.iterdir()
-        if node.name.startswith("video")
-    )
+    # Classification: look only at direct interface subdirs (name contains ':',
+    # e.g. "1-2.2:1.0"). These are the kernel interface nodes that register with
+    # subsystems like video4linux or net. We intentionally avoid rglob here so
+    # that hub nodes don't pick up devices from their downstream subtree.
+    video_nodes = []
+    net_ifaces = []
+    for subdir in dev_path.iterdir():
+        if ":" not in subdir.name:
+            continue  # skip non-interface dirs
+        vl = subdir / "video4linux"
+        if vl.exists():
+            video_nodes += sorted(
+                f"/dev/{n.name}" for n in vl.iterdir() if n.name.startswith("video")
+            )
+        net = subdir / "net"
+        if net.exists():
+            net_ifaces += [iface.name for iface in net.iterdir()]
+
     if video_nodes:
         info["class"] = "camera"
-        info["nodes"] = video_nodes
+        info["nodes"] = sorted(video_nodes)
         return info
 
-    # Wifi / ethernet: device registered a network interface.
-    # Check /sys/class/net/<iface>/wireless to distinguish wifi from ethernet.
-    net_ifaces = [
-        iface.name for net in dev_path.rglob("net") for iface in net.iterdir()
-    ]
     if net_ifaces:
+        # Check /sys/class/net/<iface>/wireless to distinguish wifi from ethernet.
         is_wireless = any(
             (Path("/sys/class/net") / iface / "wireless").exists()
             for iface in net_ifaces
@@ -261,26 +267,28 @@ def _usb_device_info(dev_path: Path) -> dict:
 def _usb_subtree(dev_path: Path, usb_devices: Path, addr: str) -> dict:
     """Recursively build a subtree for a USB device, descending into hubs.
 
-    If the device is a hub (has maxchild), its children in sysfs are named
+    If the device is a hub (maxchild > 0), its children in sysfs are named
     {addr}.1, {addr}.2, ... up to maxchild. We recurse into each.
+    Note: maxchild exists on all USB devices; leaf devices have maxchild=0.
     """
     info = _usb_device_info(dev_path)
 
     num_ports_file = dev_path / "maxchild"
     if num_ports_file.exists():
-        # This device is a hub — find its downstream ports.
         num_ports = int(num_ports_file.read_text().strip())
-        info["class"] = "hub"
-        ports: dict[int, dict | None] = {}
-        for port in range(1, num_ports + 1):
-            child_addr = f"{addr}.{port}"  # e.g. "1-2.1" → "1-2.1.1"
-            child_path = usb_devices / child_addr
-            ports[port] = (
-                _usb_subtree(child_path, usb_devices, child_addr)
-                if child_path.exists()
-                else None  # empty port
-            )
-        info["ports"] = ports
+        # maxchild exists on all USB devices; only recurse if it has downstream ports.
+        if num_ports > 0:
+            info["class"] = "hub"
+            ports: dict[int, dict | None] = {}
+            for port in range(1, num_ports + 1):
+                child_addr = f"{addr}.{port}"  # e.g. "1-2.1" → "1-2.1.1"
+                child_path = usb_devices / child_addr
+                ports[port] = (
+                    _usb_subtree(child_path, usb_devices, child_addr)
+                    if child_path.exists()
+                    else None  # empty port
+                )
+            info["ports"] = ports
 
     return info
 
