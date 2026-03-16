@@ -132,15 +132,12 @@ def run_network_setup() -> None:
         itype = "USB dongle" if iface.is_usb_wifi else "built-in"
         ui.ok(f"Using {iface.name}  [dim]({itype})[/dim]")
     else:
-        from rich.prompt import IntPrompt
-
         ui.info("AP-capable interfaces:")
         for i, iface in enumerate(ap_ifaces):
             itype = "USB dongle" if iface.is_usb_wifi else "built-in"
             ui.info(f"  [{i + 1}] {iface.name}  [dim]({itype})[/dim]")
-        choice = IntPrompt.ask(
-            f"{' ' * ui.PADDING_LEFT}  Select interface",
-            choices=[str(i + 1) for i in range(len(ap_ifaces))],
+        choice = ui.ask_int(
+            "  Select interface", choices=list(range(1, len(ap_ifaces) + 1))
         )
         iface = ap_ifaces[choice - 1]
         itype = "USB dongle" if iface.is_usb_wifi else "built-in"
@@ -257,15 +254,12 @@ def run_wifi_setup() -> None:
         itype = "USB dongle" if iface.is_usb_wifi else "built-in"
         ui.ok(f"Using {iface.name}  [dim]({itype})[/dim]")
     else:
-        from rich.prompt import IntPrompt
-
         ui.info("Available wifi interfaces:")
         for i, iface in enumerate(client_ifaces):
             itype = "USB dongle" if iface.is_usb_wifi else "built-in"
             ui.info(f"  [{i + 1}] {iface.name}  [dim]({itype})[/dim]")
-        choice = IntPrompt.ask(
-            "Select interface",
-            choices=[str(i + 1) for i in range(len(client_ifaces))],
+        choice = ui.ask_int(
+            "  Select interface", choices=list(range(1, len(client_ifaces) + 1))
         )
         iface = client_ifaces[choice - 1]
         itype = "USB dongle" if iface.is_usb_wifi else "built-in"
@@ -281,11 +275,8 @@ def run_wifi_setup() -> None:
             ui.info(f"  [{i + 1}] {conn.name}  {status_str}")
 
         if ui.confirm("  Activate a saved connection?", default=True):
-            from rich.prompt import IntPrompt
-
-            choice = IntPrompt.ask(
-                "Select connection",
-                choices=[str(i + 1) for i in range(len(existing))],
+            choice = ui.ask_int(
+                "  Select connection", choices=list(range(1, len(existing) + 1))
             )
             conn = existing[choice - 1]
             autoconnect = ui.confirm(
@@ -325,11 +316,8 @@ def run_wifi_setup() -> None:
             )
         ui.info(f"  [{len(networks) + 1}] Enter SSID manually")
 
-        from rich.prompt import IntPrompt
-
-        choice = IntPrompt.ask(
-            "Select network",
-            choices=[str(i + 1) for i in range(len(networks) + 1)],
+        choice = ui.ask_int(
+            "  Select network", choices=list(range(1, len(networks) + 2))
         )
         ssid = networks[choice - 1].ssid if choice <= len(networks) else ui.ask("SSID")
 

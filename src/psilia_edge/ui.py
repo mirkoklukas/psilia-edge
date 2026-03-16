@@ -130,6 +130,16 @@ def ask(prompt: str, default: str = "", password: bool = False) -> str:
     )
 
 
+def ask_int(prompt: str, choices: list[int]) -> int:
+    """Styled integer prompt with a restricted list of choices."""
+    from rich.prompt import IntPrompt
+
+    return IntPrompt.ask(
+        f"{' ' * PADDING_LEFT}{prompt}",
+        choices=[str(c) for c in choices],
+    )
+
+
 def confirm(prompt: str, default: bool = False) -> bool:
     """Styled yes/no prompt."""
     from rich.prompt import Confirm
