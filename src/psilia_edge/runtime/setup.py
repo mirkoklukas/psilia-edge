@@ -148,7 +148,7 @@ def run_network_setup() -> None:
     # --- prompt for hotspot config ---
     ssid = ui.ask("  Hotspot SSID", default=f"{name}-ap")
     password = ui.ask("  Hotspot password", default=_DEFAULT_HOTSPOT_PASSWORD)
-    autostart = ui.confirm("  Autostart on boot?", default=True)
+    autostart = ui.confirm("  Auto-connect when interface is available?", default=True)
     start_on_runtime = ui.confirm("  Bring up on 'psilia runtime start'?", default=True)
 
     ui.info("Summary:")
@@ -178,6 +178,7 @@ def run_network_setup() -> None:
                 password=password,
                 ssid=ssid,
                 con_name=con_name,
+                autoconnect=autostart,
                 sudo_runner=_runner,
             )
         if ok_result:

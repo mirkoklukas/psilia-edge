@@ -121,6 +121,7 @@ def create_hotspot(
     password: str,
     ssid: str = HOTSPOT_SSID,
     con_name: str = HOTSPOT_CON_NAME,
+    autoconnect: bool = True,
     sudo_runner: Runner = run,
 ) -> tuple[bool, str]:
     """
@@ -164,7 +165,7 @@ def create_hotspot(
             "ipv4.method",
             "shared",
             "connection.autoconnect",
-            "yes",
+            "yes" if autoconnect else "no",
         ],
         sudo_runner,
     )
