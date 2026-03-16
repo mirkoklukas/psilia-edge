@@ -104,12 +104,19 @@ def setup(
         help="Whether to initialize the runtime home directory",
     ),
     network: bool = typer.Option(
-        True, "--network/--no-network", "-n", help="Run network setup"
+        True, "--network/--no-network", "-n", help="Run AP hotspot setup"
+    ),
+    wifi: bool = typer.Option(
+        False, "--wifi/--no-wifi", "-w", help="Run WiFi client setup"
     ),
 ) -> None:
     """Pull latest psilia-edge and rebuild the Docker image."""
     from psilia_edge.runtime.config import get_runtime_home
-    from psilia_edge.runtime.setup import run_runtime_init, run_network_setup
+    from psilia_edge.runtime.setup import (
+        run_runtime_init,
+        run_network_setup,
+        run_wifi_setup,
+    )
 
     ui.banner_nav(["Runtime", "Setup"], "Setting up a runtime ...")
     if init:
@@ -119,10 +126,10 @@ def setup(
         home = get_runtime_home()
         ui.info(f"Skipping runtime home initialization. Using: \{home}")
 
-    ui.info(f"{network}")
     if network:
-        ui.info("Running network setup ...")
         run_network_setup()
+    if wifi:
+        run_wifi_setup()
 
 
 @app.command()

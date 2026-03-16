@@ -217,6 +217,148 @@ def run_network_setup() -> None:
     return config
 
 
+def run_wifi_setup() -> None:
+    """Connect the Jetson to a WiFi network via nmcli.
+
+    Flow:
+    - Detect wifi interfaces not currently in AP mode
+    - If multiple, let the user pick one
+    - If existing NM wifi profiles exist, offer to activate one
+    - Otherwise scan for visible networks and connect to a new one
+    - Prompt for autoconnect and priority
+    """
+    from psilia_edge.network.hotspot import find_active_hotspot
+    from psilia_edge.network.probe import list_interfaces
+    from psilia_edge.network.wifi import (
+        CLIENT_AUTOCONNECT_PRIORITY,
+        activate_connection,
+        connect_to_network,
+        list_wifi_connections,
+        scan_networks,
+    )
+
+    ui.title("WiFi Setup")
+    ui.info("Connect the Jetson to a WiFi network.")
+
+    # --- detect wifi interfaces not in AP mode ---
+    with ui.status("Detecting wifi interfaces…"):
+        ifaces = list_interfaces()
+        client_ifaces = [
+            i for i in ifaces if i.is_wifi and not find_active_hotspot(i.name)
+        ]
+
+    if not client_ifaces:
+        ui.warn("No available wifi interfaces (all may be in AP mode).")
+        return
+
+    # --- pick interface ---
+    if len(client_ifaces) == 1:
+        iface = client_ifaces[0]
+        itype = "USB dongle" if iface.is_usb_wifi else "built-in"
+        ui.ok(f"Using {iface.name}  [dim]({itype})[/dim]")
+    else:
+        from rich.prompt import IntPrompt
+
+        ui.info("Available wifi interfaces:")
+        for i, iface in enumerate(client_ifaces):
+            itype = "USB dongle" if iface.is_usb_wifi else "built-in"
+            ui.info(f"  [{i + 1}] {iface.name}  [dim]({itype})[/dim]")
+        choice = IntPrompt.ask(
+            f"{' ' * ui.PADDING_LEFT}  Select interface",
+            choices=[str(i + 1) for i in range(len(client_ifaces))],
+        )
+        iface = client_ifaces[choice - 1]
+        itype = "USB dongle" if iface.is_usb_wifi else "built-in"
+
+    # --- check existing NM wifi profiles ---
+    with ui.status("Checking existing WiFi connections…"):
+        existing = list_wifi_connections()
+
+    if existing:
+        ui.info("Saved WiFi connections:")
+        for i, conn in enumerate(existing):
+            status_str = "[green]active[/green]" if conn.active else "[dim]saved[/dim]"
+            ui.info(f"  [{i + 1}] {conn.name}  {status_str}")
+
+        if ui.confirm("  Activate a saved connection?", default=True):
+            from rich.prompt import IntPrompt
+
+            choice = IntPrompt.ask(
+                f"{' ' * ui.PADDING_LEFT}  Select connection",
+                choices=[str(i + 1) for i in range(len(existing))],
+            )
+            conn = existing[choice - 1]
+            autoconnect = ui.confirm(
+                "  Auto-connect when interface is available?", default=True
+            )
+            priority = ui.ask("  Priority", default=str(CLIENT_AUTOCONNECT_PRIORITY))
+            try:
+                priority = int(priority)
+            except ValueError:
+                priority = CLIENT_AUTOCONNECT_PRIORITY
+
+            with ui.status(f"  Activating '{conn.name}'…"):
+                ok_result = activate_connection(
+                    conn.name,
+                    ifname=iface.name,
+                    autoconnect=autoconnect,
+                    priority=priority,
+                )
+            if ok_result:
+                ui.ok(f"  Connected via '{conn.name}'")
+            else:
+                ui.fail(f"  Failed to activate '{conn.name}'")
+            return
+
+    # --- scan and connect to a new network ---
+    with ui.status("Scanning for networks…"):
+        networks = scan_networks(ifname=iface.name)
+
+    if not networks:
+        ui.warn("No networks found.")
+        ssid = ui.ask("  Enter SSID manually")
+    else:
+        ui.info("Visible networks:")
+        for i, net in enumerate(networks):
+            ui.info(
+                f"  [{i + 1}] {net.ssid}  [dim]{net.signal}% · {net.security}[/dim]"
+            )
+        ui.info(f"  [{len(networks) + 1}] Enter SSID manually")
+
+        from rich.prompt import IntPrompt
+
+        choice = IntPrompt.ask(
+            f"{' ' * ui.PADDING_LEFT}  Select network",
+            choices=[str(i + 1) for i in range(len(networks) + 1)],
+        )
+        ssid = (
+            networks[choice - 1].ssid if choice <= len(networks) else ui.ask("  SSID")
+        )
+
+    password = ui.ask("  Password", password=True)
+    autoconnect = ui.confirm(
+        "  Auto-connect when interface is available?", default=True
+    )
+    priority = ui.ask("  Priority", default=str(CLIENT_AUTOCONNECT_PRIORITY))
+    try:
+        priority = int(priority)
+    except ValueError:
+        priority = CLIENT_AUTOCONNECT_PRIORITY
+
+    with ui.status(f"  Connecting to '{ssid}'…"):
+        ok_result = connect_to_network(
+            ssid,
+            password,
+            ifname=iface.name,
+            autoconnect=autoconnect,
+            priority=priority,
+        )
+    if ok_result:
+        ui.ok(f"  Connected to '{ssid}'")
+    else:
+        ui.fail(f"  Failed to connect to '{ssid}'")
+
+
 def runtime_home_update() -> None:
     """Pull latest changes and rebuild the Docker image locally (runs on the Jetson).
 

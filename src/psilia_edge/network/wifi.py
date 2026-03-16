@@ -30,6 +30,73 @@ class WifiNetwork:
     security: str  # e.g. "WPA2", "--" for open
 
 
+@dataclass
+class WifiConnection:
+    name: str  # NM connection profile name
+    active: bool  # whether currently connected
+    device: str | None = None  # active device name, if connected
+
+
+def list_wifi_connections(runner: Runner = subprocess.run) -> list[WifiConnection]:
+    """Return saved NM WiFi connection profiles."""
+    rc, out = _run(
+        [
+            "nmcli",
+            "--escape",
+            "no",
+            "-t",
+            "-f",
+            "NAME,TYPE,DEVICE",
+            "connection",
+            "show",
+        ],
+        runner,
+    )
+    if rc != 0 or not out:
+        return []
+    connections = []
+    for line in out.splitlines():
+        parts = line.split(":")
+        if len(parts) < 3:
+            continue
+        name, typ = parts[0], parts[1]
+        device = ":".join(parts[2:]).strip() or None
+        if typ != "wifi":
+            continue
+        connections.append(
+            WifiConnection(name=name, active=device is not None, device=device)
+        )
+    return connections
+
+
+def activate_connection(
+    con_name: str,
+    ifname: str | None = None,
+    autoconnect: bool = True,
+    priority: int = CLIENT_AUTOCONNECT_PRIORITY,
+    runner: Runner = subprocess.run,
+) -> bool:
+    """Bring up an existing NM connection profile and update autoconnect settings."""
+    _run(
+        [
+            "nmcli",
+            "connection",
+            "modify",
+            con_name,
+            "connection.autoconnect",
+            "yes" if autoconnect else "no",
+            "connection.autoconnect-priority",
+            str(priority),
+        ],
+        runner,
+    )
+    cmd = ["nmcli", "connection", "up", con_name]
+    if ifname:
+        cmd += ["ifname", ifname]
+    rc, _ = _run(cmd, runner)
+    return rc == 0
+
+
 def scan_networks(
     ifname: str | None = None,
     runner: Runner = subprocess.run,
@@ -78,10 +145,12 @@ def connect_to_network(
     ssid: str,
     password: str,
     ifname: str | None = None,
+    autoconnect: bool = True,
+    priority: int = CLIENT_AUTOCONNECT_PRIORITY,
     runner: Runner = subprocess.run,
 ) -> bool:
     """
-    Connect to a WiFi network and persist it as an autoconnect profile.
+    Connect to a WiFi network and persist it as a connection profile.
 
     Returns True on success.
     """
@@ -93,7 +162,6 @@ def connect_to_network(
     if rc != 0:
         return False
 
-    # Ensure it autoconnects on reboot with high priority.
     _run(
         [
             "nmcli",
@@ -101,9 +169,9 @@ def connect_to_network(
             "modify",
             ssid,
             "connection.autoconnect",
-            "yes",
+            "yes" if autoconnect else "no",
             "connection.autoconnect-priority",
-            str(CLIENT_AUTOCONNECT_PRIORITY),
+            str(priority),
         ],
         runner,
     )
