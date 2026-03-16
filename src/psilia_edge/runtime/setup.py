@@ -335,7 +335,9 @@ def run_wifi_setup() -> None:
             networks[choice - 1].ssid if choice <= len(networks) else ui.ask("  SSID")
         )
 
-    password = ui.ask("  Password")
+    already_connected = iface.connection == ssid
+    if not already_connected:
+        password = ui.ask("  Password")
     autoconnect = ui.confirm(
         "  Auto-connect when interface is available?", default=True
     )
@@ -345,14 +347,24 @@ def run_wifi_setup() -> None:
     except ValueError:
         priority = CLIENT_AUTOCONNECT_PRIORITY
 
-    with ui.status(f"  Connecting to '{ssid}'…"):
-        ok_result = connect_to_network(
-            ssid,
-            password,
-            ifname=iface.name,
-            autoconnect=autoconnect,
-            priority=priority,
-        )
+    if already_connected:
+        ui.info(f"  Already connected to '{ssid}' — updating settings.")
+        with ui.status(f"  Updating '{ssid}'…"):
+            ok_result = activate_connection(
+                ssid,
+                ifname=iface.name,
+                autoconnect=autoconnect,
+                priority=priority,
+            )
+    else:
+        with ui.status(f"  Connecting to '{ssid}'…"):
+            ok_result = connect_to_network(
+                ssid,
+                password,
+                ifname=iface.name,
+                autoconnect=autoconnect,
+                priority=priority,
+            )
     if ok_result:
         ui.ok(f"  Connected to '{ssid}'")
     else:
