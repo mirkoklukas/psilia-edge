@@ -12,6 +12,9 @@ Runner = Callable[[list[str]], tuple[int, str, str]]
 
 
 def _run(cmd: list[str], runner: Runner = run) -> tuple[int, str]:
+    from psilia_edge import ui
+
+    ui.info(f"  [dim]$ {' '.join(cmd)}[/dim]")
     try:
         rc, out, _ = runner(cmd)
         return rc, out.strip()

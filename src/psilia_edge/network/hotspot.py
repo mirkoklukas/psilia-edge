@@ -19,6 +19,9 @@ HOTSPOT_SSID = "Borne"
 
 
 def _run(cmd: list[str], runner: Runner = run) -> tuple[int, str, str]:
+    from psilia_edge import ui
+
+    ui.info(f"  [dim]$ {' '.join(cmd)}[/dim]")
     try:
         rc, out, err = runner(cmd)
         return rc, out.strip(), err.strip()
