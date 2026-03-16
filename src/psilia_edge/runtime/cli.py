@@ -282,7 +282,7 @@ def status() -> None:
 @app.command(hidden=True)
 def scan() -> Path:
     """Print the runtime home directory path."""
-    from psilia_edge.runtime.hotplug import scan_cameras, usb_bus_tree
+    from psilia_edge.runtime.hotplug import scan_cameras, usb_list_devices
 
     ui.header(["Runtime", "Scan"], "Scanning for connected cameras…")
     groups = scan_cameras()
@@ -291,7 +291,7 @@ def scan() -> Path:
     else:
         ui.print_tree(groups, label="cameras")
 
-    ui.print_tree(usb_bus_tree(), label="USB bus")
+    ui.print_tree(usb_list_devices(), label="USB devices")
 
 
 @app.command(hidden=True)

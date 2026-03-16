@@ -293,6 +293,42 @@ def _usb_subtree(dev_path: Path, usb_devices: Path, addr: str) -> dict:
     return info
 
 
+def usb_list_devices() -> list[dict]:
+    """Return a flat list of connected USB devices (excluding hubs and root hubs).
+
+    Walks /sys/bus/usb/devices/, skips:
+      - root hubs (usbN)
+      - interface nodes (name contains ':')
+      - hubs (maxchild > 0)
+
+    Returns one entry per physical device with class, identity, and nodes/interfaces.
+    """
+    import re
+
+    usb_devices = Path("/sys/bus/usb/devices")
+    if not usb_devices.exists():
+        return []
+
+    devices = []
+    for entry in sorted(usb_devices.iterdir()):
+        # Skip root hubs (usb1, usb2)
+        if re.match(r"^usb\d+$", entry.name):
+            continue
+        # Skip interface nodes (1-2.2:1.0)
+        if ":" in entry.name:
+            continue
+        # Skip hubs (maxchild > 0)
+        maxchild_file = entry / "maxchild"
+        if maxchild_file.exists() and int(maxchild_file.read_text().strip()) > 0:
+            continue
+
+        info = _usb_device_info(entry)
+        info["addr"] = entry.name
+        devices.append(info)
+
+    return devices
+
+
 def usb_bus_tree() -> dict:
     """Return USB bus topology as a nested dict.
 
