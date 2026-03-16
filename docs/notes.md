@@ -1,5 +1,36 @@
 # Notes
 
+## Establishing a network connection to your Jetson
+
+The simplest way to connect your MacBook and Jetson is to put both on the same network — either on the same Wi-Fi, or connected via an ethernet cable. Once on the same network, set up mDNS on the Jetson so you can reach it by name instead of IP.
+
+> **mDNS** = Multicast DNS. Regular DNS uses a central server to resolve names to IPs. mDNS has no server — devices multicast directly on the LAN, announcing their own name and answering queries from others. On Linux this is handled by avahi-daemon, which reads the hostname from /etc/hostname and advertises it as hostname.local on all active interfaces, keeping it updated if IPs change.
+
+Setup on Jetson:
+```bash
+# 1. set the hostname
+sudo hostnamectl set-hostname jetson
+
+#2. install and enable avahi
+sudo apt update
+sudo apt install avahi-daemon
+sudo systemctl enable --now avahi-daemon
+
+# 3. verify
+avahi-resolve -n jetson.local
+```
+
+Then from your MacBook:
+```bash
+# verify connection
+ping jetson.local
+
+# SSH into the Jetson
+ssh user@jetson.local
+```
+
+This works without knowing or setting any IP addresses. If the Jetson's IP changes, jetson.local still resolves correctly.
+
 ## Development
 
 ### Local environment variables (direnv)
