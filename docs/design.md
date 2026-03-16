@@ -144,7 +144,7 @@ Works the same on laptop and Jetson. v0 assumes one runtime per machine.
 Python 3.10+, `pip`, `git`.
 
 **System — installed during `psilia runtime setup`:**
-Docker. On Jetson: `nmcli` / NetworkManager (hotspot), `systemd` (autostart).
+Docker. On Jetson: `nmcli` / NetworkManager (hotspot), `systemd` (autostart), `v4l-utils` (camera detection).
 
 **Python packages (`psilia-edge`):**
 `typer`, `rich`, `pyyaml`, `paramiko`, `fastapi`, `uvicorn`, `psutil`, `mcap`, `numpy`.

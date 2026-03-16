@@ -74,6 +74,25 @@ cat /sys/bus/usb/devices/1-2.1/manufacturer
 cat /sys/bus/usb/devices/1-2.1/serial
 ```
 
+### v4l2-ctl (`v4l-utils`)
+
+`v4l2-ctl` is a userspace tool for querying and controlling V4L2 devices. It's part of the `v4l-utils` package (`sudo apt install v4l-utils` on Jetson).
+
+List devices with their grouping (same output as our sysfs-based scan, but human-readable):
+```bash
+v4l2-ctl --list-devices
+# Some Stereo Cam (usb-3610000.usb-2.2):
+#     /dev/video0
+#     /dev/video1
+```
+
+List supported formats and resolutions for a device:
+```bash
+v4l2-ctl --device=/dev/video0 --list-formats-ext
+```
+
+This is the main thing our sysfs approach doesn't cover — knowing what resolutions and pixel formats a camera supports. Useful for validating a camera during `psilia runtime setup` and for configuring the ROS camera node. We may want to call this in `scan_cameras()` if `v4l2-ctl` is available, and include the results in the scan output.
+
 ## Development
 
 ### Local environment variables (direnv)

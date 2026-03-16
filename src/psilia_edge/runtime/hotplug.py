@@ -76,14 +76,85 @@ def _group_cameras(cameras: list[dict]) -> list[list[dict]]:
     return list(groups.values()) + ungrouped
 
 
+# =============================================================================
+# v4l2-ctl utils
+# =============================================================================
+
+
+def v4l2_list_formats(dev: str) -> dict[str, str]:
+    """Return available pixel formats for a device.
+
+    Calls: v4l2-ctl -d <dev> --list-formats
+
+    Returns {pixel_format: description}, e.g.:
+        {"YUYV": "YUYV 4:2:2", "MJPG": "Motion-JPEG, compressed"}
+    """
+    import re
+
+    result = subprocess.run(
+        ["v4l2-ctl", "-d", dev, "--list-formats"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    formats = {}
+    for m in re.finditer(r"'(\w+)'\s+\((.+)\)", result.stdout):
+        formats[m.group(1)] = m.group(2)
+    return formats
+
+
+def v4l2_list_framesizes(dev: str, pixel_format: str) -> list[dict]:
+    """Return available frame sizes for a device and pixel format.
+
+    Calls: v4l2-ctl -d <dev> --list-framesize <pixel_format>
+
+    Returns [{"width": W, "height": H}, ...], e.g.:
+        [{"width": 1280, "height": 480}, {"width": 640, "height": 480}]
+    """
+    import re
+
+    result = subprocess.run(
+        ["v4l2-ctl", "-d", dev, "--list-framesize", pixel_format],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    sizes = []
+    for m in re.finditer(r"Size: Discrete (\d+)x(\d+)", result.stdout):
+        sizes.append({"width": int(m.group(1)), "height": int(m.group(2))})
+    return sizes
+
+
+# =============================================================================
+# Linux scan
+# =============================================================================
+
+
+def _scan_linux_2() -> list[dict]:
+    """Like _scan_linux but adds format/resolution info via v4l2-ctl."""
+    cameras = _scan_linux()
+    for cam in cameras:
+        formats = v4l2_list_formats(cam["device"])
+        if formats:
+            cam["formats"] = {
+                fmt: {
+                    "description": desc,
+                    "sizes": v4l2_list_framesizes(cam["device"], fmt),
+                }
+                for fmt, desc in formats.items()
+            }
+    return cameras
+
+
 def scan_cameras() -> list[list[dict]]:
     """Return cameras grouped by physical device (serial or bus_id).
 
-    On Linux: scans /dev/video* and reads the device name from sysfs.
+    On Linux: scans /dev/video* and reads the device name from sysfs,
+              enriched with format/resolution info via v4l2-ctl.
     On macOS: uses system_profiler SPCameraDataType.
     """
     if sys.platform == "linux":
-        return _group_cameras(_scan_linux())
+        return _group_cameras(_scan_linux_2())
     if sys.platform == "darwin":
         return _group_cameras(_scan_macos())
     return []
@@ -108,6 +179,104 @@ def _scan_linux() -> list[dict]:
 
         cameras.append(entry)
     return cameras
+
+
+# =============================================================================
+# USB bus topology
+# =============================================================================
+
+
+def _usb_device_info(dev_path: Path) -> dict:
+    """Read info and classify a USB device from its sysfs path."""
+    info: dict = {}
+    for field, key in [
+        ("idVendor", "vendor_id"),
+        ("idProduct", "product_id"),
+        ("manufacturer", "manufacturer"),
+        ("product", "product"),
+        ("serial", "serial"),
+    ]:
+        f = dev_path / field
+        if f.exists():
+            info[key] = f.read_text().strip()
+
+    # camera: has video4linux children
+    video_nodes = sorted(
+        f"/dev/{node.name}"
+        for vl in dev_path.rglob("video4linux")
+        for node in vl.iterdir()
+        if node.name.startswith("video")
+    )
+    if video_nodes:
+        info["class"] = "camera"
+        info["nodes"] = video_nodes
+        return info
+
+    # wifi / ethernet: has net children
+    net_ifaces = [
+        iface.name for net in dev_path.rglob("net") for iface in net.iterdir()
+    ]
+    if net_ifaces:
+        is_wireless = any(
+            (Path("/sys/class/net") / iface / "wireless").exists()
+            for iface in net_ifaces
+        )
+        info["class"] = "wifi" if is_wireless else "ethernet"
+        info["interfaces"] = net_ifaces
+        return info
+
+    info["class"] = "other"
+    return info
+
+
+def usb_bus_tree() -> dict:
+    """Return USB bus topology as a nested dict.
+
+    Walks /sys/bus/usb/devices/ to build a tree of controllers and their ports.
+    Empty ports are represented as None.
+
+    Example:
+        {
+            "usb1": {
+                "name": "NVIDIA Tegra xUSB",
+                "ports": {
+                    1: {"product": "ZED 2i", "class": "camera", "nodes": [...]},
+                    2: {"product": "3D USB Camera", "class": "camera", ...},
+                    3: None,  # empty
+                }
+            }
+        }
+    """
+    import re
+
+    usb_devices = Path("/sys/bus/usb/devices")
+    if not usb_devices.exists():
+        return {}
+
+    tree = {}
+    for entry in sorted(usb_devices.iterdir()):
+        if not re.match(r"^usb\d+$", entry.name):
+            continue
+
+        bus_num = entry.name.replace("usb", "")
+        num_ports_file = entry / "bNumPorts"
+        num_ports = (
+            int(num_ports_file.read_text().strip()) if num_ports_file.exists() else 0
+        )
+
+        ports: dict[int, dict | None] = {}
+        for port in range(1, num_ports + 1):
+            dev_path = usb_devices / f"{bus_num}-{port}"
+            ports[port] = _usb_device_info(dev_path) if dev_path.exists() else None
+
+        name = (
+            (entry / "product").read_text().strip()
+            if (entry / "product").exists()
+            else ""
+        )
+        tree[entry.name] = {"name": name, "ports": ports}
+
+    return tree
 
 
 def _parse_macos_model_id(model_id: str) -> tuple[str, str]:
