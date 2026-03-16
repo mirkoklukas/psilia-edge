@@ -183,11 +183,38 @@ def _scan_linux() -> list[dict]:
 
 # =============================================================================
 # USB bus topology
+#
+# /sys/bus/usb/devices/ contains one entry per USB device AND per USB interface.
+# The naming convention encodes position in the physical tree:
+#
+#   usbN          — root hub for bus N (one per USB controller)
+#   N-P           — device on bus N, directly on port P of the root hub
+#   N-P.Q         — device on bus N, through a hub on port P, sub-port Q
+#   N-P.Q.R       — device through two hubs, and so on
+#   N-P.Q:C.I     — interface I of config C on device N-P.Q  ← we skip these
+#
+# Example from a real Jetson listing:
+#   usb1, usb2          — two USB controllers
+#   1-2                 — a hub plugged into port 2 of bus 1
+#   1-2.1               — a sub-hub plugged into port 1 of that hub
+#   1-2.1.2             — HID device on sub-hub port 2
+#   1-2.2               — 3D USB Camera on hub port 2
+#   1-2.3               — WiFi dongle on hub port 3
+#   1-3                 — Bluetooth on port 3 of the root hub
+#   2-1                 — a hub on bus 2, port 1
+#   2-1.1               — ZED 2i on that hub, port 1
+#
+# A device with a `maxchild` file is a hub — it has downstream ports of its own.
+# We recurse into hubs to build the full tree. Empty ports are represented as None.
 # =============================================================================
 
 
 def _usb_device_info(dev_path: Path) -> dict:
-    """Read info and classify a USB device from its sysfs path."""
+    """Read identity and classify a USB device from its sysfs path.
+
+    Classification is done by checking which kernel subsystems the device
+    registered under: video4linux → camera, net → wifi/ethernet, else other.
+    """
     info: dict = {}
     for field, key in [
         ("idVendor", "vendor_id"),
@@ -200,7 +227,8 @@ def _usb_device_info(dev_path: Path) -> dict:
         if f.exists():
             info[key] = f.read_text().strip()
 
-    # camera: has video4linux children
+    # Camera: device registered one or more video4linux nodes.
+    # rglob descends into interface subdirs (e.g. 1-2.2:1.0/video4linux/video0).
     video_nodes = sorted(
         f"/dev/{node.name}"
         for vl in dev_path.rglob("video4linux")
@@ -212,7 +240,8 @@ def _usb_device_info(dev_path: Path) -> dict:
         info["nodes"] = video_nodes
         return info
 
-    # wifi / ethernet: has net children
+    # Wifi / ethernet: device registered a network interface.
+    # Check /sys/class/net/<iface>/wireless to distinguish wifi from ethernet.
     net_ifaces = [
         iface.name for net in dev_path.rglob("net") for iface in net.iterdir()
     ]
@@ -230,21 +259,26 @@ def _usb_device_info(dev_path: Path) -> dict:
 
 
 def _usb_subtree(dev_path: Path, usb_devices: Path, addr: str) -> dict:
-    """Recursively build a USB device node, descending into hubs."""
+    """Recursively build a subtree for a USB device, descending into hubs.
+
+    If the device is a hub (has maxchild), its children in sysfs are named
+    {addr}.1, {addr}.2, ... up to maxchild. We recurse into each.
+    """
     info = _usb_device_info(dev_path)
 
-    num_ports_file = dev_path / "bNumPorts"
+    num_ports_file = dev_path / "maxchild"
     if num_ports_file.exists():
+        # This device is a hub — find its downstream ports.
         num_ports = int(num_ports_file.read_text().strip())
         info["class"] = "hub"
         ports: dict[int, dict | None] = {}
         for port in range(1, num_ports + 1):
-            child_addr = f"{addr}.{port}"
+            child_addr = f"{addr}.{port}"  # e.g. "1-2.1" → "1-2.1.1"
             child_path = usb_devices / child_addr
             ports[port] = (
                 _usb_subtree(child_path, usb_devices, child_addr)
                 if child_path.exists()
-                else None
+                else None  # empty port
             )
         info["ports"] = ports
 
@@ -266,7 +300,7 @@ def usb_bus_tree() -> dict:
                         "class": "hub",
                         "ports": {
                             1: {"product": "ZED 2i", "class": "camera", "nodes": [...]},
-                            2: None,
+                            2: None,  # empty port
                         }
                     }
                 }
@@ -281,15 +315,18 @@ def usb_bus_tree() -> dict:
 
     tree = {}
     for entry in sorted(usb_devices.iterdir()):
+        # Only process root hubs (usbN) — skip device and interface nodes.
         if not re.match(r"^usb\d+$", entry.name):
             continue
 
+        # Bus number: "usb1" → "1", used to construct child addresses like "1-2".
         bus_num = entry.name.replace("usb", "")
-        num_ports_file = entry / "bNumPorts"
+        num_ports_file = entry / "maxchild"
         num_ports = (
             int(num_ports_file.read_text().strip()) if num_ports_file.exists() else 0
         )
 
+        # Top-level devices are addressed as "{bus_num}-{port}", e.g. "1-2".
         ports: dict[int, dict | None] = {}
         for port in range(1, num_ports + 1):
             child_addr = f"{bus_num}-{port}"
