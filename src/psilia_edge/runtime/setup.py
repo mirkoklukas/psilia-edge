@@ -264,7 +264,7 @@ def run_wifi_setup() -> None:
             itype = "USB dongle" if iface.is_usb_wifi else "built-in"
             ui.info(f"  [{i + 1}] {iface.name}  [dim]({itype})[/dim]")
         choice = IntPrompt.ask(
-            f"{' ' * ui.PADDING_LEFT}  Select interface",
+            "Select interface",
             choices=[str(i + 1) for i in range(len(client_ifaces))],
         )
         iface = client_ifaces[choice - 1]
@@ -284,20 +284,20 @@ def run_wifi_setup() -> None:
             from rich.prompt import IntPrompt
 
             choice = IntPrompt.ask(
-                f"{' ' * ui.PADDING_LEFT}  Select connection",
+                "Select connection",
                 choices=[str(i + 1) for i in range(len(existing))],
             )
             conn = existing[choice - 1]
             autoconnect = ui.confirm(
-                "  Auto-connect when interface is available?", default=True
+                "Auto-connect when interface is available?", default=True
             )
-            priority = ui.ask("  Priority", default=str(CLIENT_AUTOCONNECT_PRIORITY))
+            priority = ui.ask("Priority", default=str(CLIENT_AUTOCONNECT_PRIORITY))
             try:
                 priority = int(priority)
             except ValueError:
                 priority = CLIENT_AUTOCONNECT_PRIORITY
 
-            with ui.status(f"  Activating '{conn.name}'…"):
+            with ui.status(f"Activating '{conn.name}'…"):
                 ok_result = activate_connection(
                     conn.name,
                     ifname=iface.name,
@@ -305,9 +305,9 @@ def run_wifi_setup() -> None:
                     priority=priority,
                 )
             if ok_result:
-                ui.ok(f"  Connected via '{conn.name}'")
+                ui.ok(f"Connected via '{conn.name}'")
             else:
-                ui.fail(f"  Failed to activate '{conn.name}'")
+                ui.fail(f"Failed to activate '{conn.name}'")
             return
 
     # --- scan and connect to a new network ---
@@ -328,28 +328,24 @@ def run_wifi_setup() -> None:
         from rich.prompt import IntPrompt
 
         choice = IntPrompt.ask(
-            f"{' ' * ui.PADDING_LEFT}  Select network",
+            "Select network",
             choices=[str(i + 1) for i in range(len(networks) + 1)],
         )
-        ssid = (
-            networks[choice - 1].ssid if choice <= len(networks) else ui.ask("  SSID")
-        )
+        ssid = networks[choice - 1].ssid if choice <= len(networks) else ui.ask("SSID")
 
     already_connected = iface.connection == ssid
     if not already_connected:
-        password = ui.ask("  Password")
-    autoconnect = ui.confirm(
-        "  Auto-connect when interface is available?", default=True
-    )
-    priority = ui.ask("  Priority", default=str(CLIENT_AUTOCONNECT_PRIORITY))
+        password = ui.ask("Password")
+    autoconnect = ui.confirm("Auto-connect when interface is available?", default=True)
+    priority = ui.ask("Priority", default=str(CLIENT_AUTOCONNECT_PRIORITY))
     try:
         priority = int(priority)
     except ValueError:
         priority = CLIENT_AUTOCONNECT_PRIORITY
 
     if already_connected:
-        ui.info(f"  Already connected to '{ssid}' — updating settings.")
-        with ui.status(f"  Updating '{ssid}'…"):
+        ui.info(f"Already connected to '{ssid}' — updating settings.")
+        with ui.status(f"Updating '{ssid}'…"):
             ok_result = activate_connection(
                 ssid,
                 ifname=iface.name,
@@ -358,7 +354,7 @@ def run_wifi_setup() -> None:
                 bring_up=False,
             )
     else:
-        with ui.status(f"  Connecting to '{ssid}'…"):
+        with ui.status(f"Connecting to '{ssid}'…"):
             ok_result = connect_to_network(
                 ssid,
                 password,
@@ -367,9 +363,9 @@ def run_wifi_setup() -> None:
                 priority=priority,
             )
     if ok_result:
-        ui.ok(f"  Connected to '{ssid}'")
+        ui.ok(f"Connected to '{ssid}'")
     else:
-        ui.fail(f"  Failed to connect to '{ssid}'")
+        ui.fail(f"Failed to connect to '{ssid}'")
 
 
 def runtime_home_update() -> None:

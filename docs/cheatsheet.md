@@ -2,6 +2,9 @@
 
 ## Network
 ```bash
+# Show all connections
+nmcli connection show
+
 # Show all available networks on the jetson
 nmcli device wifi list
 
