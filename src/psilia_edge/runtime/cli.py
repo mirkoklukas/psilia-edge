@@ -77,7 +77,7 @@ def init(
     ] = False,
 ) -> None:
     """Initializes a runtime home directory."""
-    from psilia_edge.runtime.setup import runtime_home_init
+    from psilia_edge.runtime.setup import run_runtime_init
 
     if not runtime_home.exists() and not mkdir:
         ui.error(
@@ -89,7 +89,7 @@ def init(
     ui.banner_nav(
         ["Runtime", "Initialize"], "Initializing the runtime home directory ..."
     )
-    runtime_home_init(runtime_home or Path.cwd(), mkdir=mkdir)
+    run_runtime_init(runtime_home or Path.cwd(), mkdir=mkdir)
 
 
 @app.command(hidden=True)
