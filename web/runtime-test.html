@@ -8,6 +8,7 @@
   <!-- TODO: roslibjs loaded from CDN. In the field there may be no internet access.
              Consider vendoring roslib.min.js into web/vendor/ and updating this path. -->
   <script src="/vendor/roslib.min.js"></script>
+  <script src="/api/js/config.js"></script>
 
   <link rel="stylesheet" href="/psilia.css">
   <style>
@@ -70,7 +71,7 @@
   </div>
 
   <script>
-    const ROSBRIDGE_URL = `ws://${location.hostname}:9090`;
+    const ROSBRIDGE_URL = `ws://${location.hostname}:${window.PSILIA.rosbridgePort}`;
 
     const ros = new ROSLIB.Ros({ url: ROSBRIDGE_URL });
 

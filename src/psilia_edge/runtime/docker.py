@@ -5,18 +5,17 @@ import sys
 logger = logging.getLogger(__name__)
 
 from psilia_edge.runtime.config import (  # noqa: E402
+    CONFIG_PATH,
     CONTAINER_NAME,
     RUN_DIR,
     get_ros_dir,
     get_log_dir,
     get_data_dir,
     get_docker_image,
+    get_rosbridge_port,
     get_runtime_config_path,
 )
 from psilia_edge.utils import run  # noqa: E402
-
-# Ports the ROS layer exposes (used for macOS dev).
-_ROS_PORTS = [9090]  # rosbridge WebSocket
 
 
 def launch_runtime_container(launch_script: str) -> tuple[int, str, str]:
@@ -29,13 +28,18 @@ def launch_runtime_container(launch_script: str) -> tuple[int, str, str]:
 
     cmd = (
         f"docker run -i -d --rm "
+        # --privileged gives access to host USB devices (cameras, serial ports).
+        # TODO: --privileged has no effect on macOS (Docker Desktop runs in a VM,
+        #   USB devices are not forwarded). Figure out a dev workflow for USB on Mac.
+        f"--privileged "
         # Depends on the platform, we may need to
         # expose ROS ports instead of using --network host
-        f"{' '.join(_network_args(_ROS_PORTS))} "
+        f"{' '.join(_network_args([get_rosbridge_port()]))} "
         f"-v {str(get_ros_dir())}:/psilia/ros "
         f"-v {str(get_log_dir())}:/psilia/log "
         f"-v {str(get_data_dir())}:/psilia/data "
         f"-v {str(get_runtime_config_path())}:/psilia/runtime.yaml:ro "
+        f"-v {str(CONFIG_PATH)}:/psilia/psilia.yaml:ro "
         f"-v {RUN_DIR}:/psilia/run "
         f"-e ROS_LOG_DIR=/psilia/log "
         f"--hostname {platform.node().split('.')[0]} "
@@ -128,10 +132,6 @@ def _network_args(ports: list[int]) -> list[str]:
     for port in ports:
         args += ["-p", f"{port}:{port}"]
     return args
-
-
-# TODO: make port configurable (currently hardcoded to match rosbridge default in launch file)
-ROSBRIDGE_PORT = 9090
 
 
 def is_port_open(port: int) -> bool:

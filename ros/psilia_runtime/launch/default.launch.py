@@ -1,7 +1,9 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
+from psilia_runtime.better_ros import better_launch
 
 
+@better_launch
 def generate_launch_description():
     core_node = Node(
         package="psilia_runtime",
@@ -50,6 +52,18 @@ def generate_launch_description():
     #     output="screen",
     # )
 
+    # launch_params.yaml is written by start_spatial_layer() on the host before container launch.
+    # It contains camera parameters detected at startup (device, format, resolution, fps).
+    # If the file doesn't exist the node falls back to its declared defaults.
+    _LAUNCH_PARAMS = "/psilia/run/launch_params.yaml"
+    camera_node = Node(
+        package="psilia_runtime",
+        executable="camera",
+        name="camera_node",
+        output="screen",
+        parameters=[_LAUNCH_PARAMS],
+    )
+
     rosbridge = Node(
         package="rosbridge_server",
         executable="rosbridge_websocket",
@@ -69,6 +83,7 @@ def generate_launch_description():
         core_node,
         ping_node,
         recording_node,
+        camera_node,
         rosbridge,
         mock_node,
     ])

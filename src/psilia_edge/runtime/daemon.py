@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 
+from psilia_edge import ui
 from psilia_edge.runtime.config import LOG_DIR, RUN_DIR
 
 PID_FILE = RUN_DIR / "psilia-edge.pid"
@@ -38,13 +39,21 @@ def is_running() -> bool:
     return get_pid() is not None
 
 
-def start_daemon(host: str = "0.0.0.0", port: int = 8080) -> int:
+def start_daemon(host: str = "0.0.0.0", port: int | None = None) -> int:
     """Spawn the server as a background process detached from this terminal.
 
     Returns the PID of the spawned process.
     """
+
     if is_running():
         raise RuntimeError(f"psilia base layer is already running (PID {get_pid()})")
+
+    if port is None:
+        from psilia_edge.runtime.config import get_api_port
+
+        port = get_api_port()
+
+    ui.print(f"Starting psilia base layer on {host}:{port}")
 
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     log_fh = LOG_FILE.open("a")

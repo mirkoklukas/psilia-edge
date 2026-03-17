@@ -5,7 +5,7 @@ from __future__ import annotations
 import socket
 import time
 
-from psilia_edge.runtime.config import read_config
+from psilia_edge.runtime.config import get_api_port, read_config
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -13,8 +13,7 @@ from psilia_edge.runtime.config import read_config
 #   Entry points
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# TODO: Should port be read from somewhere?
-def start_runtime(host: str = "0.0.0.0", port: int = 8080) -> dict:
+def start_runtime(host: str = "0.0.0.0", port: int | None = None) -> dict:
     """Start base and spatial layer of the runtime. Returns a combined result dict."""
     base = start_base_layer(host=host, port=port)
     spatial = start_spatial_layer()
@@ -33,10 +32,12 @@ def stop_runtime() -> dict:
 #   Utils and Helper
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-def start_base_layer(host: str = "0.0.0.0", port: int = 8080) -> dict:
+def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
     """Start the base layer daemon. Returns a result dict."""
     from psilia_edge.runtime.daemon import LOG_FILE, start_daemon
 
+    if port is None:
+        port = get_api_port()
     pid = start_daemon(host=host, port=port)
     time.sleep(1.5)  # give uvicorn a moment to bind
 
@@ -71,21 +72,37 @@ def stop_base_layer() -> dict:
 
 def start_spatial_layer() -> dict:
     """Start the ROS Docker container and launch the ROS stack. Returns a result dict."""
+    import sys
+
     from psilia_edge.runtime.docker import (
         is_docker_daemon_running,
         launch_runtime_container,
     )
-    from psilia_edge.runtime.config import get_launch_script
+    from psilia_edge.runtime.config import get_launch_script, RUN_DIR
+    from psilia_edge.utils import write_yaml
 
     if not is_docker_daemon_running():
         return {"status": "error", "error": "Docker daemon is not running."}
+
+    # Detect camera and write launch_params.yaml for ROS nodes.
+    camera = None
+    if sys.platform == "linux":
+        from psilia_edge.runtime.hotplug import pick_camera_device
+
+        camera = pick_camera_device()
+
+    if camera:
+        RUN_DIR.mkdir(parents=True, exist_ok=True)
+        write_yaml(
+            RUN_DIR / "launch_params.yaml", {"camera_node": {"ros__parameters": camera}}
+        )
 
     launch_script = get_launch_script()
     rc, _, err = launch_runtime_container(launch_script)
     if rc != 0:
         return {"status": "error", "error": err}
 
-    return {"status": "started", "launch": launch_script}
+    return {"status": "started", "launch": launch_script, "camera": camera}
 
 
 def stop_spatial_layer() -> dict:

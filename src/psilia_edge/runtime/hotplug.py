@@ -391,6 +391,56 @@ def usb_bus_tree() -> dict:
     return tree
 
 
+def pick_camera_device(fps: int = 30) -> dict | None:
+    """Detect the first connected camera and pick the best device node, format, and resolution.
+
+    Scans for connected cameras, takes the first physical device, and picks:
+    - The device node with actual image formats (skipping metadata-only nodes)
+    - Preferred format: MJPG > YUYV > first available
+    - Preferred resolution: 640x480 if available, else largest
+
+    Returns a dict with device, pixel_format, width, height, fps — or None if no camera found.
+    Only works on Linux; returns None on other platforms.
+    """
+    if sys.platform != "linux":
+        return None
+
+    groups = scan_cameras()
+    if not groups:
+        return None
+
+    for cam in groups[0]:
+        formats = cam.get("formats", {})
+        if not formats:
+            continue
+
+        if "MJPG" in formats:
+            fmt = "MJPG"
+        elif "YUYV" in formats:
+            fmt = "YUYV"
+        else:
+            fmt = next(iter(formats))
+
+        sizes = formats[fmt].get("sizes", [])
+        if not sizes:
+            continue
+
+        size = next(
+            (s for s in sizes if s["width"] == 640 and s["height"] == 480),
+            max(sizes, key=lambda s: s["width"] * s["height"]),
+        )
+
+        return {
+            "device": cam["device"],
+            "pixel_format": fmt,
+            "width": size["width"],
+            "height": size["height"],
+            "fps": fps,
+        }
+
+    return None
+
+
 def _parse_macos_model_id(model_id: str) -> tuple[str, str]:
     """Parse 'UVC Camera VendorID_1133 ProductID_2085' → ('046d', '0825')."""
     import re

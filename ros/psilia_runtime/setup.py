@@ -14,6 +14,7 @@ setup(
     install_requires=["setuptools"],
     entry_points={
         "console_scripts": [
+            "camera = psilia_runtime.nodes.camera_node:main",
             "core = psilia_runtime.nodes.core_node:main",
             "ping = psilia_runtime.nodes.ping_node:main",
             "recording = psilia_runtime.nodes.recording_node:main",

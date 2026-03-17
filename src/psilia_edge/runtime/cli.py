@@ -155,7 +155,7 @@ def start(
         False, "--base-only", "-b", help="Starts the Base Layer only (Webserver)."
     ),
     host: str = typer.Option("0.0.0.0", help="Bind address", hidden=True),
-    port: int = typer.Option(8080, help="HTTP port", hidden=True),
+    port: int = typer.Option(None, help="HTTP port", hidden=True),
 ) -> None:
     """Start base layer then spatial layer."""
     from psilia_edge.runtime.daemon import is_running

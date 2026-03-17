@@ -11,12 +11,13 @@ from psilia_edge.network.hotspot import hotspot_is_broadcasting
 from psilia_edge.runtime.config import (
     CONTAINER_NAME,
     RUN_DIR,
+    get_api_port,
     get_data_dir,
+    get_rosbridge_port,
     read_config,
 )
 from psilia_edge.runtime.daemon import LOG_FILE, get_pid
 from psilia_edge.runtime.docker import (
-    ROSBRIDGE_PORT,
     check_container_status,
     is_docker_daemon_running,
     is_port_open,
@@ -52,8 +53,7 @@ def runtime_status() -> dict:
 
 
 def _base_section() -> dict:
-    # TODO: port is hardcoded here, should it be read from a config or something?
-    port = 8080
+    port = get_api_port()
     pid = get_pid()
     running = pid is not None
     section: dict = {"running": running}
@@ -100,8 +100,8 @@ def _spatial_section() -> dict:
             "nodes": list_ros_nodes(),
             "topics": list_ros_topics(),
             "rosbridge": {
-                "port": ROSBRIDGE_PORT,
-                "open": is_port_open(ROSBRIDGE_PORT),
+                "port": get_rosbridge_port(),
+                "open": is_port_open(get_rosbridge_port()),
             },
         }
 

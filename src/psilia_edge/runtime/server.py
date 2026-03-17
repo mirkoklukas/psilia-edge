@@ -6,8 +6,10 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+
+from psilia_edge.runtime.config import get_api_port
 
 
 # Assumes editable install: .../psilia-edge/src/psilia_edge/runtime/server.py
@@ -47,6 +49,18 @@ async def api_spatial_stop() -> JSONResponse:
     return JSONResponse(stop_spatial_layer())
 
 
+@app.get("/api/js/config.js", response_class=PlainTextResponse)
+async def api_js_config() -> str:
+    from psilia_edge.runtime.config import get_api_port, get_rosbridge_port
+
+    return (
+        f"window.PSILIA = {{"
+        f" rosbridgePort: {get_rosbridge_port()},"
+        f" apiPort: {get_api_port()}"
+        f" }};"
+    )
+
+
 @app.get("/api/network/ping")
 async def api_network_ping() -> JSONResponse:
     return JSONResponse({"ok": True})
@@ -65,5 +79,7 @@ async def api_network_probe(size: int = 100_000):
 app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="static")
 
 
-def serve(host: str = "0.0.0.0", port: int = 8080) -> None:
+def serve(host: str = "0.0.0.0", port: int | None = None) -> None:
+    if port is None:
+        port = get_api_port()
     uvicorn.run(app, host=host, port=port, log_level="info")

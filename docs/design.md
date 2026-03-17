@@ -72,7 +72,9 @@ It can be split into two main part (potentially more in the future) — either o
 # written by `psilia runtime setup`
 runtime:
   home_path: ~/psilia-runtime-home
-  config_path: ~/psilia-runtime-home/runtime.yaml.
+  config_path: ~/psilia-runtime-home/runtime.yaml
+  api_port: 8080       # FastAPI web server port
+  rosbridge_port: 9090 # rosbridge WebSocket port
 
 # written by `psilia runtime setup` (Jetson only)
 hotspot:
@@ -166,6 +168,7 @@ Host                             Container
 {runtime_home}/log/          →   /psilia/log/            runtime logs
 {runtime_home}/data/         →   /psilia/data/           MCAP recordings
 {runtime_home}/runtime.yaml  →   /psilia/runtime.yaml    runtime config (read-only)
+~/.psilia/psilia.yaml        →   /psilia/psilia.yaml     psilia config (read-only)
 ~/.psilia/run/               →   /psilia/run/            status files written by core_node
 ```
 
@@ -184,12 +187,29 @@ The colcon workspace layout inside the container mirrors the host:
   log/                    # runtime logs (mounted from host)
   data/                   # MCAP recordings (mounted from host)
   runtime.yaml            # runtime config (mounted read-only from host)
+  psilia.yaml             # psilia config (mounted read-only from host)
   run/                    # status files written by core_node (mounted from host)
 ```
 
 The entrypoint runs `colcon build --packages-select psilia_runtime` on every startup (incremental — fast after first build), sources the workspace, then launches `ros2 launch psilia_runtime default.launch.py`.
 
 To clear the build cache (e.g. after `setup.py` changes), `psilia runtime update` spins up a temporary container to `rm -rf` the build dirs — no sudo needed on the host.
+
+
+## Logging & Runtime Files
+
+Where to look when something goes wrong at each layer:
+
+| File | Written by | Contents |
+|---|---|---|
+| `~/.psilia/run/psilia-edge.pid` | `start_daemon()` in `daemon.py` | PID of the running FastAPI/uvicorn process |
+| `~/.psilia/log/psilia-edge.log` | uvicorn (stdout/stderr redirected by `start_daemon()`) | Base layer startup, request logs, errors |
+| `~/.psilia/run/heartbeat.json` | `core_node` inside Docker (1 Hz) | `status`, `stamp`, `ros_domain_id` |
+| `~/.psilia/run/status.json` | `core_node` inside Docker (on demand) | heartbeat fields + `nodes`, `topics` |
+| `{runtime_home}/log/` | ROS nodes inside Docker (`ROS_LOG_DIR`) | Per-node ROS logs |
+| `{runtime_home}/ros/log/` | colcon on container startup | Build logs |
+
+Note: `heartbeat.json` and `status.json` are ephemeral — cleared when the container starts.
 
 
 ## Interacting with the Runtime
@@ -213,12 +233,13 @@ When called with a device name (e.g. `psilia runtime status my-jetson`), command
 
 The web UI talks to two separate services on the Jetson:
 
-**FastAPI REST (port 8080)** — base layer, always-on control plane:
+**FastAPI REST (`api_port`, default 8080)** — base layer, always-on control plane:
 - `GET /api/status` — full runtime status (triggers a ROS status request internally)
 - `GET /api/config` — current `psilia.yaml` as JSON
+- `GET /api/js/config.js` — JS snippet setting `window.PSILIA` with ports (loaded by web UI pages)
 - `POST /api/spatial/start` / `POST /api/spatial/stop` — start/stop the Docker container
 
-**rosbridge WebSocket (port 9090)** — live ROS communication, only available when the Docker container is running:
+**rosbridge WebSocket (`rosbridge_port`, default 9090)** — live ROS communication, only available when the Docker container is running:
 - Used by the web UI for live topic subscription (ping/pong test page)
 - Used by the host Python code to publish to `/psilia/status_request` (triggers `core_node` to write `status.json`)
 - Future: recording control (start/stop MCAP recorder via ROS topic)
@@ -328,7 +349,39 @@ When both a dongle and built-in WiFi are present, the Jetson can act as its own 
 - `psilia runtime status` should never show stale state from a previous session. Any data sourced from files (`heartbeat.json`, `status.json`) must either pass a freshness check or be shown as unavailable.
 - `run_streamed` and any `docker run` calls should avoid the `-t` (pseudo-TTY) flag when not running interactively — `-t` causes the container to emit `\r\n` line endings, which produce staircase rendering in Rich when piped.
 
+## Troubleshooting
+
+### Base layer fails to start — port already in use
+
+Symptom in `~/.psilia/log/psilia-edge.log`:
+```
+ERROR: [Errno 48] error while attempting to bind on address ('0.0.0.0', 8080): address already in use
+```
+
+This usually means a previous psilia server is still running (stale PID file) or another process is on port 8080.
+
+Find what's on the port:
+```bash
+lsof -i :8080
+```
+
+Kill the psilia process (replace PID with the one from `lsof`):
+```bash
+kill <PID>
+```
+
+Or kill everything on the port in one shot:
+```bash
+lsof -ti :8080 | xargs kill
+```
+
+Then run `psilia runtime stop` to clean up the stale PID file before starting again.
+
+
 ## Notes & Ideas & Keep-in-minds
+
+- `runtime.yaml` should eventually have a `launch_args:` section — a user-friendly place to configure ROS node parameters (camera type, resolution, etc.). Before launch, `start_spatial_layer()` reads this section and writes a properly formatted ROS params yaml to `~/.psilia/run/` which gets passed to the nodes via `parameters=[...]`. Currently the params file is written directly from auto-detected values.
+
 
 - "runtime home" has a nice ring to it — `runtime.home_path` in the config reads naturally. Settled on `psilia-runtime-home` as the default directory name.
 - The ROS workspace (`psilia_runtime`) is copied to the runtime home and mounted into the container at runtime — it is NOT baked into the Docker image. This keeps it visible and editable on the host without rebuilding the image. May revisit if we ever want a fully self-contained image.

@@ -14,6 +14,14 @@ RUN apt-get update && apt-get install -y \
     # ros-humble-foxglove-bridge \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Python dependencies
+# TODO: decide how to manage Python dependencies inside the container. Options:
+#   - Keep pip install calls here (simple, but Dockerfile becomes the source of truth)
+#   - Add a requirements.txt next to the Dockerfile and RUN pip install -r requirements.txt
+#   - Use a uv venv inside the container for fast, reproducible installs
+#   Currently installing directly into the system Python to keep it simple.
+RUN pip install opencv-python-headless
+
 # Install psilia inference library (depth + pose algorithms)
 # RUN pip install psilia
 

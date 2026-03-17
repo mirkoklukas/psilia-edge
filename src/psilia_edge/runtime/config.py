@@ -38,6 +38,9 @@ CONFIG_DIR = Path(os.environ.get("PSILIA_DIR", "~/.psilia")).expanduser()
 CONFIG_PATH = CONFIG_DIR / "psilia.yaml"
 RUN_DIR = CONFIG_DIR / "run"
 LOG_DIR = CONFIG_DIR / "log"
+INITIAL_CONFIG_PATH = (
+    importlib.resources.files("psilia_edge.runtime") / "psilia.initial.yaml"
+)
 
 #
 # -- "Runtime-level directories" --
@@ -90,6 +93,19 @@ def read_config(missing_ok: bool = True) -> NestedDict:
 def write_config(config: dict | NestedDict) -> None:
     """Write config dict to ~/.psilia/psilia.yaml."""
     write_yaml(CONFIG_PATH, config, parents=True)
+
+
+def initial_config() -> NestedDict:
+    """Return the initial psilia config as a dict."""
+    return NestedDict(read_yaml(INITIAL_CONFIG_PATH))
+
+
+def get_api_port() -> int:
+    return read_config().get("runtime", {}).get("api_port", 8080)
+
+
+def get_rosbridge_port() -> int:
+    return read_config().get("runtime", {}).get("rosbridge_port", 9090)
 
 
 def get_runtime_home() -> Path:
