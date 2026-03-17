@@ -425,10 +425,7 @@ def pick_camera_device(fps: int = 30) -> dict | None:
         if not sizes:
             continue
 
-        size = next(
-            (s for s in sizes if s["width"] == 640 and s["height"] == 480),
-            max(sizes, key=lambda s: s["width"] * s["height"]),
-        )
+        size = min(sizes, key=lambda s: s["width"] * s["height"])
 
         return {
             "device": cam["device"],

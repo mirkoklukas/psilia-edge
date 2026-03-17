@@ -10,6 +10,7 @@ FROM ros:humble
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3-pip \
+    v4l-utils \
     ros-humble-rosbridge-server \
     # ros-humble-foxglove-bridge \
     && rm -rf /var/lib/apt/lists/*
