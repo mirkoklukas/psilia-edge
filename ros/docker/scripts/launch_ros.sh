@@ -19,14 +19,10 @@ rm -f /psilia/log/ros-build.log
 colcon build --packages-select psilia_runtime --base-paths src > /psilia/log/ros-build.log 2>&1
 source /psilia/ros/install/setup.bash
 
-# Remove old log file if exists and create a new one
-rm -f /psilia/log/ros-launch.log
-touch /psilia/log/ros-launch.log
-
 # Usage: ros2_launch <launch_file>
 launch_ros() {
     launch_script="$1"
-    ros2 launch psilia_runtime "$launch_script" > /psilia/log/ros-launch.log 2>&1
+    ros2 launch psilia_runtime "$launch_script"
 }
 
 launch_ros "$@"
