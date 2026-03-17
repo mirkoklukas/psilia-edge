@@ -280,6 +280,21 @@ def status() -> None:
 
 
 @app.command(hidden=True)
+def cam() -> None:
+    """Detect connected camera and show what would be written to launch_params.yaml."""
+    from psilia_edge.runtime.hotplug import pick_camera_device
+
+    ui.header(["Runtime", "Camera"], "Detecting camera…")
+    camera = pick_camera_device()
+    if not camera:
+        ui.warn("No camera detected.")
+        return
+
+    launch_params = {"camera_node": {"ros__parameters": camera}}
+    ui.print_tree(launch_params, label="launch_params.yaml")
+
+
+@app.command(hidden=True)
 def scan() -> Path:
     """Print the runtime home directory path."""
     from psilia_edge.runtime.hotplug import scan_cameras, usb_list_devices
