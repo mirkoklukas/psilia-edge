@@ -351,6 +351,16 @@ When both a dongle and built-in WiFi are present, the Jetson can act as its own 
 
 ## Troubleshooting
 
+### Viewing ROS node logs
+
+All ROS nodes log to stdout (`RCUTILS_LOGGING_USE_STDOUT=1` is set in the docker run command). Use:
+
+```bash
+docker logs psilia-runtime        # full log
+docker logs psilia-runtime -f     # follow live
+docker logs psilia-runtime --tail 100  # last 100 lines
+```
+
 ### Base layer fails to start — port already in use
 
 Symptom in `~/.psilia/log/psilia-edge.log`:
