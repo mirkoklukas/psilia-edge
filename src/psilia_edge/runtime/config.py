@@ -85,7 +85,7 @@ def read_config(missing_ok: bool = True) -> NestedDict:
     """
     if not CONFIG_PATH.exists():
         if missing_ok:
-            return NestedDict()
+            return initial_config()
         raise ConfigurationError(f"Config file not found: {CONFIG_PATH}")
     return NestedDict(read_yaml(CONFIG_PATH))
 
