@@ -84,6 +84,9 @@ class CameraNode(Node):
         msg.step = msg.width * 3
         msg.data = frame.tobytes()
         self._pub.publish(msg)
+        self._frame_count = getattr(self, "_frame_count", 0) + 1
+        if self._frame_count % 100 == 0:
+            self.get_logger().info(f"Frame {self._frame_count}: {msg.width}x{msg.height} ({msg.encoding})")
 
 
 def main():
