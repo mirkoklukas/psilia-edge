@@ -44,7 +44,7 @@ class CameraNode(Node):
         self._stream.open()
         self.frame_count = 0
         self.pub_test = self.create_publisher(String, "/psilia/image/test", 10)
-        # self.create_timer(1.0 / self.fps, self.publish_frame)
+        self.create_timer(1.0 / self.fps, self.publish_frame)
         self.create_timer(1.0 / self.fps, self.publish_test)
 
     def publish_test(self):
