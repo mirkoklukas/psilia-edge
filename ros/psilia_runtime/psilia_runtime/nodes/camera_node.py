@@ -12,6 +12,7 @@ If the device cannot be opened, the node logs a warning and retries every second
 """
 import rclpy
 import cv2
+from builtin_interfaces.msg import Time # type: ignore
 from rclpy.node import Node # type: ignore
 from sensor_msgs.msg import Image # type: ignore
 from std_msgs.msg import Header # type: ignore
@@ -42,11 +43,13 @@ class CameraNode(Node):
             self._stream.open()
             return
 
-        frame = self._stream.get_latest_frame()
-        if frame is None:
+        # frame = self._stream.pop_latest_frame()
+        entry = self._stream.get_latest_timed_frame()
+        if entry is None:
             return  # no new frame since last publish
 
-        stamp = self.get_clock().now().to_msg()
+        t, frame = entry
+        stamp = Time(sec=int(t), nanosec=int((t % 1) * 1e9))
         msg = Image()
         msg.header = Header(stamp=stamp, frame_id="camera")
         msg.height, msg.width = frame.shape[:2]

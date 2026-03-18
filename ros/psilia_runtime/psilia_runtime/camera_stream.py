@@ -12,9 +12,10 @@ Two threads interact with this class:
     to read the next frame. It never sleeps; the camera's hardware timing
     is the natural throttle.
 
-  Caller thread (open / close / get_latest_frame)
+  Caller thread (open / close / pop_latest_frame / get_latest_timed_frame)
     The ROS timer callback or any other consumer. It never touches cap
-    directly — it only reads _latest_frame via get_latest_frame().
+    directly — it only reads _latest_frame via pop_latest_frame() or
+    get_latest_timed_frame().
 
 Shared state and synchronisation
 ---------------------------------
@@ -44,7 +45,8 @@ Usage:
     stream = CameraStream("/dev/video0", "MJPG", 640, 480, 30, logger)
     stream.open()
     ...
-    frame = stream.get_latest_frame()  # None if no new frame yet
+    frame = stream.pop_latest_frame()          # None if no new frame; clears slot
+    t, frame = stream.get_latest_timed_frame() # non-destructive; returns (t, frame)
     ...
     stream.close()
 """
@@ -71,10 +73,11 @@ class CameraStream:
         self._logger = logger
 
         self._cap = None
-        self._latest_frame = None  # written by capture thread, read by caller
+        self._latest_frame: tuple | None = None  # (t, frame) written by capture thread, read by caller
         self._frame_lock = threading.Lock()
         self._stop_event = threading.Event()  # set → capture thread should exit
         self._thread = None
+        self._callbacks: list = []  # protected by _frame_lock
 
         # Monotonic timestamps (time.monotonic()) appended by the capture thread
         # on every successful frame read. Useful for measuring actual FPS and
@@ -140,15 +143,42 @@ class CameraStream:
         with self._frame_lock:
             self._latest_frame = None
 
-    def get_latest_frame(self):
-        """Return the latest captured frame and clear it, or None if none is available.
+    def add_on_capture_callback(self, fn):
+        """Register a callback invoked on every captured frame.
 
-        Clears the frame after returning it so the same frame is never published twice.
+        fn(t, frame) is called from the capture thread each time a new frame
+        arrives. Intended for lightweight operations only — e.g. appending to
+        a queue. Do not call ROS APIs from the callback; they are not
+        thread-safe from the capture thread.
         """
         with self._frame_lock:
-            frame = self._latest_frame
+            self._callbacks.append(fn)
+
+    def remove_on_capture_callback(self, fn):
+        """Unregister a previously added capture callback."""
+        with self._frame_lock:
+            self._callbacks.remove(fn)
+
+    def pop_latest_frame(self):
+        """Return the latest captured frame and clear it, or None if no new frame is available.
+
+        Destructive read — clears the slot after returning so the same frame is never
+        returned twice. Suitable for a single consumer (e.g. the ROS publish timer).
+        Two consumers would starve each other.
+        """
+        with self._frame_lock:
+            entry = self._latest_frame
             self._latest_frame = None
-        return frame
+        return entry[1] if entry is not None else None
+
+    def get_latest_timed_frame(self):
+        """Return (t, frame) for the latest captured frame without clearing it, or None.
+
+        Non-destructive — multiple calls return the same (t, frame) until a new frame
+        arrives. t is a time.monotonic() timestamp recorded at capture time.
+        """
+        with self._frame_lock:
+            return self._latest_frame
 
     @property
     def is_open(self) -> bool:
@@ -190,9 +220,35 @@ class CameraStream:
                 self._cap.release()
                 self._cap = None  # signals is_open = False to the caller thread
                 return
+            t = time.time()  # wall-clock time so callers can use t as a ROS stamp
+
+            # Option A (active): callbacks fired inside the lock.
+            # Guarantees that _latest_frame and callbacks are always consistent —
+            # a consumer calling get_latest_timed_frame() under the lock will
+            # see the same frame the callbacks just received. Safe for lightweight
+            # ops (queue appends). Avoid slow callbacks — lock is held for their
+            # entire duration, which blocks pop_latest_frame() callers.
             with self._frame_lock:
-                self._latest_frame = frame
-                self.capture_times.append(time.monotonic())
+                self._latest_frame = (t, frame)
+                self.capture_times.append(t)
+                for cb in self._callbacks:
+                    cb(t, frame)
+
+            # Option B (alternative): callbacks fired outside the lock.
+            # Lock is held only for the assignment — shorter hold time, callers
+            # are never blocked by callback duration. Callbacks receive a snapshot
+            # of the list taken under the lock so add/remove during iteration is
+            # safe. Tiny race: a consumer could pop the frame before the callbacks
+            # fire, so _latest_frame may already be None when the callback runs.
+            # Fine for a queue-fill use case, but breaks any callback that relies
+            # on _latest_frame being set when it's called.
+            #
+            # with self._frame_lock:
+            #     self._latest_frame = (t, frame)
+            #     self.capture_times.append(t)
+            #     callbacks = list(self._callbacks)
+            # for cb in callbacks:
+            #     cb(t, frame)
 
     def _log_info(self, msg: str):
         if self._logger is not None:
