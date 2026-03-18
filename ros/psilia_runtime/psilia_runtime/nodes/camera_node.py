@@ -59,6 +59,8 @@ class CameraNode(Node):
         # (0.05ms), but the assignment, which triggers a slow element-by-element
         # Python iteration in rclpy's uint8[] field (bytes → array.array).
         # Using array.array('B', ...) hits rclpy's fast C-level bulk copy instead (~0.17ms).
+        # 'B' is the type code for unsigned char (uint8) — exactly what rclpy expects
+        # for a uint8[] field, so no conversion is needed and the assignment is fast.
         #
         # CvBridge alternative (~0.26ms, requires numpy<2 pin due to ABI mismatch
         # with ros-humble-cv-bridge compiled against numpy 1.x):
