@@ -10,12 +10,15 @@ Parameters (set via launch_params.yaml):
 
 If the device cannot be opened, the node logs a warning and retries every second.
 """
+import time
+
 import rclpy
 import cv2
 from builtin_interfaces.msg import Time # type: ignore
 from rclpy.node import Node # type: ignore
 from sensor_msgs.msg import Image # type: ignore
 from std_msgs.msg import Header # type: ignore
+from std_msgs.msg import String # type: ignore
 from psilia_runtime.better_ros import better_node, ROSValue, every_seconds
 from psilia_runtime.camera_stream import CameraStream
 
@@ -40,9 +43,16 @@ class CameraNode(Node):
         )
         self._stream.open()
         self.frame_count = 0
+        self.pub_test = self.create_publisher(String, "/psilia/image/test", 10)
         self.create_timer(1.0 / self.fps, self.publish_frame)
+        self.create_timer(1.0 / self.fps, self.publish_test)
+
+    def publish_test(self):
+        self.pub_test.publish(String(data="tick"))
 
     def publish_frame(self):
+        t0 = time.monotonic()
+
         if not self._stream.is_open:
             self._stream.open()
             return
@@ -62,6 +72,7 @@ class CameraNode(Node):
         msg.data = bytes(frame.data)  # ~0.08ms vs tobytes() ~97ms on Jetson
         self.pub.publish(msg)
         self.frame_count += 1
+        self.get_logger().info(f"publish_frame: {(time.monotonic() - t0)*1000:.2f}ms")
         if self.frame_count % 100 == 0:
             self.get_logger().info(f"Frame {self.frame_count}: {msg.width}x{msg.height} ({msg.encoding})")
 
