@@ -61,6 +61,7 @@ class CameraNode(Node):
         msg.height, msg.width = frame.shape[:2]
         msg.encoding = "bgr8"
         msg.step = msg.width * 3
+        self.get_logger().info(f"contiguous: {frame.flags['C_CONTIGUOUS']}")
         t0 = time.monotonic()
         msg.data = frame.tobytes()
         self.get_logger().info(f"tobytes: {(time.monotonic() - t0)*1000:.2f}ms")
