@@ -11,11 +11,9 @@ Parameters (set via launch_params.yaml):
 If the device cannot be opened, the node logs a warning and retries every second.
 """
 import array
-import time
 
 import rclpy
 from builtin_interfaces.msg import Time # type: ignore
-from cv_bridge import CvBridge # type: ignore
 from rclpy.node import Node # type: ignore
 from sensor_msgs.msg import Image # type: ignore
 from std_msgs.msg import Header # type: ignore
@@ -42,7 +40,6 @@ class CameraNode(Node):
             logger=self.get_logger(),
         )
         self._stream.open()
-        self._bridge = CvBridge()
         self.frame_count = 0
         self.create_timer(1.0 / self.fps, self.publish_frame)
 
@@ -58,27 +55,21 @@ class CameraNode(Node):
         t, frame = entry
         stamp = Time(sec=int(t), nanosec=int((t % 1) * 1e9))
 
-        # CvBridge handles the numpy → ROS message conversion efficiently.
-        # Manual construction via msg.data = frame.tobytes() was ~97ms on Jetson —
-        # not tobytes() itself (0.05ms), but the assignment to msg.data, which
-        # triggers a slow element-by-element Python iteration in rclpy's uint8[]
-        # field handling (bytes → array.array). CvBridge bypasses this via C++.
-        t0 = time.monotonic()
-        msg = self._bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+        # msg.data = frame.tobytes() was ~97ms on Jetson — not tobytes() itself
+        # (0.05ms), but the assignment, which triggers a slow element-by-element
+        # Python iteration in rclpy's uint8[] field (bytes → array.array).
+        # Using array.array('B', ...) hits rclpy's fast C-level bulk copy instead (~0.17ms).
+        #
+        # CvBridge alternative (~0.26ms, requires numpy<2 pin due to ABI mismatch
+        # with ros-humble-cv-bridge compiled against numpy 1.x):
+        #   msg = self._bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+        #   msg.header = Header(stamp=stamp, frame_id="camera")
+        msg = Image()
         msg.header = Header(stamp=stamp, frame_id="camera")
-        self.get_logger().info(f"cv2_to_imgmsg:        {(time.monotonic()-t0)*1000:.2f}ms")
-
-        # Alternative: array.array('B', ...) assignment may hit rclpy's fast path
-        # (C-level bulk copy) instead of the slow bytes→array element iteration.
-        t0 = time.monotonic()
-        msg2 = Image()
-        msg2.header = Header(stamp=stamp, frame_id="camera")
-        msg2.height, msg2.width = frame.shape[:2]
-        msg2.encoding = "bgr8"
-        msg2.step = msg2.width * 3
-        msg2.data = array.array('B', frame.tobytes())
-        self.get_logger().info(f"array.array assign:   {(time.monotonic()-t0)*1000:.2f}ms")
-
+        msg.height, msg.width = frame.shape[:2]
+        msg.encoding = "bgr8"
+        msg.step = msg.width * 3
+        msg.data = array.array('B', frame.tobytes())
         self.pub.publish(msg)
         self.frame_count += 1
         if self.frame_count % 100 == 0:
