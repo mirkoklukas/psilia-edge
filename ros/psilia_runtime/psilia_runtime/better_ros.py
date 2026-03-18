@@ -97,6 +97,123 @@ class ROSValue:
     pass
 
 
+
+def better_node_2(cls):
+    """Decorator that handles ROS 2 node initialization boilerplate.
+
+    Owns __init__ entirely — calls Node.__init__ with an auto-generated node
+    name (snake_case of the class name), declares and reads all ROSValue-annotated
+    parameters, then calls __node_init__ with the resolved plain values.
+
+    For dynamic parameter updates, add your own add_on_set_parameters_callback
+    in __node_init__.
+
+    Usage::
+
+        @better_node
+        class MyCameraNode(Node):
+
+            def __node_init__(
+                    self,
+                    camera_type: ROSValue = "zed2i",
+                    fps: ROSValue = 30,
+                ):
+                self.camera_type = camera_type  # plain str
+                self.fps = fps                  # plain int
+    """
+    if not Node in cls.__bases__:
+        raise TypeError("better_node can only be applied to direct subclasses of rclpy.node.Node")
+
+    post_init = cls.__node_init__
+    hints = get_type_hints(post_init)
+
+    def new_init(self, **kwargs):
+        # ROS 2 nodes don't take meaningful positional args — kwargs only.
+        # better_node owns __init__ entirely; user logic goes in __node_init__.
+        bound = inspect.signature(post_init).bind(self, **kwargs)
+        bound.apply_defaults()
+        rest_kwargs = bound.kwargs
+
+        super(cls, self).__init__(to_snake_case(cls.__name__))  # ROS middleware ready after this
+
+        for name, val in rest_kwargs.items():
+            if hints.get(name) is ROSValue:
+                self.declare_parameter(name, val)
+                rest_kwargs[name] = self.get_parameter(name).value
+
+        post_init(self, **rest_kwargs)
+
+    cls.__init__ = new_init
+
+    return cls
+
+
+# TODO: consider allowing an optional node name to be passed to the decorator,
+#       e.g. @node("my_camera_node"), falling back to to_snake_case(cls.__name__)
+#       if not provided. Would require the decorator to handle both @node and @node("name").
+def better_node(cls):
+    """Decorator that handles ROS 2 node initialization boilerplate.
+
+    Owns __init__ entirely — calls Node.__init__ with an auto-generated node
+    name (snake_case of the class name), declares and reads all class-level
+    ROSValue-annotated attributes, assigns them as instance attributes, then
+    calls __node_init__ with no extra parameters.
+
+    Usage::
+
+        @better_node
+        class MyCameraNode(Node):
+            camera_type: ROSValue = "zed2i"
+            fps: ROSValue = 30
+
+            def __node_init__(self):
+                self.timer = self.create_timer(1.0 / self.fps, self.tick)
+    """
+    if not Node in cls.__bases__:
+        raise TypeError("better_node can only be applied to direct subclasses of rclpy.node.Node")
+
+    class_hints = get_type_hints(cls)
+
+    def new_init(self):
+        super(cls, self).__init__(to_snake_case(cls.__name__))
+
+        for name, hint in class_hints.items():
+            if hint is ROSValue:
+                default = getattr(cls, name)
+                self.declare_parameter(name, default)
+                setattr(self, name, self.get_parameter(name).value)
+
+        cls.__node_init__(self)
+
+    cls.__init__ = new_init
+
+    return cls
+
+
+#
+#   Example usage
+#
+@better_node
+class MyBetterNode(Node):
+
+    def __node_init__(
+            self,
+            robot_name: ROSValue = "default_robot",
+            refresh_rate: ROSValue = 10,
+        ):
+        self.robot_name = robot_name  # plain str
+        self.refresh_rate = refresh_rate  # plain int
+        self.timer = self.create_timer(1.0 / self.refresh_rate, self.tick)
+
+    def tick(self):
+        self.get_logger().info(f"Robot: {self.robot_name}")
+
+
+
+
+#
+#   Experimental
+#
 class ROSParam:
     """Annotation marker. Parameter is declared and handed down as a cached live
     handle. Value is updated automatically via a parameter callback registered by
@@ -118,11 +235,11 @@ def better_node_experimental(cls):
 
     Owns __init__ entirely — calls Node.__init__ with an auto-generated node
     name (snake_case of the class name), wires up ROSParam-annotated parameters,
-    then calls __post_init__ with the resolved params. The user never writes
+    then calls __node_init__ with the resolved params. The user never writes
     __init__ or calls super().__init__().
 
     Design decisions:
-    - __post_init__ instead of __init__: makes it unambiguous that the decorator
+    - __node_init__ instead of __init__: makes it unambiguous that the decorator
       owns initialization. Mirrors the dataclasses pattern.
     - Node name from class name: equivalent to hardcoding it in super().__init__(),
       which is standard ROS 2 practice. The launch file name= field still overrides
@@ -143,7 +260,7 @@ def better_node_experimental(cls):
         @better_node
         class MyCameraNode(Node):
 
-            def __post_init__(
+            def __node_init__(
                     self,
                     camera_type: ROSValue = "zed2i",  # read once, plain str
                     fps: ROSParam = 30,                # live handle
@@ -165,12 +282,12 @@ def better_node_experimental(cls):
     if not Node in cls.__bases__:
         raise TypeError("better_node can only be applied to direct subclasses of rclpy.node.Node")
 
-    post_init = cls.__post_init__
+    post_init = cls.__node_init__
     hints = get_type_hints(post_init)
 
     def new_init(self, **kwargs):
         # ROS 2 nodes don't take meaningful positional args — kwargs only.
-        # better_node owns __init__ entirely; user logic goes in __post_init__.
+        # better_node owns __init__ entirely; user logic goes in __node_init__.
         bound = inspect.signature(post_init).bind(self, **kwargs)
         bound.apply_defaults()
         rest_kwargs = bound.kwargs
@@ -202,83 +319,13 @@ def better_node_experimental(cls):
 
     return cls
 
-
-def better_node(cls):
-    """Decorator that handles ROS 2 node initialization boilerplate.
-
-    Owns __init__ entirely — calls Node.__init__ with an auto-generated node
-    name (snake_case of the class name), declares and reads all ROSValue-annotated
-    parameters, then calls __post_init__ with the resolved plain values.
-
-    For dynamic parameter updates, add your own add_on_set_parameters_callback
-    in __post_init__.
-
-    Usage::
-
-        @better_node
-        class MyCameraNode(Node):
-
-            def __post_init__(
-                    self,
-                    camera_type: ROSValue = "zed2i",
-                    fps: ROSValue = 30,
-                ):
-                self.camera_type = camera_type  # plain str
-                self.fps = fps                  # plain int
-    """
-    if not Node in cls.__bases__:
-        raise TypeError("better_node can only be applied to direct subclasses of rclpy.node.Node")
-
-    post_init = cls.__post_init__
-    hints = get_type_hints(post_init)
-
-    def new_init(self, **kwargs):
-        # ROS 2 nodes don't take meaningful positional args — kwargs only.
-        # better_node owns __init__ entirely; user logic goes in __post_init__.
-        bound = inspect.signature(post_init).bind(self, **kwargs)
-        bound.apply_defaults()
-        rest_kwargs = bound.kwargs
-
-        super(cls, self).__init__(to_snake_case(cls.__name__))  # ROS middleware ready after this
-
-        for name, val in rest_kwargs.items():
-            if hints.get(name) is ROSValue:
-                self.declare_parameter(name, val)
-                rest_kwargs[name] = self.get_parameter(name).value
-
-        post_init(self, **rest_kwargs)
-
-    cls.__init__ = new_init
-
-    return cls
-
-
-#
-#   Example usage
-#
-@better_node
-class MyBetterNode(Node):
-
-    def __post_init__(
-            self,
-            robot_name: ROSValue = "default_robot",
-            refresh_rate: ROSValue = 10,
-        ):
-        self.robot_name = robot_name  # plain str
-        self.refresh_rate = refresh_rate  # plain int
-        self.timer = self.create_timer(1.0 / self.refresh_rate, self.tick)
-
-    def tick(self):
-        self.get_logger().info(f"Robot: {self.robot_name}")
-
-
 #
 #   Example usage of better_node_experimental
 #
 @better_node_experimental
 class MyBetterNodeExperimental(Node):
 
-    def __post_init__(
+    def __node_init__(
             self,
             robot_name: ROSValue = "default_robot",  # plain str, read once at init
             refresh_rate: ROSParam = 10,              # cached handle, updated via ros2 param set

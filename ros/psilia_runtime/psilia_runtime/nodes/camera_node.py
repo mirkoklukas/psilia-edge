@@ -13,9 +13,10 @@ If the device cannot be opened, the node logs a warning and retries every second
 import rclpy
 import cv2
 import numpy as np
-from rclpy.node import Node
-from sensor_msgs.msg import Image
-from std_msgs.msg import Header
+from rclpy.node import Node # type: ignore
+from sensor_msgs.msg import Image # type: ignore
+from std_msgs.msg import Header # type: ignore
+from psilia_runtime.better_ros import better_node, ROSValue
 
 _FOURCC = {
     "MJPG": cv2.VideoWriter_fourcc("M", "J", "P", "G"),
@@ -23,57 +24,50 @@ _FOURCC = {
 }
 
 
+@better_node
 class CameraNode(Node):
-    def __init__(self):
-        super().__init__("camera_node")
+    device: ROSValue = "/dev/video0"
+    pixel_format: ROSValue = "MJPG"
+    width: ROSValue = 640
+    height: ROSValue = 480
+    fps: ROSValue = 30
 
-        self.declare_parameter("device", "/dev/video0")
-        self.declare_parameter("pixel_format", "MJPG")
-        self.declare_parameter("width", 640)
-        self.declare_parameter("height", 480)
-        self.declare_parameter("fps", 30)
+    def __node_init__(self):
+        self.pub = self.create_publisher(Image, "/psilia/image/raw", 10)
+        self.cap = None
+        self.open_camera()
+        self.create_timer(1.0 / self.fps, self.publish_frame)
 
-        self._device = self.get_parameter("device").get_parameter_value().string_value
-        self._pixel_format = self.get_parameter("pixel_format").get_parameter_value().string_value
-        self._width = self.get_parameter("width").get_parameter_value().integer_value
-        self._height = self.get_parameter("height").get_parameter_value().integer_value
-        self._fps = self.get_parameter("fps").get_parameter_value().integer_value
-
-        self._pub = self.create_publisher(Image, "/psilia/image/raw", 10)
-        self._cap = None
-        self._open_camera()
-        self.create_timer(1.0 / self._fps, self._publish_frame)
-
-    def _open_camera(self) -> bool:
-        self._cap = cv2.VideoCapture(self._device, cv2.CAP_V4L2)
-        if not self._cap.isOpened():
-            self.get_logger().warn(f"Could not open camera device: {self._device}")
-            self._cap = None
+    def open_camera(self) -> bool:
+        self.cap = cv2.VideoCapture(self.device, cv2.CAP_V4L2)
+        if not self.cap.isOpened():
+            self.get_logger().warn(f"Could not open camera device: {self.device}")
+            self.cap = None
             return False
 
-        fourcc = _FOURCC.get(self._pixel_format)
+        fourcc = _FOURCC.get(self.pixel_format)
         if fourcc:
-            self._cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
-        self._cap.set(cv2.CAP_PROP_FPS, self._fps)
+            self.cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
 
         self.get_logger().info(
-            f"Camera opened: {self._device} "
-            f"({self._pixel_format} {self._width}x{self._height} @ {self._fps}fps)"
+            f"Camera opened: {self.device} "
+            f"({self.pixel_format} {self.width}x{self.height} @ {self.fps}fps)"
         )
         return True
 
-    def _publish_frame(self):
-        if self._cap is None:
-            self._open_camera()
+    def publish_frame(self):
+        if self.cap is None:
+            self.open_camera()
             return
 
-        ret, frame = self._cap.read()
+        ret, frame = self.cap.read()
         if not ret:
             self.get_logger().warn("Failed to read frame — reopening camera")
-            self._cap.release()
-            self._cap = None
+            self.cap.release()
+            self.cap = None
             return
 
         stamp = self.get_clock().now().to_msg()
@@ -83,10 +77,10 @@ class CameraNode(Node):
         msg.encoding = "bgr8"
         msg.step = msg.width * 3
         msg.data = frame.tobytes()
-        self._pub.publish(msg)
-        self._frame_count = getattr(self, "_frame_count", 0) + 1
-        if self._frame_count % 100 == 0:
-            self.get_logger().info(f"Frame {self._frame_count}: {msg.width}x{msg.height} ({msg.encoding})")
+        self.pub.publish(msg)
+        self.frame_count = getattr(self, "frame_count", 0) + 1
+        if self.frame_count % 100 == 0:
+            self.get_logger().info(f"Frame {self.frame_count}: {msg.width}x{msg.height} ({msg.encoding})")
 
 
 def main():

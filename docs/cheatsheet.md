@@ -38,6 +38,8 @@ docker logs -f psilia-runtime
 
 # Build the image manually
 docker build --network=host -t psilia/runtime:latest /ssd/psilia/psilia-edge/ros/
+
+docker logs psilia-runtime -f
 ```
 
 ## Runtime (Jetson)
@@ -95,4 +97,6 @@ ros2 topic echo /psilia/pose
 
 # Tail the latest ROS launch log
 tail -f ~/.ros/log/latest/launch.log
+
+ros2 topic hz /psilia/image/raw
 ```
