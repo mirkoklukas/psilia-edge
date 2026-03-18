@@ -10,8 +10,6 @@ Parameters (set via launch_params.yaml):
 
 If the device cannot be opened, the node logs a warning and retries every second.
 """
-import time
-
 import rclpy
 import cv2
 from builtin_interfaces.msg import Time # type: ignore
@@ -61,13 +59,7 @@ class CameraNode(Node):
         msg.height, msg.width = frame.shape[:2]
         msg.encoding = "bgr8"
         msg.step = msg.width * 3
-        self.get_logger().info(f"contiguous: {frame.flags['C_CONTIGUOUS']}")
-        t0 = time.monotonic()
-        msg.data = frame.tobytes()
-        self.get_logger().info(f"tobytes: {(time.monotonic() - t0)*1000:.2f}ms")
-        t0 = time.monotonic()
-        _ = bytes(frame.data)
-        self.get_logger().info(f"bytes(frame.data): {(time.monotonic() - t0)*1000:.2f}ms")
+        msg.data = bytes(frame.data)  # ~0.08ms vs tobytes() ~97ms on Jetson
         self.pub.publish(msg)
         self.frame_count += 1
         if self.frame_count % 100 == 0:
