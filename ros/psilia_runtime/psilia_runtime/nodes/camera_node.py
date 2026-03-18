@@ -10,6 +10,8 @@ Parameters (set via launch_params.yaml):
 
 If the device cannot be opened, the node logs a warning and retries every second.
 """
+import time
+
 import rclpy
 import cv2
 from builtin_interfaces.msg import Time # type: ignore
@@ -29,6 +31,10 @@ class CameraNode(Node):
     fps: ROSValue = 30
 
     def __node_init__(self):
+        self.get_logger().info(
+            f"CameraNode init: device={self.device} format={self.pixel_format} "
+            f"{self.width}x{self.height} fps={self.fps} timer_period={1.0/self.fps:.4f}s"
+        )
         self.pub = self.create_publisher(Image, "/psilia/image/raw", 10)
         self._stream = CameraStream(
             self.device, self.pixel_format, self.width, self.height, self.fps,
@@ -55,7 +61,9 @@ class CameraNode(Node):
         msg.height, msg.width = frame.shape[:2]
         msg.encoding = "bgr8"
         msg.step = msg.width * 3
+        t0 = time.monotonic()
         msg.data = frame.tobytes()
+        self.get_logger().info(f"tobytes: {(time.monotonic() - t0)*1000:.2f}ms")
         self.pub.publish(msg)
         self.frame_count += 1
         if self.frame_count % 100 == 0:
