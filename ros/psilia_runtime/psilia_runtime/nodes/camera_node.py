@@ -51,7 +51,7 @@ class CameraNode(Node):
         self.pub_test.publish(String(data="tick"))
 
     def publish_frame(self):
-        t0 = time.monotonic()
+        t_start = time.monotonic()
 
         if not self._stream.is_open:
             self._stream.open()
@@ -59,6 +59,7 @@ class CameraNode(Node):
 
         # frame = self._stream.pop_latest_frame()
         entry = self._stream.get_latest_timed_frame()
+        t_got_frame = time.monotonic()
         if entry is None:
             return  # no new frame since last publish
 
@@ -69,10 +70,21 @@ class CameraNode(Node):
         msg.height, msg.width = frame.shape[:2]
         msg.encoding = "bgr8"
         msg.step = msg.width * 3
+        t_pre_bytes = time.monotonic()
         msg.data = bytes(frame.data)  # ~0.08ms vs tobytes() ~97ms on Jetson
+        t_post_bytes = time.monotonic()
         self.pub.publish(msg)
+        t_end = time.monotonic()
+
+        ms = lambda a, b: f"{(b-a)*1000:.2f}ms"
+        self.get_logger().info(
+            f"get_frame={ms(t_start, t_got_frame)} "
+            f"pre_bytes={ms(t_got_frame, t_pre_bytes)} "
+            f"bytes={ms(t_pre_bytes, t_post_bytes)} "
+            f"publish={ms(t_post_bytes, t_end)} "
+            f"total={ms(t_start, t_end)}"
+        )
         self.frame_count += 1
-        self.get_logger().info(f"publish_frame: {(time.monotonic() - t0)*1000:.2f}ms")
         if self.frame_count % 100 == 0:
             self.get_logger().info(f"Frame {self.frame_count}: {msg.width}x{msg.height} ({msg.encoding})")
 
