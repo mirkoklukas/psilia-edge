@@ -216,6 +216,28 @@ def better_node(cls):
     hits Node.__init__ exactly once — intermediate subclasses would risk double-init
     of the ROS middleware.
 
+    __node_init__ arguments
+    -----------------------
+    __node_init__ may declare additional keyword arguments with defaults.
+    These become constructor arguments on the node class, allowing Python-level
+    objects (e.g. a shared CameraStream) to be injected at instantiation time
+    without going through the ROS parameter system.
+
+        @better_node
+        class CameraNode(Node):
+            fps: ROSValue = 30
+
+            def __node_init__(self, stream: CameraStream = None):
+                self._stream = stream or CameraStream(..., fps=self.fps)
+
+        # Uses its own stream
+        CameraNode()
+
+        # Shares an existing stream with another node
+        stream = CameraStream(...)
+        CameraNode(stream=stream)
+        DepthNode(stream=stream)
+
     Usage::
 
         @better_node
@@ -236,7 +258,27 @@ def better_node(cls):
     # Collect ROSValue annotations once at decoration time, not per instantiation.
     class_hints = get_type_hints(cls)
 
-    def new_init(self):
+    # Collect __node_init__ kwargs (non-self params) — these become constructor args.
+    node_init_sig = inspect.signature(cls.__node_init__)
+    node_init_params = {
+        name: param
+        for name, param in node_init_sig.parameters.items()
+        if name != "self"
+    }
+
+    def new_init(self, **kwargs):
+        # Validate: only accept kwargs that __node_init__ declares.
+        for key in kwargs:
+            if key not in node_init_params:
+                raise TypeError(f"{cls.__name__}() got unexpected keyword argument '{key}'")
+
+        # Apply defaults for any __node_init__ kwargs not provided by the caller.
+        for name, param in node_init_params.items():
+            if name not in kwargs:
+                if param.default is inspect.Parameter.empty:
+                    raise TypeError(f"{cls.__name__}() missing required argument '{name}'")
+                kwargs[name] = param.default
+
         # Step 1: initialise the ROS middleware — must happen before any ROS calls.
         super(cls, self).__init__(to_snake_case(cls.__name__))
 
@@ -251,7 +293,7 @@ def better_node(cls):
                 setattr(self, name, self.get_parameter(name).value)
 
         # Step 3: user-defined node setup — all params are on self at this point.
-        cls.__node_init__(self)
+        cls.__node_init__(self, **kwargs)
 
         # Step 4: wire up @every_seconds timers.
         # Scanned after __node_init__ so that any state the callbacks depend on
