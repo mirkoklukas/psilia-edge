@@ -54,6 +54,10 @@ class CameraNode(Node):
 
         t, frame = entry
         stamp = Time(sec=int(t), nanosec=int((t % 1) * 1e9))
+        # CvBridge handles the numpy → ROS message conversion efficiently.
+        # Manual construction via msg.data = frame.tobytes() was ~97ms on Jetson —
+        # not tobytes() itself (0.05ms), but the assignment to msg.data, which
+        # triggers a slow internal type conversion in rclpy's uint8[] field handling.
         msg = self._bridge.cv2_to_imgmsg(frame, encoding="bgr8")
         msg.header = Header(stamp=stamp, frame_id="camera")
         self.pub.publish(msg)
