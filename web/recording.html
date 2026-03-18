@@ -55,6 +55,12 @@
       display: block;
     }
     #preview-status { font-size: 0.75rem; color: #555; margin-top: 0.5rem; }
+    .topic-list { list-style: none; padding: 0; margin: 0; }
+    .topic-list li { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0; border-bottom: 1px solid #1a1a2e; }
+    .topic-list li:last-child { border-bottom: none; }
+    .topic-list label { font-family: monospace; font-size: 0.8rem; color: #e0e0e0; cursor: pointer; }
+    input[type="checkbox"] { accent-color: #4ecca3; cursor: pointer; flex-shrink: 0; }
+    #topics-placeholder { font-size: 0.75rem; color: #555; }
   </style>
 </head>
 <body>
@@ -98,6 +104,13 @@
     <input type="text" id="session-input" placeholder="e.g. crimson-falcon" />
   </div>
 
+  <div class="card">
+    <h2>topics</h2>
+    <ul class="topic-list" id="topic-list">
+      <li id="topics-placeholder">waiting for rosbridge…</li>
+    </ul>
+  </div>
+
   <script>
     const ROSBRIDGE_URL = `ws://${location.hostname}:${window.PSILIA.rosbridgePort}`;
 
@@ -111,6 +124,24 @@
     ros.on('connection', () => {
       document.getElementById('ros-status').textContent = '';
       document.getElementById('record-btn').disabled = false;
+      ros.getTopics(({ topics }) => {
+        const list = document.getElementById('topic-list');
+        list.innerHTML = '';
+        topics.sort().forEach(topic => {
+          const li = document.createElement('li');
+          const id = 'topic-' + topic.replace(/\//g, '-');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.id = id;
+          cb.value = topic;
+          cb.checked = DEFAULT_TOPICS.includes(topic);
+          const label = document.createElement('label');
+          label.htmlFor = id;
+          label.textContent = topic;
+          li.append(cb, label);
+          list.appendChild(li);
+        });
+      });
     });
 
     ros.on('error', () => {
@@ -183,15 +214,18 @@
       messageType: 'std_msgs/String',
     });
 
+    function getCheckedTopics() {
+      return [...document.querySelectorAll('#topic-list input[type="checkbox"]:checked')]
+        .map(cb => cb.value);
+    }
+
     function toggleRecording() {
       if (isRecording) {
         stopTopic.publish(new ROSLIB.Message({ data: '' }));
       } else {
         const session = document.getElementById('session-input').value.trim() || 'session';
-        const payload = JSON.stringify({
-          session,
-          topics: DEFAULT_TOPICS,
-        });
+        const topics = getCheckedTopics();
+        const payload = JSON.stringify({ session, topics });
         startTopic.publish(new ROSLIB.Message({ data: payload }));
       }
     }
