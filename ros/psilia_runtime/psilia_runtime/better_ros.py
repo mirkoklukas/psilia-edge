@@ -148,42 +148,128 @@ def better_node_2(cls):
     return cls
 
 
+def every_seconds(interval):
+    """Mark a method to be called as a ROS timer at a fixed interval (in seconds).
+
+    The timer is registered automatically by better_node after __node_init__ runs,
+    so self is fully initialised by the time the interval is evaluated and the
+    callback fires.
+
+    Best suited for debug/logging callbacks — the decorator keeps the timer interval
+    and the function in one place, making it easy to add or remove without touching
+    __node_init__. For timers that are central to the node's behaviour, prefer an
+    explicit create_timer() call in __node_init__ so all core wiring is visible
+    in one place.
+
+    interval can be:
+      - a float: used directly as the timer period
+      - a callable (e.g. lambda self: 1/self.fps): called with self at init time,
+        must return a float (see EXPERIMENTAL note in better_node)
+
+    Usage::
+
+        @every_seconds(2.0)
+        def _log_fps(self):
+            ...
+    """
+    def decorator(fn):
+        fn._timer_interval = interval
+        return fn
+    return decorator
+
+
 # TODO: consider allowing an optional node name to be passed to the decorator,
 #       e.g. @node("my_camera_node"), falling back to to_snake_case(cls.__name__)
 #       if not provided. Would require the decorator to handle both @node and @node("name").
 def better_node(cls):
-    """Decorator that handles ROS 2 node initialization boilerplate.
+    """Decorator that eliminates ROS 2 node initialization boilerplate.
 
-    Owns __init__ entirely — calls Node.__init__ with an auto-generated node
-    name (snake_case of the class name), declares and reads all class-level
-    ROSValue-annotated attributes, assigns them as instance attributes, then
-    calls __node_init__ with no extra parameters.
+    Replaces __init__ entirely. The user defines __node_init__ instead, which
+    is called after the ROS middleware is up and all parameters are resolved.
+    Node name is derived automatically from the class name (CamelCase → snake_case).
+
+    What it does, in order:
+      1. Calls Node.__init__ with the auto-generated node name (ROS middleware ready after this)
+      2. Resolves ROSValue parameters — declares each one, reads the value back from ROS,
+         and assigns it as a plain instance attribute (e.g. self.fps = 30)
+      3. Calls __node_init__ — user setup runs here with all params already on self
+      4. Wires up @every_seconds timers — scans the class for methods tagged with
+         _timer_interval and registers a ROS timer for each
+
+    ROSValue parameters
+    -------------------
+    Class-level attributes annotated with ROSValue are treated as ROS parameters.
+    The class-level value is used as the default. After __node_init__ the attribute
+    holds the resolved value (from launch file, command line, or default).
+
+        class CameraNode(Node):
+            fps: ROSValue = 30   # declared as ROS param; self.fps is plain int after init
+
+    @every_seconds timers
+    ---------------------
+    Methods decorated with @every_seconds(interval) are automatically registered
+    as ROS timers after __node_init__ runs. See every_seconds() for details.
+
+    Constraints
+    -----------
+    Only applies to direct subclasses of Node. This ensures super(cls, self).__init__()
+    hits Node.__init__ exactly once — intermediate subclasses would risk double-init
+    of the ROS middleware.
 
     Usage::
 
         @better_node
-        class MyCameraNode(Node):
-            camera_type: ROSValue = "zed2i"
+        class CameraNode(Node):
             fps: ROSValue = 30
 
             def __node_init__(self):
-                self.timer = self.create_timer(1.0 / self.fps, self.tick)
+                # self.fps is already resolved here
+                self.create_timer(1.0 / self.fps, self.publish_frame)
+
+            @every_seconds(2.0)
+            def _log_fps(self):
+                ...
     """
     if not Node in cls.__bases__:
         raise TypeError("better_node can only be applied to direct subclasses of rclpy.node.Node")
 
+    # Collect ROSValue annotations once at decoration time, not per instantiation.
     class_hints = get_type_hints(cls)
 
     def new_init(self):
+        # Step 1: initialise the ROS middleware — must happen before any ROS calls.
         super(cls, self).__init__(to_snake_case(cls.__name__))
 
+        # Step 2: resolve ROSValue parameters.
+        # Declare each param with its class-level default, then read the resolved
+        # value back (may differ if set via launch file or command line) and
+        # assign it as a plain instance attribute so __node_init__ can use it directly.
         for name, hint in class_hints.items():
             if hint is ROSValue:
                 default = getattr(cls, name)
                 self.declare_parameter(name, default)
                 setattr(self, name, self.get_parameter(name).value)
 
+        # Step 3: user-defined node setup — all params are on self at this point.
         cls.__node_init__(self)
+
+        # Step 4: wire up @every_seconds timers.
+        # Scanned after __node_init__ so that any state the callbacks depend on
+        # is already initialised.
+        for name in dir(cls):
+            method = getattr(cls, name)
+            if callable(method) and hasattr(method, '_timer_interval'):
+                interval = method._timer_interval
+                # EXPERIMENTAL: callable interval (e.g. lambda self: 1/self.fps).
+                # Exists to work around self not being available at decoration time.
+                # In practice this is a workaround dressed as a feature — it adds
+                # indirection without removing complexity compared to a plain
+                # create_timer() call in __node_init__. Sweet spot for @every_seconds
+                # is fixed intervals only. Consider dropping callable support if it
+                # doesn't prove its worth.
+                if callable(interval):
+                    interval = interval(self)
+                self.create_timer(interval, getattr(self, name))
 
     cls.__init__ = new_init
 

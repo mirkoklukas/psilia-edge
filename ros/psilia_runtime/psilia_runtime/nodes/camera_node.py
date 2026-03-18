@@ -8,24 +8,15 @@ Parameters (set via launch_params.yaml):
   height        — capture height in pixels
   fps           — capture frame rate
 
-Frame capture runs in a dedicated thread so that cap.read() blocking never
-stalls the ROS timer. The timer only picks up the latest frame and publishes.
-
 If the device cannot be opened, the node logs a warning and retries every second.
 """
-import threading
-
 import rclpy
 import cv2
 from rclpy.node import Node # type: ignore
 from sensor_msgs.msg import Image # type: ignore
 from std_msgs.msg import Header # type: ignore
-from psilia_runtime.better_ros import better_node, ROSValue
-
-_FOURCC = {
-    "MJPG": cv2.VideoWriter_fourcc("M", "J", "P", "G"),
-    "YUYV": cv2.VideoWriter_fourcc("Y", "U", "Y", "V"),
-}
+from psilia_runtime.better_ros import better_node, ROSValue, every_seconds
+from psilia_runtime.camera_stream import CameraStream
 
 
 @better_node
@@ -38,73 +29,20 @@ class CameraNode(Node):
 
     def __node_init__(self):
         self.pub = self.create_publisher(Image, "/psilia/image/raw", 10)
-        self.cap = None
-        self._latest_frame = None
-        self._frame_lock = threading.Lock()
-        self._stop_capture = threading.Event()
-        self._capture_thread = None
+        self._stream = CameraStream(
+            self.device, self.pixel_format, self.width, self.height, self.fps,
+            logger=self.get_logger(),
+        )
+        self._stream.open()
         self.frame_count = 0
-        self.open_camera()
         self.create_timer(1.0 / self.fps, self.publish_frame)
 
-    def open_camera(self) -> bool:
-        # Stop any existing capture thread before (re)opening
-        self._stop_capture.set()
-        if self._capture_thread is not None:
-            self._capture_thread.join(timeout=2.0)
-
-        self.cap = cv2.VideoCapture(self.device, cv2.CAP_V4L2)
-        if not self.cap.isOpened():
-            self.get_logger().warn(f"Could not open camera device: {self.device}")
-            self.cap = None
-            return False
-
-        fourcc = _FOURCC.get(self.pixel_format)
-        if fourcc:
-            self.cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
-
-        self.get_logger().info(
-            f"Camera requesting configuration: {self.device} "
-            f"({self.pixel_format} {self.width}x{self.height} @ {self.fps}fps)"
-        )
-
-        cfg_fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
-        cfg_fmt    = "".join(chr((cfg_fourcc >> (8 * i)) & 0xFF) for i in range(4)).strip("\x00")
-        cfg_width  = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        cfg_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        cfg_fps    = self.cap.get(cv2.CAP_PROP_FPS)
-        self.get_logger().info(
-            f"Camera configured: {cfg_fmt} {cfg_width}x{cfg_height} @ {cfg_fps:.1f}fps"
-        )
-
-        self._stop_capture.clear()
-        self._capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
-        self._capture_thread.start()
-        return True
-
-    def _capture_loop(self):
-        while not self._stop_capture.is_set():
-            ret, frame = self.cap.read()
-            if not ret:
-                self.get_logger().warn("Capture thread: failed to read frame — reopening camera")
-                self.cap.release()
-                self.cap = None
-                return  # publish_frame will detect cap is None and call open_camera()
-            with self._frame_lock:
-                self._latest_frame = frame
-
     def publish_frame(self):
-        if self.cap is None:
-            self.open_camera()
+        if not self._stream.is_open:
+            self._stream.open()
             return
 
-        with self._frame_lock:
-            frame = self._latest_frame
-            self._latest_frame = None  # mark consumed — don't republish stale frames
-
+        frame = self._stream.get_latest_frame()
         if frame is None:
             return  # no new frame since last publish
 
@@ -119,6 +57,13 @@ class CameraNode(Node):
         self.frame_count += 1
         if self.frame_count % 100 == 0:
             self.get_logger().info(f"Frame {self.frame_count}: {msg.width}x{msg.height} ({msg.encoding})")
+
+
+    @every_seconds(2.0)
+    def _log_fps(self):
+        fps = self._stream.estimated_fps
+        if fps is not None:
+            self.get_logger().info(f"Estimated capture FPS: {fps:.1f}")
 
 
 def main():
