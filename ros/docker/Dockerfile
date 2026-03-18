@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     v4l-utils \
     ros-humble-rosbridge-server \
+    ros-humble-rosbag2-storage-mcap \
     # ros-humble-cv-bridge \  # only needed if using CvBridge (requires numpy<2 pin)
     # ros-humble-foxglove-bridge \
     && rm -rf /var/lib/apt/lists/*
