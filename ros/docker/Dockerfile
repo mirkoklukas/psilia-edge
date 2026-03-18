@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y \
 #   - Add a requirements.txt next to the Dockerfile and RUN pip install -r requirements.txt
 #   - Use a uv venv inside the container for fast, reproducible installs
 #   Currently installing directly into the system Python to keep it simple.
-RUN pip install opencv-python-headless
+RUN pip install "numpy<2" opencv-python-headless
 
 # Install psilia inference library (depth + pose algorithms)
 # RUN pip install psilia
