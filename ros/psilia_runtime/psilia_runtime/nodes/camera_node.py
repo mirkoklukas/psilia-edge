@@ -56,6 +56,16 @@ class CameraNode(Node):
             f"Camera opened: {self.device} "
             f"({self.pixel_format} {self.width}x{self.height} @ {self.fps}fps)"
         )
+
+        cfg_fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
+        cfg_fmt    = "".join(chr((cfg_fourcc >> (8 * i)) & 0xFF) for i in range(4)).strip("\x00")
+        cfg_width  = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        cfg_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cfg_fps    = self.cap.get(cv2.CAP_PROP_FPS)
+        self.get_logger().info(
+            f"Camera configured: {cfg_fmt} {cfg_width}x{cfg_height} @ {cfg_fps:.1f}fps"
+        )
+
         return True
 
     def publish_frame(self):
