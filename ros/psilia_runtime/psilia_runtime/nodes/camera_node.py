@@ -64,6 +64,10 @@ class CameraNode(Node):
             return  # no new frame since last publish
 
         t, frame = entry
+        self.get_logger().info(
+            f"frame dtype={frame.dtype} shape={frame.shape} strides={frame.strides} "
+            f"data type={type(frame.data).__name__}"
+        )
         stamp = Time(sec=int(t), nanosec=int((t % 1) * 1e9))
         msg = Image()
         msg.header = Header(stamp=stamp, frame_id="camera")
