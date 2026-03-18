@@ -93,7 +93,7 @@
 
   <div class="card">
     <h2>/psilia/image/preview</h2>
-    <img id="preview-img" alt="waiting for preview…" />
+    <img id="preview-img" style="display:none" />
     <div id="preview-status">waiting for /psilia/image/preview/compressed…</div>
   </div>
 
@@ -127,7 +127,11 @@
       ros.getTopics(({ topics }) => {
         const list = document.getElementById('topic-list');
         list.innerHTML = '';
-        topics.sort().forEach(topic => {
+        topics.sort((a, b) => {
+          const ap = a.startsWith('/psilia/'), bp = b.startsWith('/psilia/');
+          if (ap !== bp) return ap ? -1 : 1;
+          return a.localeCompare(b);
+        }).forEach(topic => {
           const li = document.createElement('li');
           const id = 'topic-' + topic.replace(/\//g, '-');
           const cb = document.createElement('input');
@@ -182,7 +186,9 @@
     });
 
     previewTopic.subscribe(msg => {
-      document.getElementById('preview-img').src = 'data:image/jpeg;base64,' + msg.data;
+      const img = document.getElementById('preview-img');
+      img.src = 'data:image/jpeg;base64,' + msg.data;
+      img.style.display = 'block';
       document.getElementById('preview-status').textContent = '';
     });
 

@@ -79,6 +79,13 @@ def generate_launch_description():
         parameters=[{"port": 9090}],
     )
 
+    rosapi = Node(
+        package="rosapi",
+        executable="rosapi_node",
+        name="rosapi",
+        output="screen",
+    )
+
     # foxglove_bridge = Node(
     #     package="foxglove_bridge",
     #     executable="foxglove_bridge",
@@ -93,5 +100,6 @@ def generate_launch_description():
         camera_node,
         preview_node,
         rosbridge,
+        rosapi,
         mock_node,
     ])
