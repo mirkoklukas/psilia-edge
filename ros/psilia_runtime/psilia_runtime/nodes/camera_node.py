@@ -65,6 +65,9 @@ class CameraNode(Node):
         t0 = time.monotonic()
         msg.data = frame.tobytes()
         self.get_logger().info(f"tobytes: {(time.monotonic() - t0)*1000:.2f}ms")
+        t0 = time.monotonic()
+        _ = bytes(frame.data)
+        self.get_logger().info(f"bytes(frame.data): {(time.monotonic() - t0)*1000:.2f}ms")
         self.pub.publish(msg)
         self.frame_count += 1
         if self.frame_count % 100 == 0:
