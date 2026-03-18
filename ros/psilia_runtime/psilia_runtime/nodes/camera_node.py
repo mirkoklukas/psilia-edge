@@ -11,6 +11,9 @@ Parameters (set via launch_params.yaml):
 If the device cannot be opened, the node logs a warning and retries every second.
 """
 import array
+import time
+
+import numpy as np
 
 import rclpy
 from builtin_interfaces.msg import Time # type: ignore
@@ -40,12 +43,18 @@ class CameraNode(Node):
             logger=self.get_logger(),
         )
         self._stream.open()
+        self._last_open_attempt = 0.0
         self.frame_count = 0
+        self._buf = array.array('B', bytes(self.width * self.height * 3))
+        self._np_buf = np.frombuffer(self._buf, dtype=np.uint8)
         self.create_timer(1.0 / self.fps, self.publish_frame)
 
     def publish_frame(self):
         if not self._stream.is_open:
-            self._stream.open()
+            now = time.monotonic()
+            if now - self._last_open_attempt >= 1.0:
+                self._last_open_attempt = now
+                self._stream.open()
             return
 
         entry = self._stream.get_latest_timed_frame()
@@ -55,9 +64,17 @@ class CameraNode(Node):
         t, frame = entry
         stamp = Time(sec=int(t), nanosec=int((t % 1) * 1e9))
 
-        # msg.data = frame.tobytes() was ~97ms on Jetson — not tobytes() itself
-        # (0.05ms), but the assignment, which triggers a slow element-by-element
-        # Python iteration in rclpy's uint8[] field (bytes → array.array).
+        # np.copyto writes directly into the pre-allocated array.array buffer via
+        # a numpy view (_np_buf = np.frombuffer(_buf)) — no intermediate bytes object.
+        # rclpy then bulk-copies from the array.array at the C level (~0.17ms).
+        # Net: one copy (frame → _buf) instead of two (frame → bytes → array).
+        #
+        # Previous approach (two allocations, two copies):
+        #   msg.data = array.array('B', frame.tobytes())
+        #
+        # Note on the previous approach: msg.data = frame.tobytes() was ~97ms on Jetson —
+        # not tobytes() itself (0.05ms), but the assignment, which triggers slow
+        # element-by-element Python iteration in rclpy's uint8[] field (bytes → array.array).
         # Using array.array('B', ...) hits rclpy's fast C-level bulk copy instead (~0.17ms).
         # 'B' is the type code for unsigned char (uint8) — exactly what rclpy expects
         # for a uint8[] field, so no conversion is needed and the assignment is fast.
@@ -71,11 +88,16 @@ class CameraNode(Node):
         msg.height, msg.width = frame.shape[:2]
         msg.encoding = "bgr8"
         msg.step = msg.width * 3
-        msg.data = array.array('B', frame.tobytes())
+        np.copyto(self._np_buf, frame.ravel())
+        msg.data = self._buf
         self.pub.publish(msg)
         self.frame_count += 1
         if self.frame_count % 100 == 0:
             self.get_logger().info(f"Frame {self.frame_count}: {msg.width}x{msg.height} ({msg.encoding})")
+
+    def destroy_node(self):
+        self._stream.close()
+        super().destroy_node()
 
     @every_seconds(2.0)
     def _log_fps(self):

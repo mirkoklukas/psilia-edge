@@ -21,6 +21,7 @@ setup(
             "mock = psilia_runtime.nodes.mock_node:main",
             "depth = psilia_runtime.nodes.depth_node:main",
             "pose = psilia_runtime.nodes.pose_node:main",
+            "preview = psilia_runtime.nodes.preview_node:main",
         ],
     },
     packages=[package_name, f"{package_name}.nodes"],

@@ -64,6 +64,13 @@ def generate_launch_description():
         parameters=[_LAUNCH_PARAMS],
     )
 
+    preview_node = Node(
+        package="psilia_runtime",
+        executable="preview",
+        name="preview_node",
+        output="screen",
+    )
+
     rosbridge = Node(
         package="rosbridge_server",
         executable="rosbridge_websocket",
@@ -84,6 +91,7 @@ def generate_launch_description():
         ping_node,
         recording_node,
         camera_node,
+        preview_node,
         rosbridge,
         mock_node,
     ])

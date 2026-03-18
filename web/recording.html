@@ -48,6 +48,13 @@
     button.stop { background: #e05c5c; color: #fff; }
     button:disabled { opacity: 0.4; cursor: default; }
     button:active:not(:disabled) { opacity: 0.8; }
+    #preview-img {
+      width: 100%;
+      image-rendering: pixelated;
+      border-radius: 0.35rem;
+      display: block;
+    }
+    #preview-status { font-size: 0.75rem; color: #555; margin-top: 0.5rem; }
   </style>
 </head>
 <body>
@@ -76,6 +83,12 @@
       <span class="label">last received</span>
       <span class="value dim" id="hb-received">—</span>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>live preview</h2>
+    <img id="preview-img" alt="waiting for preview…" />
+    <div id="preview-status">waiting for /psilia/image/preview/compressed…</div>
   </div>
 
   <div class="card">
@@ -128,6 +141,18 @@
       document.getElementById('hb-stamp').className    = 'value dim';
       document.getElementById('hb-received').textContent = new Date().toLocaleTimeString();
       document.getElementById('hb-received').className   = 'value green';
+    });
+
+    // --- /psilia/image/preview/compressed subscriber ---
+    const previewTopic = new ROSLIB.Topic({
+      ros,
+      name: '/psilia/image/preview/compressed',
+      messageType: 'sensor_msgs/CompressedImage',
+    });
+
+    previewTopic.subscribe(msg => {
+      document.getElementById('preview-img').src = 'data:image/jpeg;base64,' + msg.data;
+      document.getElementById('preview-status').textContent = '';
     });
 
     // --- /psilia/recording/status subscriber ---
