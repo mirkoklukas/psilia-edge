@@ -75,7 +75,9 @@ class CameraNode(Node):
         msg.encoding = "bgr8"
         msg.step = msg.width * 3
         t_pre_bytes = time.monotonic()
-        msg.data = bytes(frame.data)  # ~0.08ms vs tobytes() ~97ms on Jetson
+        frame_copy = frame.copy()
+        t_copied = time.monotonic()
+        msg.data = bytes(frame_copy.data)
         t_post_bytes = time.monotonic()
         self.pub.publish(msg)
         t_end = time.monotonic()
@@ -84,7 +86,8 @@ class CameraNode(Node):
         self.get_logger().info(
             f"get_frame={ms(t_start, t_got_frame)} "
             f"pre_bytes={ms(t_got_frame, t_pre_bytes)} "
-            f"bytes={ms(t_pre_bytes, t_post_bytes)} "
+            f"copy={ms(t_pre_bytes, t_copied)} "
+            f"bytes={ms(t_copied, t_post_bytes)} "
             f"publish={ms(t_post_bytes, t_end)} "
             f"total={ms(t_start, t_end)}"
         )
