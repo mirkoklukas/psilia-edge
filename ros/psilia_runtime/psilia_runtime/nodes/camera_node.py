@@ -77,6 +77,11 @@ class CameraNode(Node):
         t_pre_bytes = time.monotonic()
         frame_copy = frame.copy()
         t_copied = time.monotonic()
+
+        t0 = time.monotonic(); _ = frame.tobytes();      self.get_logger().info(f"frame.tobytes():      {(time.monotonic()-t0)*1000:.2f}ms")
+        t0 = time.monotonic(); _ = frame_copy.tobytes(); self.get_logger().info(f"frame_copy.tobytes(): {(time.monotonic()-t0)*1000:.2f}ms")
+        t0 = time.monotonic(); _ = bytes(frame);         self.get_logger().info(f"bytes(frame):         {(time.monotonic()-t0)*1000:.2f}ms")
+
         msg.data = bytes(frame_copy.data)
         t_post_bytes = time.monotonic()
         self.pub.publish(msg)
