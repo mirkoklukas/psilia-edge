@@ -390,6 +390,29 @@ Then run `psilia runtime stop` to clean up the stale PID file before starting ag
 
 ## Notes & Ideas & Keep-in-minds
 
+### Camera pipeline architecture
+
+The frame pipeline is central to the runtime. The target architecture separates concerns into three layers:
+
+1. **CameraStream** — capture thread writes frames into a shared ring buffer. Pure Python/OpenCV, no ROS dependency.
+2. **Algorithm workers** (pose estimation, depth inference, etc.) — plain Python, each reads from the ring buffer, copies their frame, runs inference. No ROS.
+3. **ROS publisher nodes** — thin wrappers that drain result queues and publish to `/psilia/pose`, `/psilia/depth`, etc. ROS is only involved at this last step.
+
+This keeps algorithms independently testable outside ROS and decouples inference speed from the ROS publish rate.
+
+### Ring buffer for zero-copy frame sharing across processes
+
+For sharing frames across OS processes without copying through ROS topics or queues:
+
+- Main process allocates `N * frame_size + sizeof(int)` bytes via `multiprocessing.shared_memory`
+- Layout: N fixed-size frame slots + one int (write index) at a known offset
+- Capture thread writes frame at slot `i % N`, increments index
+- Each consumer process attaches by name, reads from `index - 1`, copies once into their own working buffer
+- Multiple readers never conflict — reads don't advance the pointer, only the capture thread does
+- At 30fps and N=10 slots, consumers have ~300ms of slack before their slot gets overwritten
+
+Synchronization is minimal — one atomic int write. No locks needed if memory ordering is handled carefully. At 3200x1200 color (11.5 MB/frame) zero-copy at the handoff matters — each consumer still pays one copy into their working buffer, but no additional copies for routing/queuing.
+
 - `runtime.yaml` should eventually have a `launch_args:` section — a user-friendly place to configure ROS node parameters (camera type, resolution, etc.). Before launch, `start_spatial_layer()` reads this section and writes a properly formatted ROS params yaml to `~/.psilia/run/` which gets passed to the nodes via `parameters=[...]`. Currently the params file is written directly from auto-detected values.
 
 

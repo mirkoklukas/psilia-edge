@@ -334,6 +334,10 @@ def better_node(cls):
                     interval = interval(self)
                 self.create_timer(interval, getattr(self, name))
 
+    new_init.__signature__ = inspect.Signature(
+        [inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+        + [p for name, p in node_init_sig.parameters.items() if name != "self"]
+    )
     cls.__init__ = new_init
 
     return cls
