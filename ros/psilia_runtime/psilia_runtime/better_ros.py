@@ -242,15 +242,23 @@ def better_node(cls):
 
         @better_node
         class CameraNode(Node):
-            fps: ROSValue = 30
+            fps: ROSValue = 30  # class-level style
 
-            def __node_init__(self):
-                # self.fps is already resolved here
+            def __node_init__(self, stream: CameraStream = None):
+                # ROS params resolved on self; Python kwargs passed directly
+                self._stream = stream or CameraStream(fps=self.fps)
                 self.create_timer(1.0 / self.fps, self.publish_frame)
 
             @every_seconds(2.0)
             def _log_fps(self):
                 ...
+
+        # ROSValue can also live in the __node_init__ signature:
+        @better_node
+        class DepthNode(Node):
+            def __node_init__(self, fps: ROSValue = 30, stream: CameraStream = None):
+                self._stream = stream
+                self.create_timer(1.0 / fps, self.process)
     """
     if not Node in cls.__bases__:
         raise TypeError("better_node can only be applied to direct subclasses of rclpy.node.Node")
@@ -258,8 +266,11 @@ def better_node(cls):
     # Collect ROSValue annotations once at decoration time, not per instantiation.
     class_hints = get_type_hints(cls)
 
-    # Collect __node_init__ kwargs (non-self params) — these become constructor args.
+    # Inspect __node_init__ signature at decoration time.
+    # Params annotated with ROSValue are treated as ROS parameters (declared + resolved).
+    # All other params are plain Python kwargs passed through at instantiation.
     node_init_sig = inspect.signature(cls.__node_init__)
+    node_init_hints = get_type_hints(cls.__node_init__)
     node_init_params = {
         name: param
         for name, param in node_init_sig.parameters.items()
@@ -272,7 +283,7 @@ def better_node(cls):
             if key not in node_init_params:
                 raise TypeError(f"{cls.__name__}() got unexpected keyword argument '{key}'")
 
-        # Apply defaults for any __node_init__ kwargs not provided by the caller.
+        # Apply defaults for any kwargs not provided by the caller.
         for name, param in node_init_params.items():
             if name not in kwargs:
                 if param.default is inspect.Parameter.empty:
@@ -282,15 +293,25 @@ def better_node(cls):
         # Step 1: initialise the ROS middleware — must happen before any ROS calls.
         super(cls, self).__init__(to_snake_case(cls.__name__))
 
-        # Step 2: resolve ROSValue parameters.
-        # Declare each param with its class-level default, then read the resolved
-        # value back (may differ if set via launch file or command line) and
-        # assign it as a plain instance attribute so __node_init__ can use it directly.
+        # Step 2: resolve ROSValue parameters — from both class-level annotations
+        # and __node_init__ parameter annotations. Both styles are equivalent:
+        #
+        #   class-level:          fps: ROSValue = 30
+        #   __node_init__ param:  def __node_init__(self, fps: ROSValue = 30)
+        #
+        # Class-level ROSValues are assigned to self; __node_init__ ROSValues are
+        # resolved and injected into kwargs so __node_init__ receives the live value.
         for name, hint in class_hints.items():
             if hint is ROSValue:
                 default = getattr(cls, name)
                 self.declare_parameter(name, default)
                 setattr(self, name, self.get_parameter(name).value)
+
+        for name, hint in node_init_hints.items():
+            if hint is ROSValue:
+                default = kwargs[name]  # default already applied above
+                self.declare_parameter(name, default)
+                kwargs[name] = self.get_parameter(name).value
 
         # Step 3: user-defined node setup — all params are on self at this point.
         cls.__node_init__(self, **kwargs)
