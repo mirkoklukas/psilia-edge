@@ -112,7 +112,7 @@
   </nav>
 
   <!-- Uptime -->
-  <div id="uptime-header">up <span id="base-uptime">—</span></div>
+  <div id="uptime-header"><span id="base-uptime">connecting…</span></div>
 
   <!-- Heartbeat -->
   <div class="card">
@@ -147,7 +147,7 @@
       const spatial = s.runtime?.spatial || {};
 
       // Uptime
-      document.getElementById('base-uptime').textContent = base.uptime || '—';
+      document.getElementById('base-uptime').textContent = base.uptime ? `up ${base.uptime}` : '—';
 
       // Spatial layer
       spatialRunning = !!spatial.running;
