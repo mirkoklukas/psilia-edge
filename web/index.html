@@ -147,7 +147,12 @@
       const spatial = s.runtime?.spatial || {};
 
       // Uptime
-      document.getElementById('base-uptime').textContent = base.uptime ? `up ${base.uptime}` : '—';
+      if (base.running && base.uptime) {
+        startUptimeTick(base.uptime);
+      } else {
+        stopUptimeTick();
+        document.getElementById('base-uptime').textContent = base.running === false ? 'offline' : '—';
+      }
 
       // Spatial layer
       spatialRunning = !!spatial.running;
@@ -217,6 +222,43 @@
         void circle.offsetWidth;
         circle.classList.add('beat');
       });
+
+    // ── Uptime tick ──────────────────────────────────────────────────
+    let _uptimeSecs = 0;
+    let _uptimeTimer = null;
+
+    function startUptimeTick(uptimeStr) {
+      _uptimeSecs = parseUptime(uptimeStr);
+      if (_uptimeTimer) clearInterval(_uptimeTimer);
+      _uptimeTimer = setInterval(() => {
+        _uptimeSecs++;
+        document.getElementById('base-uptime').textContent = `up ${formatUptime(_uptimeSecs)}`;
+      }, 1000);
+    }
+
+    function stopUptimeTick() {
+      if (_uptimeTimer) { clearInterval(_uptimeTimer); _uptimeTimer = null; }
+    }
+
+    function parseUptime(str) {
+      let s = 0;
+      const h = str.match(/(\d+)h/);
+      const m = str.match(/(\d+)m/);
+      const sec = str.match(/(\d+)s/);
+      if (h) s += parseInt(h[1]) * 3600;
+      if (m) s += parseInt(m[1]) * 60;
+      if (sec) s += parseInt(sec[1]);
+      return s;
+    }
+
+    function formatUptime(s) {
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      if (h) return `${h}h ${m}m`;
+      if (m) return `${m}m ${sec}s`;
+      return `${sec}s`;
+    }
 
     // ── Init: fetch current state immediately, then SSE for updates ──
     fetch('/api/status').then(r => r.json()).then(render).catch(() => {});
