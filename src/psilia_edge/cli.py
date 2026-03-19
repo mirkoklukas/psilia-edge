@@ -18,18 +18,10 @@ console = Console()
 
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
 
-_DEFAULT_INSTALL_DIR = "/ssd"  # default parent dir for psilia-runtime-home on Jetson
-
 app.add_typer(
     runtime_app,
     name="runtime",
     help="Commands to operate the runtime on Jetson devices",
-)
-
-app.add_typer(
-    runtime_app,
-    name="rt",
-    help="Alias for 'runtime' commands (e.g. 'psilia rt start <device>')",
 )
 
 
@@ -66,7 +58,7 @@ def _debug_runtime_host() -> None:
 
 def _debug_device_manager() -> None:
     from psilia_edge.runtime.config import CONFIG_PATH
-    from psilia_edge.device_manager.pair import (
+    from psilia_edge.device_manager.config import (
         _SSH_CONFIG_PATH,
         _SSH_SECTION_END,
         _SSH_SECTION_START,
@@ -84,123 +76,3 @@ def _debug_device_manager() -> None:
             _print_section(_SSH_CONFIG_PATH, "[dim]No psilia section found[/dim]")
     else:
         _print_section(_SSH_CONFIG_PATH, f"[dim]{_SSH_CONFIG_PATH} not found[/dim]")
-
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-#
-#   DEVICE MANAGEMENT COMMANDS
-#
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-@app.command(rich_help_panel="Device Management")
-def pair():
-    """Pair a Jetson: connect, generate SSH keypair, register device on this laptop."""
-    from psilia_edge.device_manager.pair import run_pair_wizard
-
-    run_pair_wizard()
-
-
-# # Path to bootstrap.py in the repo — works for editable installs (src layout).
-# _BOOTSTRAP_PY = Path(__file__).parent.parent.parent / "scripts" / "bootstrap.py"
-
-
-# @app.command(rich_help_panel="Device Management")
-# def bootstrap(device: Annotated[str, typer.Argument(help="Registered device name")]):
-#     """Bootstrap a Jetson over SSH: streams bootstrap.py via base64 + process substitution.
-
-#     The script is base64-encoded and embedded in the SSH command, then decoded on the
-#     remote via process substitution — so stdin stays as the terminal and the setup
-#     wizard runs interactively in one shot.
-#     """
-#     import base64
-#     import psilia_edge.ui as ui
-#     from psilia_edge.utils import run_on_device
-
-#     ui.header(
-#         ["Device Manager", "Bootstrapping", f"{device}"],
-#         descr="Installs psilia on the device and runs setup wizard",
-#     )
-
-#     if not _BOOTSTRAP_PY.exists():
-#         console.print(f"[red]bootstrap.py not found at {_BOOTSTRAP_PY}[/red]")
-#         raise typer.Exit(1)
-
-#     install_dir = ui.ask(
-#         "Install directory on device", default=str(_DEFAULT_INSTALL_DIR)
-#     )
-
-#     encoded = base64.b64encode(_BOOTSTRAP_PY.read_bytes()).decode()
-#     cmd = f"python3 <(echo '{encoded}' | base64 -d) {install_dir}"
-#     run_on_device(device, cmd, replace_process=True)
-
-
-# @app.command(rich_help_panel="Device Management", hidden=True)
-# def broken_bootstrap(
-#     device: Annotated[str, typer.Argument(help="Registered device name")],
-# ):
-#     """Broken bootstrap — pipes script via stdin so interactive prompts get EOF.
-
-#     Demonstrates the stdin conflict: bootstrap runs fine but the setup wizard
-#     at the end cannot read user input because stdin is the exhausted pipe.
-#     """
-#     import subprocess
-#     from psilia_edge.ui import ask
-
-#     if not _BOOTSTRAP_PY.exists():
-#         console.print(f"[red]bootstrap.py not found at {_BOOTSTRAP_PY}[/red]")
-#         raise typer.Exit(1)
-
-#     install_dir = ask("Install directory on device", default=str(_DEFAULT_INSTALL_DIR))
-
-#     # Pipe the script via stdin. SSH warns "Pseudo-terminal will not be allocated
-#     # because stdin is not a terminal" and the setup wizard at the end gets EOF
-#     # on stdin — interactive prompts fail or silently receive empty input.
-#     script = _BOOTSTRAP_PY.read_text()
-#     subprocess.run(
-#         ["ssh", "-t", device, f"python3 - {install_dir}"],
-#         input=script,
-#         text=True,
-#     )
-
-
-@app.command(rich_help_panel="Device Management")
-def devices():
-    """List all registered Jetson devices."""
-    from psilia_edge.runtime.config import read_config
-
-    config = read_config()
-    devs = config.get("registered_devices", {})
-
-    if not devs:
-        console.print("[dim]No devices registered. Run 'psilia pair' to add one.[/dim]")
-        return
-
-    from rich.table import Table
-
-    table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
-    table.add_column("Name")
-    table.add_column("Host")
-    table.add_column("User")
-    table.add_column("Camera")
-    table.add_column("Data Path")
-
-    for name, dev in devs.items():
-        table.add_row(
-            name,
-            dev.get("host", "—"),
-            dev.get("user", "—"),
-            dev.get("camera") or "—",
-            dev.get("data_path") or "—",
-        )
-
-    console.print(table)
-
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-#
-#   DATA MANAGEMENT COMMANDS
-#
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# @app.command(rich_help_panel="Data Management")
-# def pull(device: str = typer.Argument(None, help="Target device name")):
-#     """Pull recordings from Jetson to laptop. [dim](not yet implemented)[/dim]"""
-#     raise NotImplementedError

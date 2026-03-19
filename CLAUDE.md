@@ -15,5 +15,3 @@
 @docs/design.md
 @design-docs/about.md
 @design-docs/description.md
-@designdocs/filesystem.md
-@todo.md

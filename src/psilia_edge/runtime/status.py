@@ -20,6 +20,7 @@ from psilia_edge.runtime.daemon import LOG_FILE, get_pid
 from psilia_edge.runtime.docker import (
     check_container_status,
     is_docker_daemon_running,
+    is_ros_launch_running,
     is_port_open,
     list_ros_nodes,
     list_ros_topics,
@@ -75,27 +76,26 @@ def _base_section() -> dict:
 
     section |= {
         "uptime": _process_uptime(pid),
-        "pid": pid,
-        "url": f"http://{hostname}.local:{port}",
-        "lan_ip": f"http://{lan_ip}:{port}" if lan_ip else None,
-        "log": str(LOG_FILE),
+        "server": {
+            "pid": pid,
+            "url": f"http://{hostname}.local:{port}",
+            "lan_ip": f"http://{lan_ip}:{port}" if lan_ip else None,
+            "log": str(LOG_FILE),
+        },
+        "container": {
+            "name": CONTAINER_NAME,
+            "state": check_container_status(),
+        },
     }
     return section
 
 
 def _spatial_section() -> dict:
-    status = check_container_status()
-    container_running = status == "running"
-    section: dict = {
-        "container": {
-            "name": CONTAINER_NAME,
-            "running": container_running,
-            "state": status,
-        }
-    }
+    ros_running = is_ros_launch_running()
+    section: dict = {"running": ros_running}
 
-    if container_running:
-        section["ros"] = {
+    if ros_running:
+        section |= {
             "heartbeat": _heartbeat_section(),
             "nodes": list_ros_nodes(),
             "topics": list_ros_topics(),

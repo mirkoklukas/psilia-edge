@@ -53,4 +53,4 @@ RUN for f in /scripts/*.sh; do \
     done && rm -rf /scripts
 
 
-ENTRYPOINT ["/launch_ros.sh"]
+ENTRYPOINT ["/prep_ros.sh"]

@@ -31,7 +31,6 @@ from psilia_edge.runtime.config import (
     write_config,
     read_runtime_config,
     write_runtime_config,
-    get_runtime_config_path,
 )
 
 _DEFAULT_HOTSPOT_PASSWORD = "psilia1234"
@@ -39,66 +38,38 @@ _PSILIA_REPO_URL = "https://github.com/mirkoklukas/psilia-edge.git"
 _PSILIA_REPO_BRANCH = "dev"
 
 
-# TODO: What is a cool pattern, for running steps, printing to ui what has been done, and returning a config.
-#   and keeping the cli command and the work separated. Like which function should have ui calls, and
-#   which should just return dicts that the cli command can print?
 def run_runtime_init(runtime_home: Path, mkdir: bool = False) -> None:
-    """Initialize the runtime home directory.
+    """Wizard: initialize a runtime home directory.
 
-    - Creates psilia.yaml if it doesn't exist (with runtime.home_path set to runtime_home)
-    - Creates the runtime home directory structure
-    - Copies the psilia_runtime ROS package into the runtime home
-    - Builds the Docker image
-    - Writes runtime home path into psilia.yaml
-    - Writes a default runtime.yaml
+    Steps:
+    - Write runtime.home_path to psilia.yaml and write default runtime.yaml
+    - Create runtime home directory structure
+    - Build Docker image
+    - Copy psilia_runtime ROS package into runtime home
     """
-    # TODO: Requires docker for instance. Should have a check whether all
-    #   dependencies are met before we run through init?
-
-    if not runtime_home.exists() and not mkdir:
-        raise RuntimeError(
-            f"Runtime home directory '{runtime_home}' does not exist."
-            f"Run with --create (-c) to create it."
-        )
-
     runtime_home = runtime_home.expanduser().resolve()
 
-    config = read_config(missing_ok=True)
-    config.update({"runtime": {"home_path": str(runtime_home)}})
-    write_config(config)
-
-    runtime_config = read_runtime_config(missing_ok=True)
-    write_runtime_config(runtime_config)
-
-    ui.status("Creating directories")
-    _step_create_dirs(runtime_home)
-    ui.ok("Directories ready")
-
-    ui.info("Building Docker image…")
-    with ui.status("This may take a while…"):
-        _step_build_image(get_docker_image(), get_docker_dir())
-        ui.ok("Docker image built")
-
-    # Depends on runtime home being set in config,
-    # and directories being created since it copies into the ros dir.
+    _step_init_configs(runtime_home)
+    _step_create_dirs(runtime_home, mkdir=mkdir)
+    _step_build_image(get_docker_image(), get_docker_dir())
     _step_copy_ros()
-    ui.ok("ROS package copied")
 
-    ui.print_tree(config, label=f"'{CONFIG_PATH.name}'")
-    ui.print_tree(runtime_config, label=f"'{get_runtime_config_path().name}'")
+    ui.print_tree(read_config(), label=f"'{CONFIG_PATH.name}'")
+    ui.done(
+        "Runtime initialized.",
+        "Next: [bold]psilia runtime start[/bold]",
+    )
 
-    return config, runtime_config
 
-
-def run_network_setup() -> None:
-    """Configure a WiFi hotspot (AP mode) on the Jetson so it is reachable in the field.
+def run_hotspot_setup() -> None:
+    """Wizard: configure a WiFi hotspot (AP mode) so the Jetson is reachable in the field.
 
     Flow:
     - Detect all AP-capable wifi interfaces via nmcli/iw
     - Check for any active hotspots — offer to replace them
     - Prompt for SSID, password, autostart, and start_on_runtime preferences
-    - Create one NM connection profile per AP-capable interface (same SSID/password)
-    - Write network config into psilia.yaml under 'network'
+    - Create one NM connection profile for the selected interface
+    - Write network config into psilia.yaml under 'network.ap'
 
     TODO: client mode — connect to a phone hotspot instead of acting as AP.
     """
@@ -210,12 +181,17 @@ def run_network_setup() -> None:
 
     write_config(config)
     ui.print_tree(config, label=f"'{CONFIG_PATH.name}'")
+    ui.done("Hotspot configured.", "Next: [bold]psilia runtime start[/bold]")
 
     return config
 
 
 def run_wifi_setup() -> None:
-    """Connect the Jetson to a WiFi network via nmcli.
+    """Wizard: connect the Jetson to a known home WiFi network via nmcli.
+
+    The home network is not for field use — it's a known WiFi the Jetson connects
+    to when available (e.g. at home base). The base layer detects if connected and
+    indicates it in the Web UI.
 
     Flow:
     - Detect wifi interfaces not currently in AP mode
@@ -353,8 +329,10 @@ def run_wifi_setup() -> None:
     else:
         ui.fail(f"Failed to connect to '{ssid}'")
 
+    ui.done("WiFi configured.", "Next: [bold]psilia runtime start[/bold]")
 
-def runtime_home_update() -> None:
+
+def run_update() -> None:
     """Pull latest changes and rebuild the Docker image locally (runs on the Jetson).
 
     - Copies the updated psilia_runtime ROS package into the runtime home
@@ -381,38 +359,48 @@ def runtime_home_update() -> None:
         _step_build_image(get_docker_image(), get_docker_dir())
         ui.ok("Docker image re-built")
 
+    ui.done("Runtime updated.", "Next: [bold]psilia runtime start[/bold]")
 
-def _step_create_dirs(runtime_home: Path) -> None:
-    for d in RUNTIME_DIRS:
-        dir_path = runtime_home / d
-        if not dir_path.exists():
-            dir_path.mkdir(parents=True, exist_ok=True)
-    return {}
+
+def _step_init_configs(runtime_home: Path) -> None:
+    config = read_config(missing_ok=True)
+    config.update({"runtime": {"home_path": str(runtime_home)}})
+    write_config(config)
+    runtime_config = read_runtime_config(missing_ok=True)
+    write_runtime_config(runtime_config)
+    ui.ok(f"Config written — runtime home: {runtime_home}")
+
+
+def _step_create_dirs(runtime_home: Path, mkdir: bool = False) -> None:
+    if not runtime_home.exists():
+        if not mkdir:
+            raise RuntimeError(
+                f"Runtime home '{runtime_home}' does not exist. Use --mkdir to create it."
+            )
+        runtime_home.mkdir(parents=True, exist_ok=True)
+    with ui.status("Creating directories…"):
+        for d in RUNTIME_DIRS:
+            (runtime_home / d).mkdir(parents=True, exist_ok=True)
+    ui.ok("Directories ready")
 
 
 def _step_copy_ros() -> None:
     src = get_repo_dir() / "ros/psilia_runtime"
     dst = get_ros_dir() / "src/psilia_runtime"
-
     if not src.exists():
         raise RuntimeError(f"psilia_runtime not found at {src} — is the repo cloned?")
+    with ui.status("Copying ROS package…"):
+        shutil.copytree(str(src), str(dst), dirs_exist_ok=True)
+    ui.ok("ROS package copied")
 
-    shutil.copytree(str(src), str(dst), dirs_exist_ok=True)
 
-    return {}
-
-
-# TODO: we might want to copy the docker file to the ros directory.
-#   And use that to build the image, so that users can modify it if needed.
-#   But for now we can just point to the one in the repo.
-def _step_build_image(image_name, docker_dir) -> None:
-    # TODO: path to docker file should be a configurable? not hardcoded?
-
+# TODO: we might want to copy the dockerfile to the ros directory so users can modify it.
+def _step_build_image(image_name: str, docker_dir: Path) -> None:
+    ui.info("Building Docker image (this may take a while)…")
     rc = run_streamed(f"docker build --network=host -t {image_name} {docker_dir}")
     if rc != 0:
         raise RuntimeError(f"Docker build failed with code {rc}")
-
-    return {"runtime": {"image": image_name}}
+    ui.ok(f"Docker image built: {image_name}")
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #

@@ -4,9 +4,99 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Psilia Edge</title>
+  <script src="/vendor/roslib.min.js"></script>
+  <script src="/api/js/config.js"></script>
   <link rel="stylesheet" href="/psilia.css">
   <style>
-    #api-status { font-size: 0.75rem; color: #555; margin-bottom: 1.25rem; }
+    #uptime-header {
+      font-size: 0.72rem;
+      font-family: monospace;
+      color: #444;
+      margin-bottom: 1rem;
+    }
+
+    @keyframes req-pop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.4); }
+      100% { transform: scale(1); }
+    }
+    .req-pop {
+      display: inline-block;
+      animation: req-pop 0.3s ease-out forwards;
+    }
+
+    @keyframes req-glow-green {
+      0%   { background: transparent; }
+      20%  { background: #4ecca318; }
+      100% { background: transparent; }
+    }
+    @keyframes req-glow-red {
+      0%   { background: transparent; }
+      20%  { background: #e0606018; }
+      100% { background: transparent; }
+    }
+    .req-glow-green { animation: req-glow-green 0.6s ease-out forwards; }
+    .req-glow-red   { animation: req-glow-red   0.6s ease-out forwards; }
+
+    @keyframes req-text-glow {
+      0%   { text-shadow: none; }
+      20%  { text-shadow: 0 0 8px currentColor; }
+      100% { text-shadow: none; }
+    }
+    .req-text-glow {
+      animation: req-pop 0.3s ease-out forwards, req-text-glow 0.6s ease-out forwards;
+    }
+    .req-label-glow {
+      animation: req-text-glow 0.6s ease-out forwards;
+    }
+
+    #hb-circle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #4ecca3;
+      transform: scale(0.35);
+      opacity: 0.3;
+      margin: 0.75rem auto 0.25rem;
+    }
+    #hb-circle.beat {
+      animation: hb-pulse 3s ease-out forwards;
+    }
+    @keyframes hb-pulse {
+      0%   { transform: scale(0.9); opacity: 0.3; }
+      3%   { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(0.8); opacity: 0.3; }
+    }
+    #hb-label {
+      font-size: 0.72rem;
+      color: #555;
+      text-align: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .btn {
+      flex: 1;
+      padding: 0.75rem 0;
+      border: none;
+      border-radius: 0.5rem;
+      font-size: 0.8rem;
+      font-family: monospace;
+      cursor: pointer;
+      background: #1a1a2e;
+      color: #888;
+      transition: color 0.15s, background 0.15s;
+    }
+    .btn:hover { color: #e0e0e0; }
+    .btn.primary { background: #4ecca322; color: #4ecca3; }
+    .btn.primary:hover { background: #4ecca344; }
+    .btn.danger  { background: #e0606022; color: #e06060; }
+    .btn.danger:hover  { background: #e0606044; }
+    .btn:disabled { opacity: 0.35; cursor: default; }
   </style>
 </head>
 <body>
@@ -20,63 +110,118 @@
     <a href="/config.html">config</a>
     <a href="/network-test.html">network test</a>
   </nav>
-  <div id="api-status">loading…</div>
 
-  <div class="card" id="services-card">
-    <h2>Services</h2>
-    <div class="row">
-      <span class="label">psilia-edge</span>
-      <span class="value green" id="svc-psilia">running</span>
-    </div>
-    <div class="row">
-      <span class="label">docker</span>
-      <span class="value dim" id="svc-docker">—</span>
-    </div>
-    <div class="row">
-      <span class="label">ros runtime</span>
-      <span class="value dim" id="svc-ros">—</span>
-    </div>
+  <!-- Uptime -->
+  <div id="uptime-header">up <span id="base-uptime">—</span></div>
+
+  <!-- Heartbeat -->
+  <div class="card">
+    <h2>/psilia/heartbeat</h2>
+    <div id="hb-circle"></div>
+    <div id="hb-label">connecting…</div>
   </div>
 
+  <!-- Spatial Layer -->
   <div class="card">
-    <h2>Network</h2>
-    <div id="network-list"><span style="color:#555;font-size:0.85rem;">loading…</span></div>
+    <h2>Spatial Layer</h2>
+    <div class="row">
+      <span class="label">container</span>
+      <span class="value dim" id="req-container">—</span>
+    </div>
+    <div class="row">
+      <span class="label">camera</span>
+      <span class="value dim" id="req-camera">—</span>
+    </div>
+    <div class="row">
+      <span class="label">hotspot</span>
+      <span class="value dim" id="req-hotspot">—</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="btn-toggle" onclick="spatialToggle()">start</button>
+    </div>
   </div>
 
   <script>
-    const stateColor = s => s === 'connected' ? 'green' : 'dim';
+    function render(s) {
+      const base    = s.runtime?.base    || {};
+      const spatial = s.runtime?.spatial || {};
+      const hotspot = s.hotspot          || {};
+      const camera  = s.sensors?.camera  || {};
 
-    function renderNetwork(ifaces) {
-      const el = document.getElementById('network-list');
-      if (!ifaces.length) { el.innerHTML = '<span style="color:#555;font-size:0.85rem;">none</span>'; return; }
-      el.innerHTML = ifaces.map(i => `
-        <div class="row">
-          <span class="label">${i.name}</span>
-          <span class="value ${stateColor(i.state)}">${i.ip || i.state}</span>
-        </div>`).join('');
+      // Uptime
+      document.getElementById('base-uptime').textContent = base.uptime || '—';
+
+      // Spatial layer
+      spatialRunning = !!spatial.running;
+      const btn = document.getElementById('btn-toggle');
+      btn.textContent = spatialRunning ? 'stop' : 'start';
+      btn.className   = spatialRunning ? 'btn danger' : 'btn primary';
+      btn.disabled    = false;
+
+      // Requirements checklist
+      setReq('req-container', base.container?.state === 'running');
+      setReq('req-camera',    !!camera.running);
+      setReq('req-hotspot',   !!hotspot.running);
     }
 
-    function renderServices(data) {
-      document.getElementById('svc-docker').textContent  = data.docker;
-      document.getElementById('svc-docker').className    = 'value ' + (data.docker === 'running' ? 'green' : 'dim');
-      document.getElementById('svc-ros').textContent     = data.ros_runtime;
-      document.getElementById('svc-ros').className       = 'value ' + (data.ros_runtime === 'running' ? 'green' : 'dim');
+    function set(id, text, cls) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = 'value ' + (cls || '');
     }
 
-    async function poll() {
-      try {
-        const r = await fetch('/api/status');
-        const d = await r.json();
-        document.getElementById('api-status').textContent = '';
-        renderNetwork(d.network || []);
-        renderServices(d);
-      } catch(e) {
-        document.getElementById('api-status').textContent = 'server unreachable';
+    function setReq(id, ok) {
+      const el = document.getElementById(id);
+      const symbol = ok ? '✓' : '✗';
+      const changed = el.textContent !== symbol;
+      el.textContent = symbol;
+      el.className   = 'value ' + (ok ? 'green' : 'red');
+      if (changed) {
+        el.classList.remove('req-text-glow');
+        void el.offsetWidth;
+        el.classList.add('req-text-glow');
+
+        const row = el.closest('.row');
+        const glowClass = ok ? 'req-glow-green' : 'req-glow-red';
+        row.classList.remove('req-glow-green', 'req-glow-red');
+        void row.offsetWidth;
+        row.classList.add(glowClass);
+
       }
     }
 
-    poll();
-    setInterval(poll, 3000);
+    // ── Spatial toggle ───────────────────────────────────────────────
+    let spatialRunning = false;
+
+    async function spatialToggle() {
+      document.getElementById('btn-toggle').disabled = true;
+      const url = spatialRunning ? '/api/spatial/stop' : '/api/spatial/start';
+      await fetch(url, { method: 'POST' });
+    }
+
+    // ── Heartbeat (rosbridge) ────────────────────────────────────────
+    const circle   = document.getElementById('hb-circle');
+    const hbLabel  = document.getElementById('hb-label');
+    const ros = new ROSLIB.Ros({ url: `ws://${location.hostname}:${window.PSILIA.rosbridgePort}` });
+
+    ros.on('connection', () => { hbLabel.textContent = ''; });
+    ros.on('error',      () => { hbLabel.textContent = 'rosbridge error'; });
+    ros.on('close',      () => {
+      hbLabel.textContent = '';
+      setTimeout(() => ros.connect(`ws://${location.hostname}:${window.PSILIA.rosbridgePort}`), 3000);
+    });
+
+    new ROSLIB.Topic({ ros, name: '/psilia/heartbeat', messageType: 'std_msgs/String' })
+      .subscribe(() => {
+        hbLabel.textContent = '';
+        circle.classList.remove('beat');
+        void circle.offsetWidth;
+        circle.classList.add('beat');
+      });
+
+    // ── SSE ──────────────────────────────────────────────────────────
+    const es = new EventSource('/api/events');
+    es.onmessage = e => render(JSON.parse(e.data));
   </script>
 </body>
 </html>

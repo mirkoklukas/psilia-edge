@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch_ros.actions import Node
+from launch_ros.actions import Node # type: ignore
 from psilia_runtime.better_ros import better_launch
 
 
@@ -31,26 +31,6 @@ def generate_launch_description():
             output='screen',
     )
 
-    mock_node = Node(
-        package="psilia_runtime",
-        executable="mock",
-        name="psilia_mock",
-        output="screen",
-    )
-
-    # depth_node = Node(
-    #     package="psilia_runtime",
-    #     executable="depth",
-    #     name="psilia_depth",
-    #     output="screen",
-    # )
-
-    # pose_node = Node(
-    #     package="psilia_runtime",
-    #     executable="pose",
-    #     name="psilia_pose",
-    #     output="screen",
-    # )
 
     # launch_params.yaml is written by start_spatial_layer() on the host before container launch.
     # It contains camera parameters detected at startup (device, format, resolution, fps).
@@ -101,5 +81,4 @@ def generate_launch_description():
         preview_node,
         rosbridge,
         rosapi,
-        mock_node,
     ])

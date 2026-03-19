@@ -53,6 +53,7 @@ nav a.active { color: #4ecca3; }
   font-weight: 600;
 }
 
-.green  { color: #4ecca3; }
-.dim    { color: #555; }
-.yellow { color: #f0c040; }
+.green   { color: #4ecca3; }
+.dim     { color: #555; }
+.yellow  { color: #f0c040; }
+.red { color: #e06060; }

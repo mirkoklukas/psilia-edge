@@ -21,7 +21,7 @@ TODO: Add a --dev flag (default from env var PSILIA_DEV=1) for dev mode.
 """
 
 from __future__ import annotations
-from typing import Optional, Annotated
+from typing import Optional, Annotated, get_type_hints
 import functools
 import inspect
 from pathlib import Path
@@ -32,22 +32,35 @@ from psilia_edge import ui
 from psilia_edge.runtime.config import _check_config
 
 
-app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
-
-
 def device_decorator(func):
-    """Decorator to run a command on a registered device if given a device name."""
+    """Inject an optional --device / -d option into a runtime command.
+
+    If --device is given, the command is forwarded over SSH to the named device.
+    Otherwise it runs locally, requiring the machine to be a runtime host.
+    """
     device_param = inspect.Parameter(
         "device",
-        kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        default=typer.Argument(None, help="Registered device name (SSH wrapper)"),
+        kind=inspect.Parameter.KEYWORD_ONLY,
+        default=typer.Option(
+            None,
+            "--device",
+            "-d",
+            help="Registered device name (runs command over SSH)",
+        ),
         annotation=Optional[str],
     )
-    orig_params = list(inspect.signature(func).parameters.values())
-    new_sig = inspect.signature(func).replace(parameters=[device_param] + orig_params)
+    # Resolve string annotations (from __future__ import annotations) before building the
+    # new signature — inspect.signature(wrapper, eval_str=True) won't evaluate them when
+    # __signature__ is explicitly set, so we pre-evaluate them here.
+    type_hints = get_type_hints(func, include_extras=True)
+    orig_params = [
+        p.replace(annotation=type_hints.get(p.name, p.annotation))
+        for p in inspect.signature(func).parameters.values()
+    ]
+    new_sig = inspect.signature(func).replace(parameters=orig_params + [device_param])
 
     @functools.wraps(func)
-    def wrapper(device, *args, **kwargs):
+    def wrapper(*args, device=None, **kwargs):
         from psilia_edge.runtime.core import require_runtime_host
         from psilia_edge.utils import run_on_device
 
@@ -55,82 +68,124 @@ def device_decorator(func):
             run_on_device(device, f"psilia runtime {func.__name__}")
             return
         else:
-            require_runtime_host(f"{func.__name__} <device>")
+            require_runtime_host(f"{func.__name__} --device <device>")
             return func(*args, **kwargs)
 
+    del (
+        wrapper.__wrapped__
+    )  # prevent typer from following __wrapped__ to the original func
     wrapper.__signature__ = new_sig
     return wrapper
 
 
+app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
+
+
+# +----------------------------------------------------------------
+# |
+# |   CLI Commands on the Data & Device Manager Side
+# |
+# +----------------------------------------------------------------
 @app.command()
+def pair():
+    """Pair a Jetson: connect, generate SSH keypair, register device on this laptop."""
+    from psilia_edge.device_manager.pair import run_pair_wizard
+
+    run_pair_wizard()
+
+
+@app.command()
+def bootstrap(
+    device: str = typer.Argument(None, help="Registered device name (SSH wrapper)"),
+) -> None:
+    """Run this once on a fresh Jetson (or laptop for dev)."""
+    raise NotImplementedError(
+        "Bootstrap command not implemented yet."
+        "For now please clone the repo, pip-install, and run 'psilia runtime init' to set up the runtime on the device."
+    )
+
+
+@app.command()
+def devices():
+    """List all registered Jetson devices."""
+    from psilia_edge.runtime.config import read_config
+
+    config = read_config()
+    devs = config.get("registered_devices", {})
+
+    if not devs:
+        ui.info(
+            "[dim]No devices registered. Run 'psilia runtime pair' to add one.[/dim]"
+        )
+        return
+
+    ui.print_tree(devs, label="Registered Devices")
+
+
+# +----------------------------------------------------------------
+# |
+# |   Actual Runtime Commands
+# |
+# +----------------------------------------------------------------
+@app.command()
+@device_decorator
 def init(
     runtime_home: Annotated[
-        Path, typer.Argument(help="The path to the runtime home directory.")
+        Path, typer.Argument(help="Path to the runtime home directory.")
     ] = Path("./"),
     mkdir: Annotated[
         bool,
-        typer.Option(
-            "--mkdir",
-            "-m",
-            help="Create the runtime home directory if it doesn't exist.",
-        ),
+        typer.Option("--mkdir", "-m", help="Create the directory if it doesn't exist."),
     ] = False,
 ) -> None:
-    """Initializes a runtime home directory."""
+    """Minimal runtime setup: create directory structure, build Docker image, copy ROS package."""
     from psilia_edge.runtime.setup import run_runtime_init
 
-    if not runtime_home.exists() and not mkdir:
-        ui.error(
-            f"Runtime home directory '{runtime_home}' does not exist."
-            f"Run with --mkdir (-m) to create it."
-        )
+    ui.header(["Runtime", "Init"], "Setting up a bare-bones runtime home…")
+    try:
+        run_runtime_init(runtime_home, mkdir=mkdir)
+    except RuntimeError as e:
+        ui.fail(str(e))
         raise typer.Exit(1)
 
-    ui.banner_nav(
-        ["Runtime", "Initialize"], "Initializing the runtime home directory ..."
-    )
-    run_runtime_init(runtime_home or Path.cwd(), mkdir=mkdir)
 
-
-@app.command(hidden=True)
+@app.command()
 @device_decorator
 def setup(
-    # home: Optional[Path] = typer.Option(None, "--home", "-h", help="The path to the runtime home directory."),
-    # mkdir: bool = typer.Option(True, "--mkdir", "-m", help="Whether to create the runtime home directory if it doesn't exist."),
     init: bool = typer.Option(
         False,
         "--init/--skip-init",
         "-i",
         help="Whether to initialize the runtime home directory",
     ),
-    network: bool = typer.Option(
-        False, "--network/--no-network", "-n", help="Run AP hotspot setup"
+    hotspot: bool = typer.Option(
+        False, "--hotspot/--no-hotspot", "-n", help="Run AP hotspot setup"
     ),
     wifi: bool = typer.Option(
-        False, "--wifi/--no-wifi", "-w", help="Run WiFi client setup"
+        False, "--wifi/--no-wifi", "-w", help="Run home WiFi setup"
     ),
     run_all: bool = typer.Option(
-        False, "--all/--none", "-a", help="Run all setup steps (init, network, wifi)."
+        False, "--all/--none", "-a", help="Run all setup steps (init, hotspot, wifi)."
     ),
 ) -> None:
-    """Pull latest psilia-edge and rebuild the Docker image."""
+    """Configure the runtime: init home directory, network hotspot, and WiFi."""
     from psilia_edge.runtime.config import get_runtime_home
     from psilia_edge.runtime.setup import (
         run_runtime_init,
-        run_network_setup,
+        run_hotspot_setup,
         run_wifi_setup,
     )
 
-    ui.banner_nav(["Runtime", "Setup"], "Setting up a runtime ...")
+    ui.header(["Runtime", "Setup"], "Setting up a runtime...")
     if init or run_all:
         home = ui.ask("Runtime home directory")
         run_runtime_init(home, mkdir=True)
     else:
         home = get_runtime_home()
-        ui.info(f"Skipping runtime home initialization. Using: \{home}")
+        ui.info(f"Skipping runtime home initialization. Using: {home}")
 
-    if network or run_all:
-        run_network_setup()
+    if hotspot or run_all:
+        run_hotspot_setup()
     if wifi or run_all:
         run_wifi_setup()
 
@@ -139,10 +194,10 @@ def setup(
 @device_decorator
 def update() -> None:
     """Update ROS package and rebuilt docker container."""
-    from psilia_edge.runtime.setup import runtime_home_update
+    from psilia_edge.runtime.setup import run_update
 
-    ui.banner_nav(["Runtime", "Update"], "Updating the runtime working directory…")
-    runtime_home_update()
+    ui.header(["Runtime", "Update"], "Updating the runtime working directory…")
+    run_update()
 
 
 @app.command()
@@ -154,13 +209,17 @@ def start(
     base_only: bool = typer.Option(
         False, "--base-only", "-b", help="Starts the Base Layer only (Webserver)."
     ),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Skip spatial requirements check."
+    ),
     host: str = typer.Option("0.0.0.0", help="Bind address", hidden=True),
     port: int = typer.Option(None, help="HTTP port", hidden=True),
 ) -> None:
     """Start base layer then spatial layer."""
     from psilia_edge.runtime.daemon import is_running
-    from psilia_edge.runtime.docker import is_container_running
+    from psilia_edge.runtime.docker import is_ros_launch_running
     from psilia_edge.runtime.core import (
+        SpatialRequirementsError,
         start_base_layer,
         start_spatial_layer,
         start_runtime,
@@ -178,17 +237,27 @@ def start(
         return
 
     if spatial_only:
-        if is_container_running():
+        if is_ros_launch_running():
             ui.warn("Spatial layer already running.")
             raise typer.Exit(1)
-        with ui.status("Starting spatial layer…"):
-            result = start_spatial_layer()
+        try:
+            with ui.status("Starting spatial layer…"):
+                result = start_spatial_layer(force=force)
+        except SpatialRequirementsError as e:
+            ui.print_tree(e.checks, label="requirements")
+            ui.fail("Spatial requirements not met. Use --force to start anyway.")
+            raise typer.Exit(1)
         ui.print_tree(result, label="spatial")
         return
 
     # default: start both layers
-    with ui.status("Starting runtime…"):
-        result = start_runtime(host=host, port=port)
+    try:
+        with ui.status("Starting runtime…"):
+            result = start_runtime(host=host, port=port, force=force)
+    except SpatialRequirementsError as e:
+        ui.print_tree(e.checks, label="requirements")
+        ui.fail("Spatial requirements not met. Use --force to start anyway.")
+        raise typer.Exit(1)
 
     ui.detail("check runtime status", "psilia runtime status [device]")
     ui.detail("live view", "psilia runtime attach [device]")
@@ -213,7 +282,7 @@ def stop(
         stop_runtime,
     )
     from psilia_edge.runtime.daemon import is_running
-    from psilia_edge.runtime.docker import is_container_running
+    from psilia_edge.runtime.docker import is_ros_launch_running
 
     ui.header(["Runtime", "Stop"])
 
@@ -227,7 +296,7 @@ def stop(
         return
 
     if spatial_only:
-        if not is_container_running():
+        if not is_ros_launch_running():
             ui.warn("Spatial layer is not running.")
             raise typer.Exit(1)
         with ui.status("Stopping spatial layer…"):

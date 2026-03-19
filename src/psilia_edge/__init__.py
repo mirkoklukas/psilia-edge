@@ -1,4 +1,12 @@
 __version__ = "0.1.0"
+
+import logging
+from rich.logging import RichHandler
+
+logging.basicConfig(
+    level=logging.WARNING,
+    handlers=[RichHandler(show_path=True)],
+)
 # 0.1.0 — pre-1.0 (in development)
 # 1.0.0a1 — alpha
 # 1.0.0b2 — beta
