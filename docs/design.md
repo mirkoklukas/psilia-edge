@@ -494,6 +494,9 @@ When both a dongle and built-in WiFi are present, the Jetson can act as its own 
 # Notes todos and so on.
 ## TODOs
 
+- **[NEXT]** Implement `psilia data pull` — pull recorded MCAP data from Jetson to laptop over SSH/rsync. Design the CLI command, naming conventions, and destination path (`data.pull_to` in `psilia.yaml`).
+- **[NEXT]** Finish runtime refactoring — review any remaining loose ends from the two-layer runtime redesign (base layer owns container, spatial layer via docker exec).
+
 - **[HIGH PRIORITY]** Revisit the network setup step (`_step_network`). Currently it looks for a USB WiFi dongle, but we should enumerate all interfaces that support AP mode and let the user choose. Show clearly which are USB dongles vs. built-in PCIe (e.g. via `wlx` prefix and `lsusb` cross-reference). Also handle hotspot autostart via NetworkManager during setup so the hotspot comes up on boot without manual intervention. Keep in mind that the connection needs to support live camera streaming to the web UI — low-res, low frame rate (e.g. 320x240 @ 5fps), but smooth enough to be useful for monitoring. Original full-res images are recorded separately; only downsampled versions are streamed. The hotspot interface choice and configuration should be validated against this bandwidth requirement.
 - **[HIGH PRIORITY]** Camera support: scanning for connected cameras is roughly done (`hotplug.py`). Next step is a ROS node that reads from different camera types (USB, ZED, OAK-D, RealSense, etc.) and publishes on the stable `/psilia/image` interface. The node should be configurable (camera type and parameters from `runtime.yaml`) and handle device detection at startup.
 - show logs in live view, ros2 logs and so on
