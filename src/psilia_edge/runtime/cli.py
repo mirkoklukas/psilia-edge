@@ -159,7 +159,7 @@ def setup(
         help="Whether to initialize the runtime home directory",
     ),
     hotspot: bool = typer.Option(
-        False, "--hotspot/--no-hotspot", "-n", help="Run AP hotspot setup"
+        False, "--hotspot/--no-hotspot", "-h", help="Run AP hotspot setup"
     ),
     wifi: bool = typer.Option(
         False, "--wifi/--no-wifi", "-w", help="Run home WiFi setup"

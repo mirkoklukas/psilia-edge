@@ -12,7 +12,6 @@ import shutil
 import socket
 import time
 
-from psilia_edge.network.hotspot import hotspot_is_broadcasting
 from psilia_edge.runtime.config import (
     CONTAINER_NAME,
     RUN_DIR,
@@ -137,26 +136,26 @@ def _format_uptime(seconds: float) -> str:
 # camera unplugged), so these values may be stale. Live detection should be added
 # where it matters (e.g. camera connected check, hotspot interface still present).
 def _hotspot_section() -> dict:
-    cfg = read_config().get("hotspot", {})
-    ssid = cfg.get("ssid")
-    con_name = f"{ssid}-Hotspot" if ssid else None
+    from psilia_edge.network.hotspot import get_ap_ssid
+    from psilia_edge.network.probe import list_interfaces
 
-    if con_name is None:
-        from psilia_edge.network.hotspot import find_active_hotspot
-        from psilia_edge.network.probe import list_interfaces
+    expected_ssid = read_config().get("network", {}).get("ap", {}).get("ssid")
 
-        for iface in list_interfaces():
-            if iface.is_wifi:
-                con_name = find_active_hotspot(iface.name)
-                if con_name:
-                    break
+    active_ssid = None
+    for iface in list_interfaces():
+        if iface.is_wifi:
+            ssid = get_ap_ssid(iface.name)
+            if ssid and ssid == expected_ssid:
+                active_ssid = ssid
+                break
 
-    active = hotspot_is_broadcasting(con_name) if con_name else False
-
+    active = active_ssid is not None
     section: dict = {"running": active}
-    if ssid:
-        section["ssid"] = ssid
-    if active and (password := cfg.get("password")):
+    if active:
+        section["ssid"] = active_ssid
+    if active and (
+        password := read_config().get("network", {}).get("ap", {}).get("password")
+    ):
         section["password"] = password
     return section
 

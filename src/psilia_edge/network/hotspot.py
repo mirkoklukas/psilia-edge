@@ -58,6 +58,15 @@ def hotspot_is_active(
     return False
 
 
+def get_ap_ssid(iface_name: str, runner: Runner = run) -> str | None:
+    """Return the SSID being broadcast by iface_name if it's in AP mode, else None."""
+    _, iw_out, _ = _run(["iw", "dev", iface_name, "info"], runner)
+    if "type AP" not in iw_out:
+        return None
+    m = re.search(r"ssid (.+)", iw_out)
+    return m.group(1).strip() if m else None
+
+
 def hotspot_is_broadcasting(
     con_name: str = HOTSPOT_CON_NAME,
     runner: Runner = run,

@@ -138,16 +138,21 @@ def check_spatial_requirements() -> dict:
         }
 
         # Hotspot
-        from psilia_edge.network.hotspot import hotspot_is_broadcasting
+        from psilia_edge.network.hotspot import get_ap_ssid
+        from psilia_edge.network.probe import list_interfaces
         from psilia_edge.runtime.config import read_config
 
-        cfg = read_config().get("hotspot", {})
-        ssid = cfg.get("ssid")
-        con_name = f"{ssid}-Hotspot" if ssid else None
-        hotspot_ok = hotspot_is_broadcasting(con_name) if con_name else False
+        expected_ssid = read_config().get("network", {}).get("ap", {}).get("ssid")
+        active_ssid = None
+        for iface in list_interfaces():
+            if iface.is_wifi:
+                ssid = get_ap_ssid(iface.name)
+                if ssid and ssid == expected_ssid:
+                    active_ssid = ssid
+                    break
         checks["hotspot"] = {
-            "ok": hotspot_ok,
-            "detail": ssid if hotspot_ok else "hotspot not active",
+            "ok": active_ssid is not None,
+            "detail": active_ssid if active_ssid else "hotspot not active",
         }
 
     return checks
