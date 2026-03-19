@@ -218,7 +218,9 @@
         circle.classList.add('beat');
       });
 
-    // ── SSE ──────────────────────────────────────────────────────────
+    // ── Init: fetch current state immediately, then SSE for updates ──
+    fetch('/api/status').then(r => r.json()).then(render).catch(() => {});
+
     const es = new EventSource('/api/events');
     es.onmessage = e => render(JSON.parse(e.data));
   </script>
