@@ -1,4 +1,9 @@
-"""Runtime status aggregation."""
+"""Runtime status aggregation.
+
+IMPORTANT: All sections must reflect live state — process checks, device scans,
+port probes, etc. Do not read from config files to infer what is running.
+Config is user intent; status is ground truth.
+"""
 
 from __future__ import annotations
 
@@ -41,7 +46,6 @@ def runtime_status() -> dict:
     status: dict = {
         "runtime": {"base": _base_section()},
         "hotspot": _hotspot_section(),
-        "sensors": _sensors_section(),
     }
 
     if is_runtime_host():
@@ -157,17 +161,6 @@ def _hotspot_section() -> dict:
     return section
 
 
-def _sensors_section() -> dict:
-    cfg = read_config().get("camera", {})
-    camera_type = cfg.get("type")
-    return {
-        "camera": {
-            "running": bool(camera_type),
-            "model": camera_type or None,
-        }
-    }
-
-
 def _storage_section() -> dict:
     from psilia_edge.utils import run
 
@@ -200,7 +193,12 @@ def _storage_section() -> dict:
 
 
 def _health_section() -> dict:
-    return {"docker_daemon": is_docker_daemon_running()}
+    from psilia_edge.runtime.core import check_spatial_requirements
+
+    return {
+        "docker_daemon": is_docker_daemon_running(),
+        "spatial_requirements": check_spatial_requirements(),
+    }
 
 
 _HEARTBEAT_MAX_AGE = 5.0  # seconds — core_node publishes at 1Hz

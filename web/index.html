@@ -145,8 +145,6 @@
     function render(s) {
       const base    = s.runtime?.base    || {};
       const spatial = s.runtime?.spatial || {};
-      const hotspot = s.hotspot          || {};
-      const camera  = s.sensors?.camera  || {};
 
       // Uptime
       document.getElementById('base-uptime').textContent = base.uptime || '—';
@@ -159,9 +157,10 @@
       btn.disabled    = false;
 
       // Requirements checklist
-      setReq('req-container', base.container?.state === 'running');
-      setReq('req-camera',    !!camera.running);
-      setReq('req-hotspot',   !!hotspot.running);
+      const reqs = s.health?.spatial_requirements || {};
+      setReq('req-container', !!reqs.container?.ok);
+      setReq('req-camera',    !!reqs.camera?.ok);
+      setReq('req-hotspot',   !!reqs.hotspot?.ok);
     }
 
     function set(id, text, cls) {
