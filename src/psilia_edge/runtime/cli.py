@@ -61,14 +61,12 @@ def device_decorator(func):
 
     @functools.wraps(func)
     def wrapper(*args, device=None, **kwargs):
-        from psilia_edge.runtime.core import require_runtime_host
         from psilia_edge.utils import run_on_device
 
         if device is not None:
             run_on_device(device, f"psilia runtime {func.__name__}")
             return
         else:
-            require_runtime_host(f"{func.__name__} --device <device>")
             return func(*args, **kwargs)
 
     del (
@@ -96,7 +94,9 @@ def pair():
 
 @app.command()
 def bootstrap(
-    device: str = typer.Argument(None, help="Registered device name (SSH wrapper)"),
+    device: str = typer.Argument(
+        None, help="Registered device name (runs command over SSH)"
+    ),
 ) -> None:
     """Run this once on a fresh Jetson (or laptop for dev)."""
     raise NotImplementedError(
