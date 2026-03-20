@@ -109,19 +109,32 @@ async def api_config() -> JSONResponse:
 
 
 @app.get("/api/status")
-async def api_status() -> JSONResponse:
+async def api_status(
+    uptime: bool = True,
+    base: bool = True,
+    spatial_running: bool = True,
+    spatial: bool = True,
+    spatial_requirements: bool = True,
+    server: bool = True,
+    docker: bool = True,
+    ros: bool = True,
+    storage: bool = True,
+    hotspot: bool = True,
+) -> JSONResponse:
     from psilia_edge.runtime.status import runtime_status
 
     status = await asyncio.to_thread(
         runtime_status,
-        base=True,
-        spatial=True,
-        spatial_requirements=True,
-        server=True,
-        docker=True,
-        ros=True,
-        storage=True,
-        hotspot=True,
+        uptime=uptime,
+        base=base,
+        spatial_running=spatial_running,
+        spatial=spatial,
+        spatial_requirements=spatial_requirements,
+        server=server,
+        docker=docker,
+        ros=ros,
+        storage=storage,
+        hotspot=hotspot,
     )
     return JSONResponse(status)
 

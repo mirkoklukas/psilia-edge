@@ -156,12 +156,9 @@
         circle.classList.add('beat');
       });
 
-    // --- SSE: push current state immediately on connect, then on change ---
-    const es = new EventSource('/api/events');
-    es.onmessage = e => render(JSON.parse(e.data));
-
-    // --- refresh button as manual fallback ---
+    // --- refresh button + initial load ---
     document.getElementById('refresh').addEventListener('click', load);
+    load();
   </script>
 </body>
 </html>
