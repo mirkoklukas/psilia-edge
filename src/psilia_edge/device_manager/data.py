@@ -41,17 +41,19 @@ def pull_from_device(device: str, pull_to: Path) -> int:
     Returns the rsync exit code.
     """
     import json
-    from psilia_edge.utils import run, run_streamed
+    from psilia_edge.utils import run_on_device_capture, run_streamed
 
     # Step 1: resolve the data directory on the remote device.
-    rc, stdout, _ = run(f"ssh {device} psilia runtime config data-dir")
+    rc, stdout, _ = run_on_device_capture(device, "psilia runtime config data-dir")
     if rc != 0:
         raise RuntimeError(f"Could not get data dir from {device} (exit {rc})")
     remote_data_dir = stdout.strip()
 
     # Step 2: check for an in-progress recording to exclude.
     exclude = []
-    rc, stdout, _ = run(f"ssh {device} psilia runtime status --recording --json")
+    rc, stdout, _ = run_on_device_capture(
+        device, "psilia runtime status --recording --json"
+    )
     if rc == 0:
         recording = json.loads(stdout.strip())
         if recording.get("recording") and (active_file := recording.get("file")):

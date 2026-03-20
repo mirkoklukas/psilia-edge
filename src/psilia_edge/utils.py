@@ -166,6 +166,17 @@ def ssh_run(client: paramiko.SSHClient, cmd: str) -> tuple[int, str, str]:
     return rc, stdout.read().decode(), stderr.read().decode()
 
 
+def run_on_device_capture(device: str, cmd: str) -> tuple[int, str, str]:
+    """Run a command on a registered device over SSH and capture its output.
+
+    No TTY — use this for API/script calls where stdout needs to be read.
+    Returns (exit_code, stdout, stderr).
+    """
+    ssh_argv = ["ssh", "-o", "LogLevel=ERROR", device, "bash", "-lc", f"'{cmd}'"]
+    result = subprocess.run(ssh_argv, capture_output=True, text=True)
+    return result.returncode, result.stdout, result.stderr
+
+
 def run_on_device(device: str, cmd: str, replace_process: bool = False) -> int:
     """Run a command on a registered device over SSH. That means the device
     must already be paired and have an SSH config entry.
