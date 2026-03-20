@@ -60,6 +60,8 @@ def _base_section() -> dict:
     section: dict = {"running": running}
     if running:
         section["uptime"] = _process_uptime(pid)
+        section["server"] = _SECTIONS["server"]()
+        section["docker"] = _SECTIONS["docker"]()
     return section
 
 
@@ -67,7 +69,14 @@ def _base_section() -> dict:
 def _spatial_section() -> dict:
     from psilia_edge.runtime.docker import is_ros_launch_running
 
-    return {"running": is_ros_launch_running()}
+    running = is_ros_launch_running()
+    section: dict = {"running": running}
+    if running:
+        section["heartbeat"] = _heartbeat_section()
+        section["ros"] = _SECTIONS["ros"]()
+        return section
+
+    return section
 
 
 @_register("server")
@@ -183,6 +192,23 @@ def _hotspot_section() -> dict:
     return section
 
 
+_HEARTBEAT_MAX_AGE = 5.0  # seconds — core_node publishes at 1Hz
+
+
+def _heartbeat_section() -> dict:
+    """Read heartbeat.json written by core_node at 1Hz."""
+    import json
+
+    path = RUN_DIR / "heartbeat.json"
+    try:
+        age = time.time() - path.stat().st_mtime
+        result = {"age": f"{age:0.3f} s"}
+        result["status"] = "ok" if age < _HEARTBEAT_MAX_AGE else "stale"
+        return result
+    except (OSError, json.JSONDecodeError):
+        return {"status": "no-signal", "age": None}
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -204,20 +230,3 @@ def _format_uptime(seconds: float) -> str:
     if m:
         return f"{m}m {s}s"
     return f"{s}s"
-
-
-_HEARTBEAT_MAX_AGE = 5.0  # seconds — core_node publishes at 1Hz
-
-
-def _heartbeat_section() -> dict:
-    """Read heartbeat.json written by core_node at 1Hz."""
-    import json
-
-    path = RUN_DIR / "heartbeat.json"
-    try:
-        age = time.time() - path.stat().st_mtime
-        result = {"age": f"{age:0.3f} s"}
-        result["status"] = "ok" if age < _HEARTBEAT_MAX_AGE else "stale"
-        return result
-    except (OSError, json.JSONDecodeError):
-        return {"status": "no-signal", "age": None}
