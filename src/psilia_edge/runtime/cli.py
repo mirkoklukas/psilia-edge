@@ -320,8 +320,13 @@ def status(
     base: bool = typer.Option(
         False, "--base", help="Include base layer state (running, uptime)."
     ),
+    spatial_running: bool = typer.Option(
+        False, "--spatial-running", help="Include spatial running state only."
+    ),
     spatial: bool = typer.Option(
-        False, "--spatial", help="Include spatial layer state (running)."
+        False,
+        "--spatial",
+        help="Include full spatial layer state (running, heartbeat, ros).",
     ),
     spatial_requirements: bool = typer.Option(
         False, "--spatial-requirements", help="Include spatial requirements check."
@@ -337,13 +342,16 @@ def status(
     ),
     storage: bool = typer.Option(False, "--storage", help="Include storage usage."),
     hotspot: bool = typer.Option(False, "--hotspot", help="Include hotspot status."),
+    uptime: bool = typer.Option(False, "--uptime", help="Include uptime status."),
 ) -> None:
     from psilia_edge.runtime.status import runtime_status
 
     ui.header(["Runtime", "Status"], "State of base & spatial layer and network etc…")
     ui.print_tree(
         runtime_status(
+            uptime=uptime,
             base=base,
+            spatial_running=spatial_running,
             spatial=spatial,
             spatial_requirements=spatial_requirements,
             server=server,

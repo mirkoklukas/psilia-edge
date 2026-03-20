@@ -68,7 +68,7 @@ def _strip_volatile(status: dict) -> dict:
 def _get_status() -> dict:
     from psilia_edge.runtime.status import runtime_status
 
-    return runtime_status(base=True, spatial=True, spatial_requirements=True)
+    return runtime_status(uptime=True, spatial_running=True, spatial_requirements=True)
 
 
 # ── API routes (must be registered before the static file catch-all) ─────────

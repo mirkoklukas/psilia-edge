@@ -4,9 +4,10 @@ IMPORTANT: All sections must reflect live state — process checks, device scans
 port probes, etc. Do not read from config files to infer what is running.
 Config is user intent; status is ground truth.
 
-`runtime_status(**flags)` always includes `base` and `spatial` (fast).
-Optional sections are enabled by flags: server, docker, ros,
-spatial_requirements, storage, hotspot.
+All sections are opt-in via flags passed to `runtime_status(**flags)`.
+Sections run in parallel. Available flags:
+    uptime, spatial_running, base, spatial, server, docker, ros,
+    spatial_requirements, storage, hotspot
 """
 
 from __future__ import annotations
@@ -51,6 +52,14 @@ def runtime_status(**flags: bool) -> dict:
 
 
 # ── Sections (all registered) ─────────────────────────────────────────────────
+@_register("uptime")
+def _uptime_section() -> dict:
+    pid = get_pid()
+    running = pid is not None
+    section: dict = {"running": running}
+    if running:
+        section["uptime"] = _compute_uptime(pid)
+    return section
 
 
 @_register("base")
@@ -59,10 +68,17 @@ def _base_section() -> dict:
     running = pid is not None
     section: dict = {"running": running}
     if running:
-        section["uptime"] = _process_uptime(pid)
+        section["uptime"] = _compute_uptime(pid)
         section["server"] = _SECTIONS["server"]()
         section["docker"] = _SECTIONS["docker"]()
     return section
+
+
+@_register("spatial_running")
+def _spatial_running_section() -> dict:
+    from psilia_edge.runtime.docker import is_ros_launch_running
+
+    return {"running": is_ros_launch_running()}
 
 
 @_register("spatial")
@@ -74,8 +90,6 @@ def _spatial_section() -> dict:
     if running:
         section["heartbeat"] = _heartbeat_section()
         section["ros"] = _SECTIONS["ros"]()
-        return section
-
     return section
 
 
@@ -212,7 +226,7 @@ def _heartbeat_section() -> dict:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _process_uptime(pid: int) -> str | None:
+def _compute_uptime(pid: int) -> str | None:
     try:
         import psutil
 

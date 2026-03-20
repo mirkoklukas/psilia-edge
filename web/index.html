@@ -143,8 +143,8 @@
 
   <script>
     function render(s) {
-      const base    = s.base    || {};
-      const spatial = s.spatial || {};
+      const base    = s.uptime          || {};
+      const spatial = s.spatial_running || {};
 
       // Uptime
       if (base.running && base.uptime) {
