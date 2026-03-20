@@ -217,7 +217,7 @@
 
     let rosbridgeConnected = false;
     ros.on('connection', () => { rosbridgeConnected = true;  hbLabel.textContent = ''; });
-    ros.on('error',      () => { rosbridgeConnected = false; hbLabel.textContent = 'rosbridge error'; });
+    ros.on('error',      () => { rosbridgeConnected = false; hbLabel.textContent = ''; });
     ros.on('close',      () => {
       rosbridgeConnected = false;
       setTimeout(() => ros.connect(`ws://${location.hostname}:${window.PSILIA.rosbridgePort}`), 3000);

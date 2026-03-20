@@ -470,7 +470,7 @@ When both a dongle and built-in WiFi are present, the Jetson can act as its own 
 
 - Install Psilia-Edge locally (Laptop). Clone repo and pip-install
 - Pair with device
-  - sets up ssh connection, and also specifies a pull-to
+  - sets up ssh connection
 - Bootstrap Device:
   - Clone repository on device, and pip-install
   - Init
