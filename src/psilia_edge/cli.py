@@ -71,9 +71,10 @@ def pull(
     for dev in devices:
         ui.header(["Data", "Pull"], dev)
 
-        ui.info(f"Copying Data:\n{dev} → {pull_to}")
-
         remote_data_dir = get_remote_data_dir(dev)
+
+        ui.info(f"Copying Data:\n{dev}:{remote_data_dir} → {pull_to}")
+
         active_recording = get_active_recording(dev)
         if active_recording:
             ui.detail("excluding active recording", active_recording)
