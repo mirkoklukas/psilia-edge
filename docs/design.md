@@ -348,6 +348,18 @@ Dev tools:
 
 When `--device` / `-d` is given (e.g. `psilia runtime status --device my-jetson`), commands are forwarded over SSH and run on the remote device.
 
+### CLI vs API commands
+
+Commands fall into two categories:
+
+**CLI commands** — human-facing, formatted output (Rich trees, colors, headers). Designed to be read in a terminal. Example: `psilia runtime status`.
+
+**API commands** — machine-readable, plain output. Designed to be consumed by scripts, `$()` substitution, or other programs. Example: `psilia runtime config home-dir`. These print one value per line with no decoration.
+
+CLI commands can switch into API mode with `--json`, which suppresses all human output and prints a single JSON object to stdout. Exit code signals success or failure.
+
+The distinction is intentional — API commands are stable contracts, CLI output is allowed to change for readability.
+
 **Web UI** (browser → `http://<device>.local:8080`) — phone-friendly control panel. Served as static files by the base layer. Pages:
 - `/` — landing page, quick status overview
 - `/runtime-status.html` — full runtime status (on-demand, via refresh button)
