@@ -24,6 +24,47 @@ app.add_typer(
     help="Commands to operate the runtime on Jetson devices",
 )
 
+# ── data sub-app ──────────────────────────────────────────────────────────────
+data_app = typer.Typer(help="Data operations (pull, sync)")
+app.add_typer(data_app, name="data")
+
+
+@data_app.command()
+def pull(
+    device: str = typer.Argument(
+        None,
+        help="Registered device name. Pulls from all registered devices if not specified.",
+    ),
+    to: Path = typer.Option(
+        None,
+        "--to",
+        help="Local destination directory. Overrides data.pull_to in psilia.yaml (not saved).",
+    ),
+) -> None:
+    """Pull recorded MCAP data from a device to the local machine."""
+    from psilia_edge.device_manager.data import pull_from_device, resolve_pull_to
+    from psilia_edge.runtime.config import read_config
+
+    pull_to = resolve_pull_to(to)
+
+    devices = (
+        [device] if device else list(read_config().get("registered_devices", {}).keys())
+    )
+
+    if not devices:
+        console.print(
+            "[dim]No registered devices. Run 'psilia runtime pair' to add one.[/dim]"
+        )
+        raise typer.Exit(1)
+
+    for dev in devices:
+        console.rule(f"[bold]{dev}")
+        rc = pull_from_device(dev, pull_to)
+        if rc != 0:
+            console.print(f"[red]✗ pull from {dev} failed (exit {rc})[/red]")
+        else:
+            console.print(f"[green]✓ {dev} → {pull_to}[/green]")
+
 
 # ── print helper commands ─────────────────────────────────────────────────────
 def _print_section(title: str, content: str) -> None:
