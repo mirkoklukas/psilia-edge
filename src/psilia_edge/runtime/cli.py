@@ -343,6 +343,9 @@ def status(
     storage: bool = typer.Option(False, "--storage", help="Include storage usage."),
     hotspot: bool = typer.Option(False, "--hotspot", help="Include hotspot status."),
     uptime: bool = typer.Option(False, "--uptime", help="Include uptime status."),
+    recording: bool = typer.Option(
+        False, "--recording", help="Include active recording status."
+    ),
 ) -> None:
     from psilia_edge.runtime.status import runtime_status
 
@@ -359,6 +362,7 @@ def status(
             ros=ros,
             storage=storage,
             hotspot=hotspot,
+            recording=recording,
         ),
         label="Runtime Status",
     )

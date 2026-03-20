@@ -145,6 +145,26 @@ def _ros_section() -> dict:
     }
 
 
+@_register("recording")
+def _recording_section() -> dict:
+    from psilia_edge.runtime.docker import get_recording_process
+
+    cmdline = get_recording_process()
+    if cmdline is None:
+        return {"recording": False}
+
+    # Extract output path from cmdline, e.g.:
+    # "ros2 bag record -o /psilia/data/my_session /topic1 /topic2"
+    file = None
+    parts = cmdline.split()
+    for i, part in enumerate(parts):
+        if part == "-o" and i + 1 < len(parts):
+            file = parts[i + 1]
+            break
+
+    return {"recording": True, "file": file}
+
+
 @_register("spatial_requirements")
 def _spatial_requirements_section() -> dict:
     from psilia_edge.runtime.core import check_spatial_requirements

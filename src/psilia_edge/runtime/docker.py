@@ -68,6 +68,14 @@ def is_ros_launch_running() -> bool:
     return rc == 0 and bool(out.strip())
 
 
+def get_recording_process() -> str | None:
+    """Return the cmdline of the active ros2 bag record process, or None if not recording."""
+    rc, out, _ = run(f"docker exec {CONTAINER_NAME} pgrep -a -f 'ros2 bag record'")
+    if rc != 0 or not out.strip():
+        return None
+    return out.strip()
+
+
 def docker_exec(cmd: str) -> tuple[int, str, str]:
     """Executes a bash command inside the running ROS container."""
     full_cmd = f'docker exec -i {CONTAINER_NAME} /init.sh bash -lc "{cmd}"'
