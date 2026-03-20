@@ -58,14 +58,14 @@ def _strip_volatile(status: dict) -> dict:
     import copy
 
     s = copy.deepcopy(status)
-    s.get("runtime", {}).get("base", {}).pop("uptime", None)
+    s.get("base", {}).pop("uptime", None)
     return s
 
 
 def _get_status() -> dict:
     from psilia_edge.runtime.status import runtime_status
 
-    return runtime_status()
+    return runtime_status(base=True, spatial=True, spatial_requirements=True)
 
 
 # ── API routes (must be registered before the static file catch-all) ─────────
@@ -107,7 +107,20 @@ async def api_config() -> JSONResponse:
 
 @app.get("/api/status")
 async def api_status() -> JSONResponse:
-    return JSONResponse(await asyncio.to_thread(_get_status))
+    from psilia_edge.runtime.status import runtime_status
+
+    status = await asyncio.to_thread(
+        runtime_status,
+        base=True,
+        spatial=True,
+        spatial_requirements=True,
+        server=True,
+        docker=True,
+        ros=True,
+        storage=True,
+        hotspot=True,
+    )
+    return JSONResponse(status)
 
 
 @app.post("/api/spatial/start")

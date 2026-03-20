@@ -55,7 +55,7 @@
   <div class="card">
     <h2>/psilia/heartbeat</h2>
     <div id="hb-circle"></div>
-    <div id="hb-ros-status">connecting…</div>
+    <div id="hb-ros-status"></div>
   </div>
 
   <button id="refresh">refresh</button>
@@ -87,14 +87,9 @@
 
     function render(status) {
       const container = document.getElementById('cards');
+      container.innerHTML = '';
       for (const [section, value] of Object.entries(status)) {
-        if (section === 'runtime' && value && typeof value === 'object') {
-          for (const [sub, subval] of Object.entries(value)) {
-            addCard(container, `runtime.${sub}`, subval);
-          }
-        } else {
-          addCard(container, section, value);
-        }
+        addCard(container, section, value);
       }
     }
 
@@ -161,9 +156,12 @@
         circle.classList.add('beat');
       });
 
-    // --- refresh button + initial load ---
+    // --- SSE: push current state immediately on connect, then on change ---
+    const es = new EventSource('/api/events');
+    es.onmessage = e => render(JSON.parse(e.data));
+
+    // --- refresh button as manual fallback ---
     document.getElementById('refresh').addEventListener('click', load);
-    load();
   </script>
 </body>
 </html>

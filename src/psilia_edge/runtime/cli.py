@@ -316,11 +316,44 @@ def stop(
 
 @app.command()
 @device_decorator
-def status() -> None:
+def status(
+    base: bool = typer.Option(
+        False, "--base", help="Include base layer state (running, uptime)."
+    ),
+    spatial: bool = typer.Option(
+        False, "--spatial", help="Include spatial layer state (running)."
+    ),
+    spatial_requirements: bool = typer.Option(
+        False, "--spatial-requirements", help="Include spatial requirements check."
+    ),
+    server: bool = typer.Option(
+        False, "--server", help="Include server details (url, pid, log)."
+    ),
+    docker: bool = typer.Option(
+        False, "--docker", help="Include Docker daemon and container state."
+    ),
+    ros: bool = typer.Option(
+        False, "--ros", help="Include ROS nodes, topics, and rosbridge."
+    ),
+    storage: bool = typer.Option(False, "--storage", help="Include storage usage."),
+    hotspot: bool = typer.Option(False, "--hotspot", help="Include hotspot status."),
+) -> None:
     from psilia_edge.runtime.status import runtime_status
 
     ui.header(["Runtime", "Status"], "State of base & spatial layer and network etc…")
-    ui.print_tree(runtime_status(), label="Runtime Status")
+    ui.print_tree(
+        runtime_status(
+            base=base,
+            spatial=spatial,
+            spatial_requirements=spatial_requirements,
+            server=server,
+            docker=docker,
+            ros=ros,
+            storage=storage,
+            hotspot=hotspot,
+        ),
+        label="Runtime Status",
+    )
 
 
 # @app.command(hidden=True)

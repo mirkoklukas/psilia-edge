@@ -143,8 +143,8 @@
 
   <script>
     function render(s) {
-      const base    = s.runtime?.base    || {};
-      const spatial = s.runtime?.spatial || {};
+      const base    = s.base    || {};
+      const spatial = s.spatial || {};
 
       // Uptime
       if (base.running && base.uptime) {
@@ -162,7 +162,7 @@
       btn.disabled    = false;
 
       // Requirements checklist
-      const reqs = s.health?.spatial_requirements || {};
+      const reqs = s.spatial_requirements || {};
       setReq('req-container', !!reqs.container?.ok);
       setReq('req-camera',    !!reqs.camera?.ok);
       setReq('req-hotspot',   !!reqs.hotspot?.ok);

@@ -3,71 +3,78 @@
 IMPORTANT: All sections must reflect live state — process checks, device scans,
 port probes, etc. Do not read from config files to infer what is running.
 Config is user intent; status is ground truth.
+
+`runtime_status(**flags)` always includes `base` and `spatial` (fast).
+Optional sections are enabled by flags: server, docker, ros,
+spatial_requirements, storage, hotspot.
 """
 
 from __future__ import annotations
 
-import json
-import shutil
 import socket
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable
 
 from psilia_edge.runtime.config import (
     CONTAINER_NAME,
     RUN_DIR,
     get_api_port,
-    get_data_dir,
     get_rosbridge_port,
-    read_config,
 )
 from psilia_edge.runtime.daemon import LOG_FILE, get_pid
-from psilia_edge.runtime.docker import (
-    check_container_status,
-    is_docker_daemon_running,
-    is_ros_launch_running,
-    is_port_open,
-    list_ros_nodes,
-    list_ros_topics,
-)
 
 
-# def live_status() -> dict:
-#     """Snapshot of time-sensitive status for the live view."""
-#     return {
-#         "runtime": {"base": _base_section(), "spatial": _spatial_section()},
-#         # "heartbeat": _read_heartbeat(),
-#     }
+_SECTIONS: dict[str, Callable[[], dict]] = {}
 
 
-def runtime_status() -> dict:
-    from psilia_edge.runtime.core import is_runtime_host
+def _register(name: str):
+    def decorator(fn):
+        _SECTIONS[name] = fn
+        return fn
 
-    status: dict = {
-        "runtime": {"base": _base_section()},
-        "hotspot": _hotspot_section(),
-    }
-
-    if is_runtime_host():
-        status["runtime"]["spatial"] = _spatial_section()
-        status["storage"] = _storage_section()
-
-    status["health"] = _health_section()
-
-    return status
+    return decorator
 
 
+def runtime_status(**flags: bool) -> dict:
+    """Collect runtime status sections in parallel.
+
+    All sections are opt-in via flags:
+        base, spatial, server, docker, ros, spatial_requirements, storage, hotspot
+    """
+    requested = {k: _SECTIONS[k] for k, v in flags.items() if v and k in _SECTIONS}
+    if not requested:
+        return {}
+    with ThreadPoolExecutor() as ex:
+        futures = {ex.submit(fn): key for key, fn in requested.items()}
+        return {futures[f]: f.result() for f in as_completed(futures)}
+
+
+# ── Sections (all registered) ─────────────────────────────────────────────────
+
+
+@_register("base")
 def _base_section() -> dict:
-    port = get_api_port()
     pid = get_pid()
     running = pid is not None
     section: dict = {"running": running}
+    if running:
+        section["uptime"] = _process_uptime(pid)
+    return section
 
-    if not running:
-        return section
 
+@_register("spatial")
+def _spatial_section() -> dict:
+    from psilia_edge.runtime.docker import is_ros_launch_running
+
+    return {"running": is_ros_launch_running()}
+
+
+@_register("server")
+def _server_section() -> dict:
+    pid = get_pid()
+    port = get_api_port()
     hostname = socket.gethostname().split(".")[0]
-    # UDP trick: connect to Google's public DNS (8.8.8.8) — no packet is sent,
-    # but the OS picks the outbound interface, so getsockname() returns our LAN IP.
     _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         _s.connect(("8.8.8.8", 80))
@@ -76,39 +83,107 @@ def _base_section() -> dict:
         lan_ip = None
     finally:
         _s.close()
+    return {
+        "pid": pid,
+        "url": f"http://{hostname}.local:{port}",
+        "lan_ip": f"http://{lan_ip}:{port}" if lan_ip else None,
+        "log": str(LOG_FILE),
+    }
 
-    section |= {
-        "uptime": _process_uptime(pid),
-        "server": {
-            "pid": pid,
-            "url": f"http://{hostname}.local:{port}",
-            "lan_ip": f"http://{lan_ip}:{port}" if lan_ip else None,
-            "log": str(LOG_FILE),
-        },
+
+@_register("docker")
+def _docker_section() -> dict:
+    from psilia_edge.runtime.docker import (
+        check_container_status,
+        is_docker_daemon_running,
+    )
+
+    return {
+        "daemon": is_docker_daemon_running(),
         "container": {
             "name": CONTAINER_NAME,
             "state": check_container_status(),
         },
     }
+
+
+@_register("ros")
+def _ros_section() -> dict:
+    from psilia_edge.runtime.docker import is_port_open, list_ros_nodes, list_ros_topics
+
+    rosbridge_port = get_rosbridge_port()
+    return {
+        "nodes": list_ros_nodes(),
+        "topics": list_ros_topics(),
+        "rosbridge": {
+            "port": rosbridge_port,
+            "open": is_port_open(rosbridge_port),
+        },
+    }
+
+
+@_register("spatial_requirements")
+def _spatial_requirements_section() -> dict:
+    from psilia_edge.runtime.core import check_spatial_requirements
+
+    return check_spatial_requirements()
+
+
+@_register("storage")
+def _storage_section() -> dict:
+    import shutil
+
+    from psilia_edge.runtime.config import get_data_dir
+    from psilia_edge.utils import run
+
+    data_dir = get_data_dir()
+    section: dict = {"data_dir": str(data_dir)}
+    try:
+        rc, stdout, _ = run(f"du -s {data_dir} | cut -f1")
+        if rc == 0:
+            data_bytes = int(stdout.strip())
+            section["used_gb"] = round(data_bytes / 1e9, 3)
+            section["used_bytes"] = data_bytes
+        partition = shutil.disk_usage(data_dir)
+        section["free_gb"] = round(partition.free / 1e9, 3)
+    except OSError:
+        pass
+    try:
+        section["num_bag_files"] = len(
+            list(data_dir.glob("**/*.mcap"))
+            + list(data_dir.glob("**/*.db3"))
+            + list(data_dir.glob("**/*.bag"))
+        )
+    except OSError:
+        section["num_bag_files"] = 0
     return section
 
 
-def _spatial_section() -> dict:
-    ros_running = is_ros_launch_running()
-    section: dict = {"running": ros_running}
+@_register("hotspot")
+def _hotspot_section() -> dict:
+    from psilia_edge.network.hotspot import get_ap_ssid
+    from psilia_edge.network.probe import list_interfaces
+    from psilia_edge.runtime.config import read_config
 
-    if ros_running:
-        section |= {
-            "heartbeat": _heartbeat_section(),
-            "nodes": list_ros_nodes(),
-            "topics": list_ros_topics(),
-            "rosbridge": {
-                "port": get_rosbridge_port(),
-                "open": is_port_open(get_rosbridge_port()),
-            },
-        }
+    expected_ssid = read_config().get("network", {}).get("ap", {}).get("ssid")
+    active_ssid = None
+    for iface in list_interfaces():
+        if iface.is_wifi:
+            ssid = get_ap_ssid(iface.name)
+            if ssid and ssid == expected_ssid:
+                active_ssid = ssid
+                break
 
+    active = active_ssid is not None
+    section: dict = {"running": active}
+    if active:
+        section["ssid"] = active_ssid
+        if password := read_config().get("network", {}).get("ap", {}).get("password"):
+            section["password"] = password
     return section
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _process_uptime(pid: int) -> str | None:
@@ -131,92 +206,18 @@ def _format_uptime(seconds: float) -> str:
     return f"{s}s"
 
 
-# NOTE: hotspot and camera config are read from psilia.yaml, which is written during
-# `psilia runtime setup`. Hardware may change between boots (different USB dongle,
-# camera unplugged), so these values may be stale. Live detection should be added
-# where it matters (e.g. camera connected check, hotspot interface still present).
-def _hotspot_section() -> dict:
-    from psilia_edge.network.hotspot import get_ap_ssid
-    from psilia_edge.network.probe import list_interfaces
-
-    expected_ssid = read_config().get("network", {}).get("ap", {}).get("ssid")
-
-    active_ssid = None
-    for iface in list_interfaces():
-        if iface.is_wifi:
-            ssid = get_ap_ssid(iface.name)
-            if ssid and ssid == expected_ssid:
-                active_ssid = ssid
-                break
-
-    active = active_ssid is not None
-    section: dict = {"running": active}
-    if active:
-        section["ssid"] = active_ssid
-    if active and (
-        password := read_config().get("network", {}).get("ap", {}).get("password")
-    ):
-        section["password"] = password
-    return section
-
-
-def _storage_section() -> dict:
-    from psilia_edge.utils import run
-
-    data_dir = get_data_dir()
-    section: dict = {"data_dir": str(data_dir)}
-    try:
-        # du -s . | cut -f1 returns the total size of the directory in bytes,
-        # without counting subdirectories separately.
-        rc, stdout, _ = run(f"du -s {data_dir} | cut -f1")
-        if rc == 0:
-            data_bytes = int(stdout.strip())
-            used_gb = round(data_bytes / 1e9, 3)
-            section["used_gb"] = used_gb
-            section["used_bytes"] = data_bytes
-        # disk_usage uses the path only to identify the partition and
-        # returns partition-level stats, not the directory size
-        partition = shutil.disk_usage(data_dir)
-        section["free_gb"] = round(partition.free / 1e9, 3)
-    except OSError:
-        pass
-    try:
-        section["num_bag_files"] = len(
-            list(data_dir.glob("**/*.mcap"))
-            + list(data_dir.glob("**/*.db3"))
-            + list(data_dir.glob("**/*.bag"))
-        )
-    except OSError:
-        section["num_bag_files"] = 0
-    return section
-
-
-def _health_section() -> dict:
-    from psilia_edge.runtime.core import check_spatial_requirements
-
-    return {
-        "docker_daemon": is_docker_daemon_running(),
-        "spatial_requirements": check_spatial_requirements(),
-    }
-
-
 _HEARTBEAT_MAX_AGE = 5.0  # seconds — core_node publishes at 1Hz
 
 
 def _heartbeat_section() -> dict:
-    """Read heartbeat.json written by core_node at 1Hz.
+    """Read heartbeat.json written by core_node at 1Hz."""
+    import json
 
-    Returns a dict with status='ros_not_running' if the file is missing or stale.
-    """
     path = RUN_DIR / "heartbeat.json"
-    result = {}
     try:
         age = time.time() - path.stat().st_mtime
-        result["age"] = f"{age:0.3f} s"
-        if age < _HEARTBEAT_MAX_AGE:
-            result["status"] = "ok"
-        else:
-            result["status"] = "stale"
+        result = {"age": f"{age:0.3f} s"}
+        result["status"] = "ok" if age < _HEARTBEAT_MAX_AGE else "stale"
         return result
     except (OSError, json.JSONDecodeError):
         return {"status": "no-signal", "age": None}
