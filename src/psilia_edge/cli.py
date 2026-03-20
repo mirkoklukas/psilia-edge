@@ -39,10 +39,26 @@ def pull(
     ),
 ) -> None:
     """Pull recorded MCAP data from a device to the local machine."""
-    from psilia_edge.device_manager.data import pull_from_device, resolve_pull_to
-    from psilia_edge.runtime.config import read_config
+    from psilia_edge.device_manager.config import write_pull_to
+    from psilia_edge.device_manager.data import (
+        build_rsync_cmd,
+        get_active_recording,
+        get_pull_to,
+        get_remote_data_dir,
+    )
+    from psilia_edge.runtime.config import ConfigurationError, read_config
+    from psilia_edge.utils import run_streamed
 
-    pull_to = resolve_pull_to(to)
+    # Resolve pull_to: flag > config > prompt
+    if to is not None:
+        pull_to = Path(to).expanduser().resolve()
+    else:
+        try:
+            pull_to = get_pull_to()
+        except ConfigurationError:
+            raw = ui.ask("Local directory to pull data into")
+            pull_to = Path(raw).expanduser().resolve()
+            write_pull_to(pull_to)
 
     devices = (
         [device] if device else list(read_config().get("registered_devices", {}).keys())
@@ -53,9 +69,23 @@ def pull(
         raise typer.Exit(1)
 
     for dev in devices:
-        ui.header(["Data", "Pull", dev])
-        ui.detail("→", str(pull_to))
-        rc = pull_from_device(dev, pull_to)
+        ui.header(["Data", "Pull"], dev)
+
+        ui.info(f"Copying Data:\n{dev} → {pull_to}")
+
+        remote_data_dir = get_remote_data_dir(dev)
+        active_recording = get_active_recording(dev)
+        if active_recording:
+            ui.detail("excluding active recording", active_recording)
+
+        pull_to.mkdir(parents=True, exist_ok=True)
+        cmd = build_rsync_cmd(
+            dev,
+            remote_data_dir,
+            pull_to,
+            exclude=[active_recording] if active_recording else None,
+        )
+        rc = run_streamed(cmd)
         if rc != 0:
             ui.fail(f"pull from {dev} failed (exit {rc})")
         else:

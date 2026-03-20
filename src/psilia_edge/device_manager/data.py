@@ -4,72 +4,74 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from psilia_edge.runtime.config import ConfigurationError, read_config
 
-def resolve_pull_to(pull_to_override: Path | None = None) -> Path:
-    """Resolve the local destination directory for pulled data.
 
-    Resolution order:
-      1. pull_to_override if provided (not saved to config)
-      2. data.pull_to from psilia.yaml
-      3. Prompt the user and save the answer to psilia.yaml
+def get_pull_to() -> Path:
+    """Read data.pull_to from psilia.yaml.
 
-    # TODO: Consider a pattern where CLI flags can opt-in to being persisted
-    # to config (e.g. --to --save), rather than always prompting.
+    Raises ConfigurationError if not set — caller is responsible for prompting.
     """
-    if pull_to_override is not None:
-        return Path(pull_to_override).expanduser().resolve()
-
-    from psilia_edge.runtime.config import read_config
-
     pull_to = read_config().get("data", {}).get("pull_to")
-    if pull_to:
-        return Path(pull_to).expanduser().resolve()
-
-    from psilia_edge import ui
-    from psilia_edge.device_manager.config import write_pull_to
-
-    raw = ui.ask("Local directory to pull data into")
-    path = Path(raw).expanduser().resolve()
-    write_pull_to(path)
-    return path
+    if not pull_to:
+        raise ConfigurationError(
+            "data.pull_to not set. Run 'psilia data pull --to <dir>' to set it."
+        )
+    return Path(pull_to).expanduser().resolve()
 
 
-def pull_from_device(device: str, pull_to: Path) -> int:
-    """Pull MCAP recordings from a registered device via rsync.
+def get_remote_data_dir(device: str) -> str:
+    """Get the data directory path from a remote device.
 
-    Uses the SSH config entry for the device (set up during pairing).
-    Returns the rsync exit code.
+    Raises RuntimeError if the query fails.
     """
-    import json
-    from psilia_edge.utils import run_on_device_capture, run_streamed
+    from psilia_edge.utils import run_on_device_capture
 
-    # Step 1: resolve the data directory on the remote device.
     rc, stdout, _ = run_on_device_capture(device, "psilia runtime config data-dir")
     if rc != 0:
         raise RuntimeError(f"Could not get data dir from {device} (exit {rc})")
-    remote_data_dir = stdout.strip()
+    return stdout.strip()
 
-    # Step 2: check for an in-progress recording to exclude.
-    exclude = []
+
+def get_active_recording(device: str) -> str | None:
+    """Get the path of the file actively being recorded on a device, or None.
+
+    Returns None if not recording or if the query fails.
+    """
+    import json
+
+    from psilia_edge.utils import run_on_device_capture
+
     rc, stdout, _ = run_on_device_capture(
         device, "psilia runtime status --recording --json"
     )
-    if rc == 0:
+    if rc != 0:
+        return None
+    try:
         recording = json.loads(stdout.strip())
         if recording.get("recording") and (active_file := recording.get("file")):
-            exclude.append(active_file)
+            return active_file
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    return None
 
-    pull_to.mkdir(parents=True, exist_ok=True)
 
-    # Step 3: rsync from the resolved remote path.
+def build_rsync_cmd(
+    device: str,
+    remote_data_dir: str,
+    pull_to: Path,
+    exclude: list[str] | None = None,
+) -> str:
+    """Build an rsync command to pull data from a remote device.
+
     # --archive        preserves timestamps, permissions, symlinks
     # --progress       shows per-file progress
     # --human-readable human-readable sizes
-    excludes = " ".join(f"--exclude '{f}'" for f in ["*.tmp", *exclude])
-    cmd = (
+    """
+    excludes = " ".join(f"--exclude '{f}'" for f in ["*.tmp", *(exclude or [])])
+    return (
         f"rsync --archive --progress --human-readable "
         f"{excludes} "
         f"{device}:{remote_data_dir}/ "
         f"{pull_to}/"
     )
-    return run_streamed(cmd)
