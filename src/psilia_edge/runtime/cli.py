@@ -470,3 +470,25 @@ def conf() -> None:
     """Print the runtime configuration as YAML."""
 
     _check_config()
+
+
+# TODO: device_decorator does not forward flags to the remote command — it only
+# forwards `psilia runtime {func_name}` with no arguments. This means any command
+# decorated with @device_decorator that also takes flags (like `config`) will silently
+# drop those flags when run with -d. This needs to be fixed in device_decorator by
+# reconstructing the full CLI invocation (e.g. from sys.argv, stripping --device/-d
+# and its value) before passing to run_on_device.
+@app.command()
+def config(
+    home_dir: bool = typer.Option(
+        False, "--home-dir", help="Print runtime home directory."
+    ),
+    data_dir: bool = typer.Option(False, "--data-dir", help="Print data directory."),
+) -> None:
+    """Print runtime config values. Plain output, suitable for shell substitution."""
+    from psilia_edge.runtime.config import get_runtime_home, get_data_dir
+
+    if home_dir:
+        print(get_runtime_home())
+    if data_dir:
+        print(get_data_dir())

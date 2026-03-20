@@ -45,8 +45,6 @@ def run_pair_wizard() -> None:
         _step_add_device_entry(name, user, key_path)
         _step_sync_ssh_config(name)
 
-    _ = _step_pull_to()
-
     ui.done(
         f"{name} paired.",
         f"Next: [bold]psilia runtime bootstrap {name}[/bold]",
@@ -114,6 +112,7 @@ def _step_sync_ssh_config(name: str) -> None:
     ui.detail("connect with", f"ssh {name}")
 
 
+# Not called during pairing — pull_to is prompted lazily on first `psilia data pull`.
 def _step_pull_to() -> Path:
     ui.title("Data Pull Directory")
     path = Path(

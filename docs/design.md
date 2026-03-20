@@ -49,15 +49,15 @@ psilia-runtime-home/
   runtime.yaml    # user-editable: what nodes to start, topics to record, etc.
 ```
 
-📁 **Fetched/Pulled Data Dir (Manager Only)** `~/psilia-fetched/` (Specified  during pair, maybe set once or for each device).
+📁 **Fetched/Pulled Data Dir (Manager Only)** (no default — set on first pull).
 
-Where the recorded data pulled from a Jetson (Runtime Host) lands on the laptop (Data Manager) side. Entry in `psilia.yaml`
+Where the recorded data pulled from a Jetson (Runtime Host) lands on the laptop (Data Manager) side. There is no default path. `data.pull_to` is prompted lazily on the first `psilia data pull` if `--to` is not given, and then saved to `psilia.yaml`. It is **not** set during `psilia pair`. Once set, the entry in `psilia.yaml` looks like:
 ```yaml
 data:
   pull_to: ~/psilia-fetched/
 ```
 
-We could make `pull_to` a field on each paried device in `psilia.yaml`.
+We could make `pull_to` a field on each paired device in `psilia.yaml` (per-device override) rather than a single global setting.
 
 📄 **Other files** the CLI touches:
 
@@ -511,6 +511,7 @@ When both a dongle and built-in WiFi are present, the Jetson can act as its own 
 - **[NEXT]** Implement `psilia data pull` — pull recorded MCAP data from Jetson to laptop over SSH/rsync. Design the CLI command, naming conventions, and destination path (`data.pull_to` in `psilia.yaml`).
 - **[NEXT]** Finish runtime refactoring — review any remaining loose ends from the two-layer runtime redesign (base layer owns container, spatial layer via docker exec).
 
+- **[HIGH PRIORITY]** Fix `device_decorator` to forward flags to the remote command. Currently it only forwards `psilia runtime {func_name}` with no arguments, so any decorated command that also takes flags (e.g. `psilia runtime config --data-dir -d my-jetson`) silently drops those flags when run with `-d`. Fix by reconstructing the full CLI invocation from `sys.argv`, stripping `--device`/`-d` and its value, before passing to `run_on_device`.
 - **[HIGH PRIORITY]** Revisit the network setup step (`_step_network`). Currently it looks for a USB WiFi dongle, but we should enumerate all interfaces that support AP mode and let the user choose. Show clearly which are USB dongles vs. built-in PCIe (e.g. via `wlx` prefix and `lsusb` cross-reference). Also handle hotspot autostart via NetworkManager during setup so the hotspot comes up on boot without manual intervention. Keep in mind that the connection needs to support live camera streaming to the web UI — low-res, low frame rate (e.g. 320x240 @ 5fps), but smooth enough to be useful for monitoring. Original full-res images are recorded separately; only downsampled versions are streamed. The hotspot interface choice and configuration should be validated against this bandwidth requirement.
 - **[HIGH PRIORITY]** Camera support: scanning for connected cameras is roughly done (`hotplug.py`). Next step is a ROS node that reads from different camera types (USB, ZED, OAK-D, RealSense, etc.) and publishes on the stable `/psilia/image` interface. The node should be configurable (camera type and parameters from `runtime.yaml`) and handle device detection at startup.
 - show logs in live view, ros2 logs and so on

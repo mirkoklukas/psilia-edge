@@ -44,11 +44,17 @@ def pull_from_device(device: str, pull_to: Path) -> int:
     # is actively being written — query it via ROS service or topic once
     # recording control is wired into the web UI.
     """
-    from psilia_edge.utils import run_streamed
+    from psilia_edge.utils import run_quiet, run_streamed
+
+    # Step 1: resolve the data directory on the remote device.
+    rc, stdout, _ = run_quiet(f"ssh {device} psilia runtime config --data-dir")
+    if rc != 0:
+        raise RuntimeError(f"Could not get data dir from {device} (exit {rc})")
+    remote_data_dir = stdout.strip()
 
     pull_to.mkdir(parents=True, exist_ok=True)
 
-    # rsync over SSH using the host alias from ~/.ssh/config.
+    # Step 2: rsync from the resolved remote path.
     # --archive        preserves timestamps, permissions, symlinks
     # --progress       shows per-file progress
     # --human-readable human-readable sizes
@@ -56,7 +62,7 @@ def pull_from_device(device: str, pull_to: Path) -> int:
     cmd = (
         f"rsync --archive --progress --human-readable "
         f"--exclude '*.tmp' "
-        f"{device}:$(psilia runtime home)/data/ "
+        f"{device}:{remote_data_dir}/ "
         f"{pull_to}/"
     )
     return run_streamed(cmd)

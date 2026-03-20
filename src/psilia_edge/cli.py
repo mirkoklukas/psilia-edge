@@ -9,12 +9,9 @@
 from pathlib import Path
 
 import typer
-from rich.console import Console
-from rich.padding import Padding
 
+from psilia_edge import ui
 from psilia_edge.runtime.cli import app as runtime_app
-
-console = Console()
 
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
 
@@ -52,25 +49,23 @@ def pull(
     )
 
     if not devices:
-        console.print(
-            "[dim]No registered devices. Run 'psilia runtime pair' to add one.[/dim]"
-        )
+        ui.warn("No registered devices. Run 'psilia runtime pair' to add one.")
         raise typer.Exit(1)
 
     for dev in devices:
-        console.rule(f"[bold]{dev}")
-        console.print(f"[dim]→ {pull_to}[/dim]")
+        ui.header(["Data", "Pull", dev])
+        ui.detail("→", str(pull_to))
         rc = pull_from_device(dev, pull_to)
         if rc != 0:
-            console.print(f"[red]✗ pull from {dev} failed (exit {rc})[/red]")
+            ui.fail(f"pull from {dev} failed (exit {rc})")
         else:
-            console.print("[green]✓ done[/green]")
+            ui.ok("done")
 
 
 # ── print helper commands ─────────────────────────────────────────────────────
 def _print_section(title: str, content: str) -> None:
-    console.rule(f"[bold]'{title}'", align="center")
-    console.print(Padding(content, 1))
+    ui.title(str(title))
+    ui.print(content)
 
 
 def _print_file(fname: str | Path) -> None:
