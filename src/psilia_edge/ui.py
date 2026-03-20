@@ -17,6 +17,17 @@ console = Console()
 
 PADDING_LEFT = 2
 
+
+def silence() -> None:
+    """Suppress all UI output. Call once at startup for machine-readable (--json) mode.
+
+    Uses Rich's built-in quiet console — no need to guard individual functions.
+    TODO: replace with ui.set_mode("silent") when multiple modes are needed.
+    """
+    global console
+    console = Console(quiet=True)
+
+
 psilia_version = "v" + __version__.replace("alpha", "α").replace("beta", "β")
 
 

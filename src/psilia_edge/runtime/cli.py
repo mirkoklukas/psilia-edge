@@ -21,7 +21,8 @@ TODO: Add a --dev flag (default from env var PSILIA_DEV=1) for dev mode.
 """
 
 from __future__ import annotations
-from typing import Optional, Annotated, get_type_hints
+from builtins import print as builtins_print
+from typing import Any, Optional, Annotated, get_type_hints
 import functools
 import inspect
 from pathlib import Path
@@ -346,26 +347,40 @@ def status(
     recording: bool = typer.Option(
         False, "--recording", help="Include active recording status."
     ),
+    json: bool = typer.Option(
+        False,
+        "--json",
+        help="Print result as JSON (machine-readable, suppresses all other output).",
+    ),
 ) -> None:
+    import json as _json
+
     from psilia_edge.runtime.status import runtime_status
 
-    ui.header(["Runtime", "Status"], "State of base & spatial layer and network etc…")
-    ui.print_tree(
-        runtime_status(
-            uptime=uptime,
-            base=base,
-            spatial_running=spatial_running,
-            spatial=spatial,
-            spatial_requirements=spatial_requirements,
-            server=server,
-            docker=docker,
-            ros=ros,
-            storage=storage,
-            hotspot=hotspot,
-            recording=recording,
-        ),
-        label="Runtime Status",
+    if json:
+        ui.silence()
+
+    result = runtime_status(
+        uptime=uptime,
+        base=base,
+        spatial_running=spatial_running,
+        spatial=spatial,
+        spatial_requirements=spatial_requirements,
+        server=server,
+        docker=docker,
+        ros=ros,
+        storage=storage,
+        hotspot=hotspot,
+        recording=recording,
     )
+
+    if json:
+        builtins_print(_json.dumps(result))
+    else:
+        ui.header(
+            ["Runtime", "Status"], "State of base & spatial layer and network etc…"
+        )
+        ui.print_tree(result, label="Runtime Status")
 
 
 # @app.command(hidden=True)
@@ -480,15 +495,48 @@ def conf() -> None:
 # and its value) before passing to run_on_device.
 @app.command()
 def config(
-    home_dir: bool = typer.Option(
-        False, "--home-dir", help="Print runtime home directory."
+    keys: Optional[list[str]] = typer.Argument(
+        None, help="Config keys to query. Omit to list all."
     ),
-    data_dir: bool = typer.Option(False, "--data-dir", help="Print data directory."),
+    json: bool = typer.Option(
+        False, "--json", help="Print result as JSON (machine-readable)."
+    ),
 ) -> None:
-    """Print runtime config values. Plain output, suitable for shell substitution."""
-    from psilia_edge.runtime.config import get_runtime_home, get_data_dir
+    """Query runtime config values. Plain output (one value per line) or --json.
 
-    if home_dir:
-        print(get_runtime_home())
-    if data_dir:
-        print(get_data_dir())
+    Available keys: home-dir, data-dir, ros-dir, log-dir, repo-dir, api-port, rosbridge-port
+
+    Examples:
+      psilia runtime config home-dir
+      psilia runtime config home-dir data-dir
+      psilia runtime config home-dir data-dir --json
+    """
+    import json as _json
+
+    from psilia_edge.runtime import config as _config
+
+    _KEYS: dict[str, Any] = {
+        "home-dir": _config.get_runtime_home,
+        "data-dir": _config.get_data_dir,
+        "ros-dir": _config.get_ros_dir,
+        "log-dir": _config.get_log_dir,
+        "repo-dir": _config.get_repo_dir,
+        "api-port": _config.get_api_port,
+        "rosbridge-port": _config.get_rosbridge_port,
+    }
+
+    queried = keys or list(_KEYS.keys())
+
+    unknown = [k for k in queried if k not in _KEYS]
+    if unknown:
+        for k in unknown:
+            ui.warn(f"Unknown config key: '{k}'. Available: {', '.join(_KEYS)}")
+        raise typer.Exit(1)
+
+    result = {k: str(_KEYS[k]()) for k in queried}
+
+    if json:
+        builtins_print(_json.dumps(result))
+    else:
+        for value in result.values():
+            builtins_print(value)

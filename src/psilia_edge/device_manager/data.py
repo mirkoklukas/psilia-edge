@@ -39,29 +39,34 @@ def pull_from_device(device: str, pull_to: Path) -> int:
 
     Uses the SSH config entry for the device (set up during pairing).
     Returns the rsync exit code.
-
-    # TODO: Skip in-progress recordings. The recording node knows which file
-    # is actively being written — query it via ROS service or topic once
-    # recording control is wired into the web UI.
     """
+    import json
     from psilia_edge.utils import run, run_streamed
 
     # Step 1: resolve the data directory on the remote device.
-    rc, stdout, _ = run(f"ssh {device} psilia runtime config --data-dir")
+    rc, stdout, _ = run(f"ssh {device} psilia runtime config data-dir")
     if rc != 0:
         raise RuntimeError(f"Could not get data dir from {device} (exit {rc})")
     remote_data_dir = stdout.strip()
 
+    # Step 2: check for an in-progress recording to exclude.
+    exclude = []
+    rc, stdout, _ = run(f"ssh {device} psilia runtime status --recording --json")
+    if rc == 0:
+        recording = json.loads(stdout.strip())
+        if recording.get("recording") and (active_file := recording.get("file")):
+            exclude.append(active_file)
+
     pull_to.mkdir(parents=True, exist_ok=True)
 
-    # Step 2: rsync from the resolved remote path.
+    # Step 3: rsync from the resolved remote path.
     # --archive        preserves timestamps, permissions, symlinks
     # --progress       shows per-file progress
     # --human-readable human-readable sizes
-    # --exclude '*.tmp' exclude any temp files
+    excludes = " ".join(f"--exclude '{f}'" for f in ["*.tmp", *exclude])
     cmd = (
         f"rsync --archive --progress --human-readable "
-        f"--exclude '*.tmp' "
+        f"{excludes} "
         f"{device}:{remote_data_dir}/ "
         f"{pull_to}/"
     )
