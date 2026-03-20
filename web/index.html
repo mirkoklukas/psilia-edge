@@ -161,6 +161,13 @@
       btn.className   = spatialRunning ? 'btn danger' : 'btn primary';
       btn.disabled    = false;
 
+      // Show starting… if spatial is up but rosbridge not connected yet
+      if (spatialRunning && !rosbridgeConnected) {
+        hbLabel.textContent = 'starting…';
+      } else if (!spatialRunning) {
+        hbLabel.textContent = '';
+      }
+
       // Requirements checklist
       const reqs = s.spatial_requirements || {};
       setReq('req-container', !!reqs.container?.ok);
@@ -208,10 +215,11 @@
     const hbLabel  = document.getElementById('hb-label');
     const ros = new ROSLIB.Ros({ url: `ws://${location.hostname}:${window.PSILIA.rosbridgePort}` });
 
-    ros.on('connection', () => { hbLabel.textContent = ''; });
-    ros.on('error',      () => { hbLabel.textContent = 'rosbridge error'; });
+    let rosbridgeConnected = false;
+    ros.on('connection', () => { rosbridgeConnected = true;  hbLabel.textContent = ''; });
+    ros.on('error',      () => { rosbridgeConnected = false; hbLabel.textContent = 'rosbridge error'; });
     ros.on('close',      () => {
-      hbLabel.textContent = '';
+      rosbridgeConnected = false;
       setTimeout(() => ros.connect(`ws://${location.hostname}:${window.PSILIA.rosbridgePort}`), 3000);
     });
 
