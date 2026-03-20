@@ -336,9 +336,11 @@ psilia runtime logs -f -d borne  # follow live on a registered device
 
 ## Interacting with the Runtime
 
-There are two interfaces to the runtime, both available from laptop or phone:
+There are two interfaces to the runtime, both available from laptop or phone: the CLI and the Web UI.
 
-**CLI** (`psilia runtime ...`) — direct terminal control:
+### CLI
+
+`psilia runtime ...` — direct terminal control:
 - `psilia runtime start/stop` — lifecycle
 - `psilia runtime attach` — live status view (1 Hz refresh); the primary way to monitor the runtime
 - `psilia runtime update` — pull latest ROS package, rebuild Docker image
@@ -348,7 +350,7 @@ Dev tools:
 
 When `--device` / `-d` is given (e.g. `psilia runtime status --device my-jetson`), commands are forwarded over SSH and run on the remote device.
 
-### CLI vs API commands
+#### CLI vs API commands
 
 Commands fall into two categories:
 
@@ -360,7 +362,9 @@ CLI commands can switch into API mode with `--json`, which suppresses all human 
 
 The distinction is intentional — API commands are stable contracts, CLI output is allowed to change for readability.
 
-**Web UI** (browser → `http://<device>.local:8080`) — phone-friendly control panel. Served as static files by the base layer. Pages:
+### Web UI
+
+Browser → `http://<device>.local:8080` — phone-friendly control panel. Served as static files by the base layer. Pages:
 - `/` — landing page, quick status overview
 - `/runtime-status.html` — full runtime status (on-demand, via refresh button)
 - `/recording.html` — start/stop recording, topic selection, file naming
@@ -369,7 +373,7 @@ The distinction is intentional — API commands are stable contracts, CLI output
   - `/runtime-test.html` — ping/pong ROS connectivity test
   - `/network-test.html` — bandwidth and latency test for camera streaming
 
-### Two Network Connections
+### Network Connections
 
 The web UI talks to two separate services on the Jetson:
 
