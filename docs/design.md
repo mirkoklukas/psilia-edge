@@ -308,6 +308,8 @@ To clear the build cache (e.g. after `setup.py` changes), `psilia runtime update
 
 ## Logging & Runtime Files
 
+(MAKE SURE THIS IS UP TO DATE)
+
 Where to look when something goes wrong at each layer:
 
 | File | Written by | Contents |
@@ -316,10 +318,12 @@ Where to look when something goes wrong at each layer:
 | `~/.psilia/log/psilia-edge.log` | uvicorn (stdout/stderr redirected by `start_daemon()`) | Base layer startup, request logs, errors |
 | `~/.psilia/run/heartbeat.json` | `core_node` inside Docker (1 Hz) | `status`, `stamp`, `ros_domain_id` |
 | `~/.psilia/run/status.json` | `core_node` inside Docker (on demand) | heartbeat fields + `nodes`, `topics` |
+| `{runtime_home}/log/ros.log` | `launch_ros.sh` via `docker exec -d` | ROS launch output (stdout+stderr); truncated on each spatial layer start. View with `psilia runtime logs [-f]` |
 | `{runtime_home}/log/` | ROS nodes inside Docker (`ROS_LOG_DIR`) | Per-node ROS logs |
 | `{runtime_home}/ros/log/` | colcon on container startup | Build logs |
 
 Note: `heartbeat.json` and `status.json` are ephemeral — cleared when the container starts.
+Note: `ros.log` is truncated on each spatial layer start — only contains the current session.
 
 
 ## Interacting with the Runtime

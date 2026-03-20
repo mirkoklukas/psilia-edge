@@ -352,6 +352,27 @@ def status() -> None:
 #         console.print("\n[dim]Detached.[/dim]")
 
 
+@app.command()
+@device_decorator
+def logs(
+    follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output."),
+    lines: int = typer.Option(50, "--lines", "-n", help="Number of lines to show."),
+) -> None:
+    """Show ROS launch log output."""
+    import subprocess
+    from psilia_edge.runtime.docker import get_ros_log_path
+
+    log_path = get_ros_log_path()
+    if not log_path.exists():
+        ui.warn(f"No log file found at {log_path}. Has the spatial layer been started?")
+        raise typer.Exit(1)
+
+    cmd = ["tail", f"-{lines}", str(log_path)]
+    if follow:
+        cmd = ["tail", "-f", str(log_path)]
+    subprocess.run(cmd)
+
+
 @app.command(hidden=True)
 def cam() -> None:
     """Detect connected camera and show what would be written to launch_params.yaml."""

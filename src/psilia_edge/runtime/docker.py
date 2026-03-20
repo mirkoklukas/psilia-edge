@@ -137,6 +137,11 @@ def _network_args(ports: list[int]) -> list[str]:
     return args
 
 
+def get_ros_log_path():
+    """Return the path to the ROS launch log file on the host."""
+    return get_log_dir() / "ros.log"
+
+
 def is_port_open(port: int) -> bool:
     """Return True if the given port is reachable on localhost."""
     import socket
