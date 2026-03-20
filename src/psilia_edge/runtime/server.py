@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
 
@@ -18,16 +19,18 @@ from psilia_edge.runtime.config import get_api_port
 # Assumes editable install: .../psilia-edge/src/psilia_edge/runtime/server.py
 WEB_DIR = Path(__file__).resolve().parent.parent.parent.parent / "web"
 
-app = FastAPI(title="Psilia Edge", docs_url=None, redoc_url=None)
-
 # ── SSE broadcast ─────────────────────────────────────────────────────────────
 
 _clients: list[asyncio.Queue] = []
 
 
-@app.on_event("startup")
-async def _start_broadcaster() -> None:
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
     asyncio.create_task(_status_broadcaster())
+    yield
+
+
+app = FastAPI(title="Psilia Edge", docs_url=None, redoc_url=None, lifespan=_lifespan)
 
 
 async def _status_broadcaster() -> None:
