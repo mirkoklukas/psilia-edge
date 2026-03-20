@@ -59,11 +59,12 @@ def pull(
 
     for dev in devices:
         console.rule(f"[bold]{dev}")
+        console.print(f"[dim]→ {pull_to}[/dim]")
         rc = pull_from_device(dev, pull_to)
         if rc != 0:
             console.print(f"[red]✗ pull from {dev} failed (exit {rc})[/red]")
         else:
-            console.print(f"[green]✓ {dev} → {pull_to}[/green]")
+            console.print("[green]✓ done[/green]")
 
 
 # ── print helper commands ─────────────────────────────────────────────────────
