@@ -598,6 +598,30 @@ Then rebuild.
 
 ## Notes & Ideas & Keep-in-minds
 
+### Calibration storage
+
+Store calibration data in `psilia.yaml` (or split into a dedicated file — e.g. `calibrations.yaml` — if it grows large). Key idea: use a unique sensor identifier (e.g. serial number) as the key, so calibration data is reliably mapped to a specific physical sensor regardless of port or connection order.
+
+Each entry stores intrinsic and extrinsic calibration. Simple case: a single stereo camera (intrinsics per lens + stereo extrinsics). More complex case: a full sensor rig with multiple cameras and/or IMUs, each with their own intrinsics and extrinsics relative to a common rig frame.
+
+```yaml
+calibrations:
+  <sensor-serial>:
+    type: stereo_camera   # or mono_camera, imu, sensor_rig, ...
+    intrinsics:
+      left:  { ... }
+      right: { ... }
+    extrinsics:
+      left_to_right: { ... }
+  <rig-serial>:
+    type: sensor_rig
+    sensors:
+      - serial: <sensor-serial>
+        extrinsic_to_rig: { ... }
+```
+
+May split into a separate `calibrations.yaml` once the schema is stable, with a pointer in `psilia.yaml`.
+
 - Home network (`network.home`) is declared in `psilia.yaml`. The base layer detects if the Jetson is on that network and indicates it in the Web UI. Future: trigger cloud upload when connected. Other connection types (ethernet) may be relevant here too.
 
 ### Camera pipeline architecture
