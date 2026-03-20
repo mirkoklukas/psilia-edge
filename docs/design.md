@@ -325,6 +325,12 @@ Where to look when something goes wrong at each layer:
 Note: `heartbeat.json` and `status.json` are ephemeral — cleared when the container starts.
 Note: `ros.log` is truncated on each spatial layer start — only contains the current session.
 
+To follow ROS launch output live:
+```bash
+psilia runtime logs -f           # local
+psilia runtime logs -f -d borne  # on a registered device
+```
+
 
 ## Interacting with the Runtime
 
