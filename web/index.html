@@ -260,9 +260,7 @@
       return `${sec}s`;
     }
 
-    // ── Init: fetch current state immediately, then SSE for updates ──
-    fetch('/api/status').then(r => r.json()).then(render).catch(() => {});
-
+    // ── SSE: pushes current state immediately on connect, then on change ──
     const es = new EventSource('/api/events');
     es.onmessage = e => render(JSON.parse(e.data));
   </script>
