@@ -356,7 +356,7 @@ def status() -> None:
 @device_decorator
 def logs(
     follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output."),
-    lines: int = typer.Option(50, "--lines", "-n", help="Number of lines to show."),
+    lines: int = typer.Option(50, "--tail", "-n", help="Number of lines to show."),
 ) -> None:
     """Show ROS launch log output."""
     import subprocess

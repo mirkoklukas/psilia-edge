@@ -328,7 +328,7 @@ Note: `ros.log` is truncated on each spatial layer start — only contains the c
 To view ROS launch output:
 ```bash
 psilia runtime logs              # last 50 lines
-psilia runtime logs -n 100       # last 100 lines
+psilia runtime logs --tail 100   # last 100 lines
 psilia runtime logs -f           # follow live
 psilia runtime logs -f -d borne  # follow live on a registered device
 ```
