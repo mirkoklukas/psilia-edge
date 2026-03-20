@@ -494,6 +494,8 @@ When both a dongle and built-in WiFi are present, the Jetson can act as its own 
 # Notes todos and so on.
 ## TODOs
 
+(MAKE SURE THIS IS SOMEHWAT UP TO DATE)
+
 - **[NEXT]** Implement `psilia data pull` — pull recorded MCAP data from Jetson to laptop over SSH/rsync. Design the CLI command, naming conventions, and destination path (`data.pull_to` in `psilia.yaml`).
 - **[NEXT]** Finish runtime refactoring — review any remaining loose ends from the two-layer runtime redesign (base layer owns container, spatial layer via docker exec).
 

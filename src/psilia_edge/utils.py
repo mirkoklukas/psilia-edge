@@ -176,7 +176,9 @@ def run_on_device(device: str, cmd: str, replace_process: bool = False) -> int:
 
     -t allocates a pseudo-TTY on the remote side so Rich renders styled output.
     """
-    ssh_argv = ["ssh", "-t", device, "bash", "-lc", f"'{cmd}'"]
+    # -o LogLevel=ERROR suppresses SSH's own informational messages (e.g.
+    # "Connection to <host> closed.") that -t triggers at session end.
+    ssh_argv = ["ssh", "-t", "-o", "LogLevel=ERROR", device, "bash", "-lc", f"'{cmd}'"]
 
     if replace_process:
         os.execvp("ssh", ssh_argv)

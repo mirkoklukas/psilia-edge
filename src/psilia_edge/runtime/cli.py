@@ -204,10 +204,10 @@ def update() -> None:
 @device_decorator
 def start(
     spatial_only: bool = typer.Option(
-        False, "--spatial-only", "-s", help="Starts Spatial Runtime only (ROS2)."
+        False, "--spatial", "-s", help="Starts Spatial Runtime only (ROS2)."
     ),
     base_only: bool = typer.Option(
-        False, "--base-only", "-b", help="Starts the Base Layer only (Webserver)."
+        False, "--base", "-b", help="Starts the Base Layer only (Webserver)."
     ),
     force: bool = typer.Option(
         False, "--force", "-f", help="Skip spatial requirements check."
@@ -216,10 +216,10 @@ def start(
     port: int = typer.Option(None, help="HTTP port", hidden=True),
 ) -> None:
     """Start base layer then spatial layer."""
-    from psilia_edge.runtime.daemon import is_running
-    from psilia_edge.runtime.docker import is_ros_launch_running
     from psilia_edge.runtime.core import (
         SpatialRequirementsError,
+        is_base_layer_running,
+        is_spatial_layer_running,
         start_base_layer,
         start_spatial_layer,
         start_runtime,
@@ -228,7 +228,7 @@ def start(
     ui.header(["Runtime", "Start"])
 
     if base_only:
-        if is_running():
+        if is_base_layer_running():
             ui.warn("Base layer already running.")
             raise typer.Exit(1)
         with ui.status("Starting base layer…"):
@@ -237,7 +237,7 @@ def start(
         return
 
     if spatial_only:
-        if is_ros_launch_running():
+        if is_spatial_layer_running():
             ui.warn("Spatial layer already running.")
             raise typer.Exit(1)
         try:
@@ -245,7 +245,9 @@ def start(
                 result = start_spatial_layer(force=force)
         except SpatialRequirementsError as e:
             ui.print_tree(e.checks, label="requirements")
-            ui.fail("Spatial requirements not met. Use --force to start anyway.")
+            ui.fail(
+                "Spatial requirements not met. Run: psilia runtime start --spatial --force"
+            )
             raise typer.Exit(1)
         ui.print_tree(result, label="spatial")
         return
@@ -256,7 +258,9 @@ def start(
             result = start_runtime(host=host, port=port, force=force)
     except SpatialRequirementsError as e:
         ui.print_tree(e.checks, label="requirements")
-        ui.fail("Spatial requirements not met. Use --force to start anyway.")
+        ui.fail(
+            "Spatial requirements not met. Run: psilia runtime start --spatial --force"
+        )
         raise typer.Exit(1)
 
     ui.detail("check runtime status", "psilia runtime status [device]")
@@ -269,25 +273,25 @@ def start(
 @device_decorator
 def stop(
     spatial_only: bool = typer.Option(
-        False, "--spatial-only", "-s", help="Stops Spatial Runtime only (ROS2)."
+        False, "--spatial", "-s", help="Stops Spatial Runtime only (ROS2)."
     ),
     base_only: bool = typer.Option(
-        False, "--base-only", "-b", help="Stops the Base Layer only (Webserver)."
+        False, "--base", "-b", help="Stops the Base Layer only (Webserver)."
     ),
 ) -> None:
     """Stop spatial layer then base layer."""
     from psilia_edge.runtime.core import (
+        is_base_layer_running,
+        is_spatial_layer_running,
         stop_base_layer,
         stop_spatial_layer,
         stop_runtime,
     )
-    from psilia_edge.runtime.daemon import is_running
-    from psilia_edge.runtime.docker import is_ros_launch_running
 
     ui.header(["Runtime", "Stop"])
 
     if base_only:
-        if not is_running():
+        if not is_base_layer_running():
             ui.warn("Base layer is not running.")
             raise typer.Exit(1)
         with ui.status("Stopping base layer…"):
@@ -296,7 +300,7 @@ def stop(
         return
 
     if spatial_only:
-        if not is_ros_launch_running():
+        if not is_spatial_layer_running():
             ui.warn("Spatial layer is not running.")
             raise typer.Exit(1)
         with ui.status("Stopping spatial layer…"):
@@ -395,6 +399,7 @@ def repo() -> Path:
 
 
 @app.command(hidden=True)
+@device_decorator
 def conf() -> None:
     """Print the runtime configuration as YAML."""
 

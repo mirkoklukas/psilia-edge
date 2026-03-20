@@ -202,6 +202,23 @@ def stop_spatial_layer() -> dict:
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 #
+#   Layer state
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def is_base_layer_running() -> bool:
+    from psilia_edge.runtime.daemon import is_running
+
+    return is_running()
+
+
+def is_spatial_layer_running() -> bool:
+    from psilia_edge.runtime.docker import is_ros_launch_running
+
+    return is_ros_launch_running()
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
 #   Role detection
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
