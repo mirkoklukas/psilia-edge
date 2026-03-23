@@ -4,160 +4,158 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Psilia Edge — Status</title>
-  <!-- TODO: roslibjs loaded from CDN. In the field there may be no internet access.
-             Consider vendoring roslib.min.js into web/vendor/ and updating this path. -->
   <script src="/vendor/roslib.min.js"></script>
   <script src="/api/js/config.js"></script>
   <link rel="stylesheet" href="/psilia.css">
   <style>
-    .row { align-items: baseline; }
-    .row .value { word-break: break-all; text-align: right; max-width: 60%; }
-    #load-status { font-size: 0.75rem; color: #555; margin-bottom: 1.25rem; }
-    #refresh { margin-bottom: 1.5rem; }
-
-    #hb-circle {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      background: #4ecca3;
-      transform: scale(0.35);
-      opacity: 0.3;
-      margin: 1rem auto 0.25rem;
+    #load-status {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--color-text-muted);
+      align-self: flex-start;
     }
-    #hb-circle.beat {
-      animation: hb-pulse 3s ease-out forwards;
+    .cc__value--dim { color: var(--color-idle); }
+    .cc__list {
+      padding: 0.3rem 0 0.1rem 0.75rem;
     }
-    /* @keyframes hb-pulse {
-      0%   { transform: scale(0.35); opacity: 0.3; }
-      10%  { transform: scale(1.1);  opacity: 1;   }
-      100% { transform: scale(0.35); opacity: 0.3; }
-    } */
-    @keyframes hb-pulse {
-      0%   { transform: scale(0.9); opacity: 0.3; }
-      3%   { transform: scale(1.1); opacity: 1; }
-      /* 50%  { opacity: 0.0; } */
-      100% { transform: scale(0.8); opacity: 0.3; }
+    .cc__list-item {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-text);
+      padding: 0.2rem 0;
     }
-    #hb-ros-status { font-size: 0.75rem; color: #555; text-align: center; margin-top: 0.25rem; }
+    .cc__row--list {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+    }
   </style>
 </head>
 <body>
-  <h1>Psilia Edge</h1>
-  <div class="subtitle">spatial perception runtime</div>
-  <nav>
-    <a href="/">status</a>
-    <a href="/runtime-status.html" class="active">runtime status</a>
-    <a href="/runtime-test.html">runtime test</a>
-    <a href="/recording.html">recording</a>
-    <a href="/config.html">config</a>
-  </nav>
 
-  <div class="card">
-    <h2>/psilia/heartbeat</h2>
-    <div id="hb-circle"></div>
-    <div id="hb-ros-status"></div>
+  <div class="topbar">
+    <div class="topbar__brand-row">
+      <div class="brand">
+        <span class="brand__psilia">Psilia</span>
+        <span class="brand__edge">Edge</span>
+      </div>
+      <div class="di">
+        <div class="di__dot" id="di-dot"></div>
+        <span id="di-hostname"></span>
+      </div>
+    </div>
+    <nav class="topbar__nav">
+      <a href="/"                    class="topbar__nav-item">home</a>
+      <a href="/recording.html"      class="topbar__nav-item">recording</a>
+      <a href="/runtime-status.html" class="topbar__nav-item topbar__nav-item--active">status</a>
+    </nav>
   </div>
 
-  <button id="refresh">refresh</button>
-  <div id="load-status"></div>
-  <div id="cards"></div>
+  <main class="page">
+
+    <div id="load-status">loading…</div>
+    <div id="cards" style="width:100%; display:flex; flex-direction:column; gap:var(--space-md);"></div>
+
+  </main>
 
   <script>
-    async function load() {
-      document.getElementById('load-status').textContent = 'loading…';
-      document.getElementById('cards').innerHTML = '';
-      const t0 = Date.now();
-      const res = await fetch('/api/status');
-      if (!res.ok) {
-        document.getElementById('load-status').textContent = 'failed to load status';
-        return;
-      }
-      const status = await res.json();
-      document.getElementById('load-status').textContent = `loaded in ${Date.now() - t0}ms`;
-      render(status);
-    }
+    document.getElementById('di-hostname').textContent = location.hostname;
 
-    function addCard(container, title, value) {
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML = `<h2>${title}</h2>`;
-      card.appendChild(renderValue(value));
-      container.appendChild(card);
-    }
-
-    function render(status) {
-      const container = document.getElementById('cards');
-      container.innerHTML = '';
-      for (const [section, value] of Object.entries(status)) {
-        addCard(container, section, value);
-      }
-    }
-
-    function renderValue(value, prefix = '') {
-      const frag = document.createDocumentFragment();
-      if (Array.isArray(value)) {
-        const block = document.createElement('div');
-        block.style.marginBottom = '0.5rem';
-        const label = document.createElement('div');
-        label.style.cssText = 'color:#888; font-family:monospace; font-size:0.85rem; padding:0.35rem 0;';
-        label.textContent = prefix;
-        block.appendChild(label);
-        const list = document.createElement('div');
-        list.style.cssText = 'display:flex; flex-direction:column; gap:0.15rem; padding-left:1rem; margin-top:0.2rem;';
-        for (const item of value) {
-          const entry = document.createElement('div');
-          entry.style.fontSize = '0.8rem';
-          entry.textContent = item;
-          list.appendChild(entry);
-        }
-        if (!value.length) {
-          const empty = document.createElement('div');
-          empty.className = 'dim';
-          empty.style.fontSize = '0.8rem';
-          empty.textContent = '—';
-          list.appendChild(empty);
-        }
-        block.appendChild(list);
-        frag.appendChild(block);
-      } else if (value && typeof value === 'object') {
-        for (const [k, v] of Object.entries(value)) {
-          const label = prefix ? `${prefix}.${k}` : k;
-          if (v && typeof v === 'object' && !Array.isArray(v)) {
-            frag.appendChild(renderValue(v, label));
-          } else {
-            frag.appendChild(renderValue(v, label));
-          }
-        }
-      } else {
-        const row = document.createElement('div');
-        row.className = 'row';
-        row.innerHTML = `
-          <span class="label">${prefix}</span>
-          <span class="value ${value == null ? 'dim' : ''}">${value ?? '—'}</span>
-        `;
-        frag.appendChild(row);
-      }
-      return frag;
-    }
-
-    // --- rosbridge + heartbeat ---
+    // ── Heartbeat → di dot ────────────────────────────────────
+    const diDot = document.getElementById('di-dot');
     const ros = new ROSLIB.Ros({ url: `ws://${location.hostname}:${window.PSILIA.rosbridgePort}` });
-    const rosStatus = document.getElementById('hb-ros-status');
-    const circle    = document.getElementById('hb-circle');
-
-    ros.on('connection', () => { rosStatus.textContent = ''; });
-    ros.on('error',      () => { rosStatus.textContent = 'rosbridge error'; });
-    ros.on('close',      () => { rosStatus.textContent = 'rosbridge disconnected'; });
+    ros.on('close', () =>
+      setTimeout(() => ros.connect(`ws://${location.hostname}:${window.PSILIA.rosbridgePort}`), 3000));
 
     new ROSLIB.Topic({ ros, name: '/psilia/heartbeat', messageType: 'std_msgs/String' })
       .subscribe(() => {
-        circle.classList.remove('beat');
-        void circle.offsetWidth; // force reflow to restart animation
-        circle.classList.add('beat');
+        diDot.classList.remove('beat');
+        void diDot.offsetWidth;
+        diDot.classList.add('beat');
       });
 
-    // --- refresh button + initial load ---
-    document.getElementById('refresh').addEventListener('click', load);
+    // ── Status load ───────────────────────────────────────────
+    async function load() {
+      const loadEl = document.getElementById('load-status');
+      const cards  = document.getElementById('cards');
+      loadEl.textContent = 'loading…';
+      cards.innerHTML = '';
+
+      const t0  = Date.now();
+      const res = await fetch('/api/status');
+      if (!res.ok) { loadEl.textContent = 'failed to load status'; return; }
+
+      const status = await res.json();
+      loadEl.textContent = `loaded in ${Date.now() - t0}ms`;
+      for (const [section, value] of Object.entries(status)) {
+        cards.appendChild(buildCard(section, value));
+      }
+    }
+
+    function buildCard(title, value) {
+      const card = document.createElement('div');
+      card.className = 'cc';
+      const heading = document.createElement('div');
+      heading.className = 'cc__title';
+      heading.textContent = title;
+      card.appendChild(heading);
+      card.appendChild(renderValue(value, ''));
+      return card;
+    }
+
+    function renderValue(value, prefix) {
+      const frag = document.createDocumentFragment();
+
+      if (Array.isArray(value)) {
+        const row = document.createElement('div');
+        row.className = 'cc__row cc__row--list';
+        if (prefix) {
+          const label = document.createElement('span');
+          label.className = 'cc__label';
+          label.textContent = prefix;
+          row.appendChild(label);
+        }
+        const list = document.createElement('div');
+        list.className = 'cc__list';
+        if (value.length) {
+          value.forEach(item => {
+            const el = document.createElement('div');
+            el.className = 'cc__list-item';
+            el.textContent = item;
+            list.appendChild(el);
+          });
+        } else {
+          const empty = document.createElement('div');
+          empty.className = 'cc__list-item cc__value--dim';
+          empty.textContent = '—';
+          list.appendChild(empty);
+        }
+        row.appendChild(list);
+        frag.appendChild(row);
+
+      } else if (value && typeof value === 'object') {
+        for (const [k, v] of Object.entries(value)) {
+          const label = prefix ? `${prefix}.${k}` : k;
+          frag.appendChild(renderValue(v, label));
+        }
+
+      } else {
+        const row = document.createElement('div');
+        row.className = 'cc__row';
+        const label = document.createElement('span');
+        label.className = 'cc__label';
+        label.textContent = prefix;
+        const val = document.createElement('span');
+        val.className = value == null ? 'cc__value cc__value--dim' : 'cc__value';
+        val.textContent = value ?? '—';
+        row.appendChild(label);
+        row.appendChild(val);
+        frag.appendChild(row);
+      }
+
+      return frag;
+    }
+
     load();
   </script>
 </body>

@@ -1,0 +1,463 @@
+/* ============================================================
+   PSILIA EDGE — DESIGN TOKENS
+   ============================================================ */
+
+:root {
+  /* Backgrounds */
+  --color-bg:         #1a1a2e;   /* page background */
+  --color-surface:    #16213e;   /* card surfaces */
+
+  /* Brand gradients */
+  --grad-psilia:      linear-gradient(90deg, #9c27b0, #e040fb);
+  --grad-edge:        linear-gradient(90deg, #009dff, #4a6da5);
+  --grad-border:      linear-gradient(135deg, #2a3a6e, #2a5e4e);
+
+  /* Text */
+  --color-text:       #e0e0e0;   /* primary text */
+  --color-text-muted: #3a5a7a;   /* meta, secondary text */
+
+  /* Accents */
+  --color-blue:       #009dff;   /* primary blue — titles, arrows */
+  --color-blue-mid:   #3392db;   /* arrow color */
+  --color-blue-dim:   #4a6da5;   /* subtitle, muted blue */
+  --color-green:      #4ecca3;   /* green accent */
+
+  /* Semantic */
+  --color-live:       #4ecca3;   /* live / ok */
+  --color-warn:       #f0c040;   /* warning */
+  --color-fail:       #e05555;   /* error / fail */
+  --color-idle:       #444;      /* inactive */
+
+  /* Brand purple/magenta (header only) */
+  --color-magenta:    #e040fb;
+  --color-purple:     #9c27b0;
+
+  /* Typography */
+  --font-ui:    'Lato', sans-serif;
+  --font-mono:  'Roboto Mono', monospace;
+  --font-weight-light: 300;
+
+  /* Spacing */
+  --space-xs:   0.25rem;
+  --space-sm:   0.5rem;
+  --space-md:   0.75rem;
+  --space-lg:   1.25rem;
+  --space-xl:   1.5rem;
+
+  /* Radius */
+  --radius-sm:  0.5rem;
+  --radius-md:  0.75rem;
+  --radius-pill: 1rem;
+
+  /* Borders */
+  --border-subtle: 1px solid rgba(255,255,255,0.04);
+}
+
+
+/* ============================================================
+   RESET
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-weight: var(--font-weight-light);
+  min-height: 100vh;
+}
+
+
+/* ============================================================
+   HDR-01 — Header (centered, landing page)
+   Usage: top of landing page only, no back arrow
+   ============================================================ */
+
+.hdr {
+  text-align: center;
+  padding: var(--space-xl) var(--space-lg) var(--space-lg);
+}
+
+.hdr__title {
+  font-family: var(--font-ui);
+  font-weight: var(--font-weight-light);
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.hdr__title--psilia {
+  background-image: var(--grad-psilia);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hdr__title--edge {
+  background-image: var(--grad-edge);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+
+/* ============================================================
+   DI-01 — Device Indicator (dot left · name)
+   Usage: inside top bar, right side
+   ============================================================ */
+
+.di {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-light);
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.di__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-live);
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+
+/* ============================================================
+   TB-02 — Top Bar (brand + DI-05 + nav tabs)
+   Usage: persistent top bar on all subpages
+   ============================================================ */
+
+.topbar {
+  background: var(--color-bg);
+  border-bottom: var(--border-subtle);
+}
+
+.topbar__brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+  border-bottom: var(--border-subtle);
+}
+
+.topbar__nav {
+  display: flex;
+}
+
+.topbar__nav-item {
+  flex: 1;
+  padding: 0.65rem 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-light);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid transparent;
+}
+
+.topbar__nav-item--active {
+  color: var(--color-live);
+  border-bottom-color: var(--color-live);
+}
+
+
+/* ============================================================
+   CL — Card Link (V1 gradient border)
+   Usage: navigation cards on landing page and subpages
+   ============================================================ */
+
+.cl {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  position: relative;
+  background: var(--color-bg);
+  width: 100%;
+}
+
+/* gradient border via mask trick */
+.cl::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-md);
+  padding: 1px;
+  background: var(--grad-border);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box,
+                linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.cl__body { flex: 1; }
+
+.cl__title {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: var(--font-weight-light);
+  color: var(--color-blue);
+  margin: 0 0 var(--space-xs);
+}
+
+.cl__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-xs);
+}
+
+.cl__subtitle {
+  font-size: 0.75rem;
+  color: var(--color-blue-mid);
+  font-weight: var(--font-weight-light);
+  margin-bottom: var(--space-sm);
+}
+
+.cl__arrow {
+  color: var(--color-blue);
+  flex-shrink: 0;
+}
+
+/* CL with 2-column grid layout */
+.cl-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  width: 100%;
+}
+.cl-grid .cl { max-width: unset; }
+
+
+/* ============================================================
+   BL — Back Link
+   Usage: top-left of subpage header, returns to landing
+   ============================================================ */
+
+.bl {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 0.75rem var(--space-lg);
+  font-family: var(--font-ui);
+  font-weight: var(--font-weight-light);
+  font-size: 0.8rem;
+  color: var(--color-blue);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+
+/* ============================================================
+   CC — Content Card
+   Usage: display runtime data, kv pairs, status checks
+   ============================================================ */
+
+.cc {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl) var(--space-lg);
+  width: 100%;
+  position: relative;
+}
+
+.cc__title {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-green);
+  margin-bottom: 1.1rem;
+  font-weight: var(--font-weight-light);
+}
+
+.cc__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.55rem 0;
+  border-bottom: var(--border-subtle);
+  font-size: 0.82rem;
+}
+.cc__row:last-child { border-bottom: none; }
+
+.cc__label {
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  color: var(--color-blue-dim);
+}
+
+.cc__value {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--color-text);
+}
+
+/* list variant — indented items under a label */
+.cc__row--list { flex-direction: column; align-items: flex-start; gap: 0.4rem; }
+
+.cc__list { padding: 0.3rem 0 0.1rem 0.75rem; }
+
+.cc__list-item {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--color-text);
+  padding: 0.22rem 0;
+}
+
+/* check marks */
+.cc__check--ok   { font-family: var(--font-mono); color: var(--color-live); }
+.cc__check--fail { font-family: var(--font-mono); color: var(--color-fail); }
+
+
+/* ============================================================
+   BTN — Button (unified system)
+   Usage: actions inside CC cards or standalone
+
+   Base:      .btn
+   Layout:    .btn-row (for side-by-side buttons)
+   Color:     .btn--start  .btn--stop
+   Style:     .btn--gradient (adds subtle gradient to bg)
+   Width:     .btn--full (fills container)
+   ============================================================ */
+
+.btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0;
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-light);
+  font-size: 0.8rem;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.btn--full { width: 100%; flex: unset; }
+
+/* color modifiers */
+.btn--start {
+  background: rgba(78,204,163,0.13);
+  color: var(--color-green);
+}
+
+.btn--stop {
+  background: rgba(224,85,85,0.12);
+  color: var(--color-fail);
+}
+
+/* gradient modifier — adds directional depth to the tint */
+.btn--start.btn--gradient {
+  background: linear-gradient(135deg,
+    rgba(78,204,163,0.13),
+    rgba(78,204,163,0.25));
+}
+
+.btn--stop.btn--gradient {
+  background: linear-gradient(135deg,
+    rgba(224,85,85,0.12),
+    rgba(224,85,85,0.22));
+}
+
+/* row layout for side-by-side buttons */
+.btn-row {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+
+/* ============================================================
+   BD — Badge
+   Usage: status indicator inside CL or CC
+   ============================================================ */
+
+.badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-light);
+  font-size: 0.62rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+}
+
+.badge--live { background: rgba(78,204,163,0.12);  color: var(--color-live); }
+.badge--idle { background: rgba(255,255,255,0.05); color: var(--color-idle); }
+.badge--warn { background: rgba(240,192,64,0.1);   color: var(--color-warn); }
+.badge--fail { background: rgba(224,85,85,0.1);    color: var(--color-fail); }
+
+
+/* ============================================================
+   TG — Toggle Switch
+   Usage: enable/disable a setting
+   ============================================================ */
+
+.tg { display: block; position: relative; width: 32px; height: 18px; flex-shrink: 0; }
+.tg input { display: none; }
+
+.tg__track {
+  position: absolute;
+  inset: 0;
+  background: #2a2a3e;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.tg__track::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #555;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.tg input:checked + .tg__track {
+  background: rgba(78,204,163,0.2);
+}
+
+.tg input:checked + .tg__track::after {
+  transform: translateX(14px);
+  background: var(--color-green);
+}
+
+
+/* ============================================================
+   LAYOUT UTILITIES
+   ============================================================ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 1rem 3rem;
+  max-width: 420px;
+  margin: 0 auto;
+  gap: var(--space-md);
+}

@@ -239,13 +239,58 @@ The container itself is only torn down when the base layer stops. The slow `dock
 
 ## Install Flow
 
-The user clones the repository. Once `pip install -e .` is run, the CLI is available.
-Now we can run `psilia runtime init/setup` which starts the interactive wizard that
-provisions a runtime: prompts for the runtime path, creates the directory structure, writes  `runtime.home_path` into `psilia.yaml`, and runs the remaining setup steps (Docker, network, etc.).
+### Laptop setup (once)
 
-Works the same on laptop and Jetson. v0 assumes one runtime per machine.
+Clone the repo and pip-install to get the CLI:
 
-`psilia pair` is a laptop-side wizard that registers a remote device into the `registered_devices` section of `psilia.yaml`.
+```bash
+git clone ... psilia-edge && cd psilia-edge
+pip install -e .
+```
+
+### Connecting to a Jetson (once per device)
+
+```bash
+psilia pair [<host>]
+```
+
+Laptop-side wizard: SSH into the Jetson, generate a keypair, register the device in `~/.psilia/psilia.yaml`, and add an entry to `~/.ssh/config`. After pairing, the device is addressable by name (e.g. `my-jetson`).
+
+### Bootstrapping a fresh Jetson (once per device)
+
+```bash
+psilia bootstrap my-jetson
+```
+
+Laptop-initiated, runs over SSH. Clones the repo on the Jetson, pip-installs, and calls `psilia init` to provision the runtime home. This is the single command to get a fresh Jetson ready from scratch. Internally it downloads and runs a bootstrap script on the device.
+
+### First-time runtime setup (local, on the Jetson)
+
+```bash
+psilia init [<runtime-home-path>]
+```
+
+Local command, also called by `bootstrap`. Creates the runtime home directory structure, builds the Docker image, copies the ROS workspace, and writes `runtime.home_path` into `psilia.yaml`. One-time operation.
+
+### Reconfiguring specific aspects
+
+```bash
+psilia setup --hotspot
+psilia setup --wifi
+psilia setup --all
+```
+
+Run at any time after `init` to configure or reconfigure specific aspects (network hotspot, home WiFi, etc.). Not a first-time-only command.
+
+### Command roles summary
+
+| Command | Who runs it | When |
+|---|---|---|
+| `psilia pair` | Laptop | Once, to register a new Jetson |
+| `psilia bootstrap <device>` | Laptop (over SSH) | Once, to provision a fresh Jetson |
+| `psilia init` | Jetson (local) | Once, first-time runtime home setup |
+| `psilia setup [--hotspot\|--wifi]` | Jetson (local or via `-d`) | Any time, to reconfigure |
+| `psilia config <key>` | Anywhere | Read-only config query |
 
 
 ## Dependencies
@@ -525,12 +570,14 @@ When both a dongle and built-in WiFi are present, the Jetson can act as its own 
 (MAKE SURE THIS IS SOMEHWAT UP TO DATE)
 
 - **[NEXT]** Implement `psilia data pull` — pull recorded MCAP data from Jetson to laptop over SSH/rsync. Design the CLI command, naming conventions, and destination path (`data.pull_to` in `psilia.yaml`).
+- Implement `psilia data push` — push recorded MCAP data from Jetson to a remote destination (laptop or cloud). Complement to `data pull`: where pull is laptop-initiated, push is Jetson-initiated. Design target configuration (cloud bucket URL or laptop address), authentication, and how the destination is stored in `psilia.yaml`.
 - **[NEXT]** Finish runtime refactoring — review any remaining loose ends from the two-layer runtime redesign (base layer owns container, spatial layer via docker exec).
 
 - **[HIGH PRIORITY]** Fix `device_decorator` to forward flags to the remote command. Currently it only forwards `psilia runtime {func_name}` with no arguments, so any decorated command that also takes flags (e.g. `psilia runtime config --data-dir -d my-jetson`) silently drops those flags when run with `-d`. Fix by reconstructing the full CLI invocation from `sys.argv`, stripping `--device`/`-d` and its value, before passing to `run_on_device`.
 - **[HIGH PRIORITY]** Revisit the network setup step (`_step_network`). Currently it looks for a USB WiFi dongle, but we should enumerate all interfaces that support AP mode and let the user choose. Show clearly which are USB dongles vs. built-in PCIe (e.g. via `wlx` prefix and `lsusb` cross-reference). Also handle hotspot autostart via NetworkManager during setup so the hotspot comes up on boot without manual intervention. Keep in mind that the connection needs to support live camera streaming to the web UI — low-res, low frame rate (e.g. 320x240 @ 5fps), but smooth enough to be useful for monitoring. Original full-res images are recorded separately; only downsampled versions are streamed. The hotspot interface choice and configuration should be validated against this bandwidth requirement.
 - **[HIGH PRIORITY]** Camera support: scanning for connected cameras is roughly done (`hotplug.py`). Next step is a ROS node that reads from different camera types (USB, ZED, OAK-D, RealSense, etc.) and publishes on the stable `/psilia/image` interface. The node should be configurable (camera type and parameters from `runtime.yaml`) and handle device detection at startup.
 - Fix `psilia runtime stop` behavior when spatial layer is already stopped — currently shows `spatial.status: error` even when spatial was never running. Should show a neutral/not-running status instead of an error when stopping something that wasn't started.
+- Implement home network detection in the base layer: check whether the Jetson is connected to the WiFi SSID declared under `network.home` in `psilia.yaml` (e.g. via `nmcli -t -f active,ssid dev wifi`) and expose the result in `/api/status`. Indicate home network connectivity in the Web UI.
 - show logs in live view, ros2 logs and so on
 - Implement `hotplug` in the daemon: use `pyudev` to watch for USB device events (cameras, network dongles) and react — update `psilia.yaml`, notify the UI. Replaces the current "written once, may go stale" camera/hotspot detection.
 - Structure logging across the stack and document a clear map of what writes where: daemon PID and log (`~/.psilia/run/`, `~/.psilia/log/`), ROS node logs (`{runtime_home}/log/` via `ROS_LOG_DIR`), colcon build logs (`{runtime_home}/ros/log/`), FastAPI/uvicorn logs, and `heartbeat.json`/`status.json` in `~/.psilia/run/`. Should answer: where do I look when something goes wrong at each layer?
@@ -599,6 +646,24 @@ Then rebuild.
 
 ## Notes & Ideas & Keep-in-minds
 
+### Package distribution: extras vs namespace packages
+
+Two options for splitting out the data API and future utilities from the core runtime:
+
+**Extras** (`pip install psilia-edge[data]`) — one package, optional dependency groups. `pip install psilia-edge` gives the minimal runtime for Jetson; `pip install psilia-edge[data]` adds `mcap`, `numpy`, and future data/analysis tools for the laptop side. Simpler to maintain, recommended for now.
+
+**Namespace packages** — multiple separately-installable packages (`psilia-edge`, `psilia-data`, ...) that all expose modules under a shared `psilia.*` namespace. Independent PyPI packages, can live in separate repos, stitched together by Python at import time. More overhead, makes sense only if the sub-packages are genuinely independent and distributed separately.
+
+The three sub-packages and their deployment targets:
+
+| Package | Target | Role |
+|---|---|---|
+| `psilia-edge` | Jetson (host) | Runtime, CLI, base + spatial layer lifecycle |
+| `psilia-inference` | Docker container | Inference algorithms, model wrappers, ROS nodes |
+| `psilia-dev` | Laptop / cloud | MCAP reader, data API, notebook utilities, dev tooling |
+
+Since these have distinct deployment targets, namespace packages may make more sense than extras long-term — you'd never want inference deps on the Jetson host or dev tooling inside Docker.
+
 ### Calibration storage
 
 Store calibration data in `psilia.yaml` (or split into a dedicated file — e.g. `calibrations.yaml` — if it grows large). Key idea: use a unique sensor identifier (e.g. serial number) as the key, so calibration data is reliably mapped to a specific physical sensor regardless of port or connection order.
@@ -653,3 +718,21 @@ Synchronization is minimal — one atomic int write. No locks needed if memory o
 
 - "runtime home" has a nice ring to it — `runtime.home_path` in the config reads naturally. Settled on `psilia-runtime-home` as the default directory name.
 - The ROS workspace (`psilia_runtime`) is copied to the runtime home and mounted into the container at runtime — it is NOT baked into the Docker image. This keeps it visible and editable on the host without rebuilding the image. May revisit if we ever want a fully self-contained image.
+
+### /psilia/interface — keeping it honest
+
+The static info topic currently hardcodes the list of topics Psilia publishes.
+This is a promise to other nodes — but if a node isn't running (e.g. depth_node
+disabled, camera not connected), the promise is broken.
+
+Need a way to keep /psilia/info in sync with what is actually being published.
+Some directions worth exploring:
+
+- Have each node register itself at startup (e.g. publish to a /psilia/registry
+  topic or write to a shared state). The status node aggregates and re-broadcasts.
+- Introspect the ROS graph at startup (ros2 topic list) and filter for /psilia/*
+  topics that have active publishers before broadcasting /psilia/info.
+- Delay the /psilia/info broadcast slightly to let all nodes come up, then
+  discover what's actually live before publishing.
+- Treat /psilia/info as dynamic (re-publish periodically) rather than truly static,
+  so it reflects the current state of the graph.

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Psilia Edge</title>
+  <script src="/vendor/roslib.min.js"></script>
+  <script src="/api/js/config.js"></script>
+  <link rel="stylesheet" href="/psilia.css">
+  <style>
+    #uptime-header {
+      font-size: 0.72rem;
+      font-family: monospace;
+      color: #444;
+      margin-bottom: 1rem;
+    }
+
+    @keyframes req-pop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.4); }
+      100% { transform: scale(1); }
+    }
+    .req-pop {
+      display: inline-block;
+      animation: req-pop 0.3s ease-out forwards;
+    }
+
+    @keyframes req-glow-green {
+      0%   { background: transparent; }
+      20%  { background: #4ecca318; }
+      100% { background: transparent; }
+    }
+    @keyframes req-shake {
+      0%   { transform: translateX(0); }
+      20%  { transform: translateX(-1.5px); }
+      40%  { transform: translateX(1.5px); }
+      60%  { transform: translateX(-0.5px); }
+      80%  { transform: translateX(0.5px); }
+      100% { transform: translateX(0); }
+    }
+    .req-shake { animation: req-shake 0.4s ease-out forwards, req-glow-red 0.6s ease-out forwards; }
+
+    @keyframes req-glow-red {
+      0%   { background: transparent; }
+      20%  { background: #e0606018; }
+      100% { background: transparent; }
+    }
+    .req-glow-green { animation: req-glow-green 0.6s ease-out forwards; }
+    .req-glow-red   { animation: req-glow-red   0.6s ease-out forwards; }
+
+    @keyframes req-text-glow {
+      0%   { text-shadow: none; }
+      20%  { text-shadow: 0 0 8px currentColor; }
+      100% { text-shadow: none; }
+    }
+    .req-text-glow {
+      animation: req-pop 0.3s ease-out forwards, req-text-glow 0.6s ease-out forwards;
+    }
+    .req-label-glow {
+      animation: req-text-glow 0.6s ease-out forwards;
+    }
+
+    #hb-circle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #4ecca3;
+      transform: scale(0.8);
+      opacity: 0.3;
+      margin: 0.75rem auto 0.25rem;
+    }
+    #hb-circle.beat {
+      animation: hb-pulse 3s ease-out forwards;
+    }
+    @keyframes hb-pulse {
+      0%   { transform: scale(0.9); opacity: 0.3; }
+      3%   { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(0.8); opacity: 0.3; }
+    }
+    .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .btn {
+      flex: 1;
+      padding: 0.75rem 0;
+      border: none;
+      border-radius: 0.5rem;
+      font-size: 0.8rem;
+      font-family: monospace;
+      cursor: pointer;
+      background: #1a1a2e;
+      color: #888;
+      transition: color 0.15s, background 0.15s;
+    }
+    .btn:hover { color: #e0e0e0; }
+    .btn.primary { background: #4ecca322; color: #4ecca3; }
+    .btn.primary:hover { background: #4ecca344; }
+    .btn.danger  { background: #e0606022; color: #e06060; }
+    .btn.danger:hover  { background: #e0606044; }
+    .btn:disabled { opacity: 0.35; cursor: default; }
+    #preflight-card .row .value { width: 2rem; text-align: center; }
+
+    a.card-link {
+      display: block;
+      text-decoration: none;
+      cursor: pointer;
+      background: #1a1a2e;
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      position: relative;
+      transition: background 0.15s;
+    }
+    a.card-link::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 0.75rem;
+      padding: 1px;
+      background: linear-gradient(135deg, #2a3a6e, #2a5e4e);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      transition: opacity 0.15s;
+      opacity: 0.6;
+    }
+    a.card-link:hover { background: #1e2440; }
+    a.card-link:hover::before { opacity: 1; }
+    a.card-link h2 { color: #5a8fd8; }
+    a.card-link .subtitle {
+      font-size: 0.75rem;
+      font-family: monospace;
+      color: #444;
+      margin-top: 0.25rem;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 0.6rem;
+    }
+    #preflight-card.force { opacity: 0.4; }
+    #preflight-card.force .toggle-switch { opacity: calc(1 / 0.4); }
+
+    .toggle-label {
+      font-size: 0.72rem;
+      font-family: monospace;
+      color: #555;
+    }
+    .toggle-switch {
+      display: block;
+      position: relative;
+      width: 32px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input { display: none; }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: #2a2a3e;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #555;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .toggle-track { background: #2a2a3e; }
+    .toggle-track::after { background: #555; }
+    .toggle-switch input:checked + .toggle-track { background: #4ecca322; }
+    .toggle-switch input:checked + .toggle-track::after {
+      transform: translateX(14px);
+      background: #4ecca3;
+    }
+  </style>
+</head>
+<body>
+  <h1>Psilia Edge</h1>
+  <div class="subtitle">spatial perception runtime</div>
+  <nav>
+    <a href="/" class="active">status</a>
+    <a href="/runtime-status.html">runtime status</a>
+    <a href="/runtime-test.html">runtime test</a>
+    <a href="/recording.html">recording</a>
+    <a href="/config.html">config</a>
+    <a href="/network-test.html">network test</a>
+  </nav>
+
+  <!-- Uptime -->
+  <div id="uptime-header"><span id="base-uptime">connecting…</span></div>
+
+  <!-- Heartbeat -->
+  <div class="card">
+    <h2>/psilia/heartbeat</h2>
+    <div id="hb-circle"></div>
+  </div>
+
+  <!-- Spatial Layer -->
+  <div class="card" id="preflight-card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; line-height:1;">
+      <h2 style="margin:0; line-height:1;">Preflight Checks</h2>
+      <div style="width:2rem; display:flex; justify-content:flex-end; align-items:center;">
+        <label class="toggle-switch" style="margin-right:7px;">
+          <input type="checkbox" id="force-toggle" checked>
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">container</span>
+      <span class="value dim" id="req-container">—</span>
+    </div>
+    <div class="row">
+      <span class="label">camera</span>
+      <span class="value dim" id="req-camera">—</span>
+    </div>
+    <div class="row">
+      <span class="label">hotspot</span>
+      <span class="value dim" id="req-hotspot">—</span>
+    </div>
+  </div>
+
+  <!-- Spatial Toggle -->
+  <div class="card">
+    <div class="btn-row">
+      <button class="btn primary" id="btn-toggle" onclick="spatialToggle()">start</button>
+    </div>
+  </div>
+
+  <!-- Recording -->
+  <a href="/recording.html" class="card card-link">
+    <h2>Recording</h2>
+    <div class="subtitle">start / stop · name sessions · pick topics</div>
+  </a>
+
+  <script>
+    function render(s) {
+      const base    = s.uptime          || {};
+      const spatial = s.spatial_running || {};
+
+      // Uptime
+      if (base.running && base.uptime) {
+        startUptimeTick(base.uptime);
+      } else {
+        stopUptimeTick();
+        document.getElementById('base-uptime').textContent = base.running === false ? 'offline' : '—';
+      }
+
+      // Spatial layer
+      spatialRunning = !!spatial.running;
+      const btn = document.getElementById('btn-toggle');
+      btn.textContent = spatialRunning ? 'stop' : 'start';
+      btn.className   = spatialRunning ? 'btn primary' : 'btn danger';
+      btn.disabled    = false;
+
+      // Requirements checklist
+      const reqs = s.spatial_requirements || {};
+      setReq('req-container', !!reqs.container?.ok);
+      setReq('req-camera',    !!reqs.camera?.ok);
+      setReq('req-hotspot',   !!reqs.hotspot?.ok);
+    }
+
+    function set(id, text, cls) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = 'value ' + (cls || '');
+    }
+
+    function setReq(id, ok) {
+      const el = document.getElementById(id);
+      const symbol = ok ? '✓' : '✗';
+      const changed = el.textContent !== symbol;
+      el.textContent = symbol;
+      el.className   = 'value ' + (ok ? 'green' : 'red');
+      if (changed) {
+        el.classList.remove('req-text-glow');
+        void el.offsetWidth;
+        el.classList.add('req-text-glow');
+
+        const row = el.closest('.row');
+        const glowClass = ok ? 'req-glow-green' : 'req-glow-red';
+        row.classList.remove('req-glow-green', 'req-glow-red');
+        void row.offsetWidth;
+        row.classList.add(glowClass);
+
+      }
+    }
+
+    // ── Spatial toggle ───────────────────────────────────────────────
+    let spatialRunning = false;
+
+    async function spatialToggle() {
+      document.getElementById('btn-toggle').disabled = true;
+      const force = !document.getElementById('force-toggle').checked;
+      const base = spatialRunning ? '/api/spatial/stop' : '/api/spatial/start';
+      const url = (!spatialRunning && force) ? `${base}?force=true` : base;
+      const res = await fetch(url, { method: 'POST' });
+      if (res.status === 412) {
+        const data = await res.json();
+        for (const [key, val] of Object.entries(data.checks || {})) {
+          if (!val.ok) {
+            const row = document.getElementById(`req-${key}`)?.closest('.row');
+            if (row) {
+              row.classList.remove('req-shake', 'req-glow-red', 'req-glow-green');
+              void row.offsetWidth;
+              row.classList.add('req-shake');
+            }
+          }
+        }
+        document.getElementById('btn-toggle').disabled = false;
+      }
+    }
+
+    // ── Heartbeat (rosbridge) ────────────────────────────────────────
+    const circle = document.getElementById('hb-circle');
+    const ros = new ROSLIB.Ros({ url: `ws://${location.hostname}:${window.PSILIA.rosbridgePort}` });
+
+    let rosbridgeConnected = false;
+    ros.on('connection', () => { rosbridgeConnected = true;  });
+    ros.on('error',      () => { rosbridgeConnected = false; });
+    ros.on('close',      () => {
+      rosbridgeConnected = false;
+      setTimeout(() => ros.connect(`ws://${location.hostname}:${window.PSILIA.rosbridgePort}`), 3000);
+    });
+
+    new ROSLIB.Topic({ ros, name: '/psilia/heartbeat', messageType: 'std_msgs/String' })
+      .subscribe(() => {
+        circle.classList.remove('beat');
+        void circle.offsetWidth;
+        circle.classList.add('beat');
+      });
+
+    // ── Uptime tick ──────────────────────────────────────────────────
+    let _uptimeSecs = 0;
+    let _uptimeTimer = null;
+
+    function startUptimeTick(uptimeStr) {
+      _uptimeSecs = parseUptime(uptimeStr);
+      if (_uptimeTimer) clearInterval(_uptimeTimer);
+      _uptimeTimer = setInterval(() => {
+        _uptimeSecs++;
+        document.getElementById('base-uptime').textContent = `up ${formatUptime(_uptimeSecs)}`;
+      }, 1000);
+    }
+
+    function stopUptimeTick() {
+      if (_uptimeTimer) { clearInterval(_uptimeTimer); _uptimeTimer = null; }
+    }
+
+    function parseUptime(str) {
+      let s = 0;
+      const h = str.match(/(\d+)h/);
+      const m = str.match(/(\d+)m/);
+      const sec = str.match(/(\d+)s/);
+      if (h) s += parseInt(h[1]) * 3600;
+      if (m) s += parseInt(m[1]) * 60;
+      if (sec) s += parseInt(sec[1]);
+      return s;
+    }
+
+    function formatUptime(s) {
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      if (h) return `${h}h ${m}m`;
+      if (m) return `${m}m ${sec}s`;
+      return `${sec}s`;
+    }
+
+    // ── Force toggle ─────────────────────────────────────────────────
+    const forceToggle = document.getElementById('force-toggle');
+    const preflightCard = document.getElementById('preflight-card');
+    function updateForceState() {
+      preflightCard.classList.toggle('force', !forceToggle.checked);
+    }
+    forceToggle.addEventListener('change', updateForceState);
+
+    // ── SSE: pushes current state immediately on connect, then on change ──
+    const es = new EventSource('/api/events');
+    es.onmessage = e => render(JSON.parse(e.data));
+  </script>
+</body>
+</html>

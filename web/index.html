@@ -8,267 +8,230 @@
   <script src="/api/js/config.js"></script>
   <link rel="stylesheet" href="/psilia.css">
   <style>
-    #uptime-header {
-      font-size: 0.72rem;
-      font-family: monospace;
-      color: #444;
-      margin-bottom: 1rem;
-    }
-
-    @keyframes req-pop {
-      0%   { transform: scale(1); }
-      40%  { transform: scale(1.4); }
-      100% { transform: scale(1); }
-    }
-    .req-pop {
-      display: inline-block;
-      animation: req-pop 0.3s ease-out forwards;
-    }
-
-    @keyframes req-glow-green {
-      0%   { background: transparent; }
-      20%  { background: #4ecca318; }
-      100% { background: transparent; }
-    }
-    @keyframes req-glow-red {
-      0%   { background: transparent; }
-      20%  { background: #e0606018; }
-      100% { background: transparent; }
-    }
-    .req-glow-green { animation: req-glow-green 0.6s ease-out forwards; }
-    .req-glow-red   { animation: req-glow-red   0.6s ease-out forwards; }
-
-    @keyframes req-text-glow {
-      0%   { text-shadow: none; }
-      20%  { text-shadow: 0 0 8px currentColor; }
-      100% { text-shadow: none; }
-    }
-    .req-text-glow {
-      animation: req-pop 0.3s ease-out forwards, req-text-glow 0.6s ease-out forwards;
-    }
-    .req-label-glow {
-      animation: req-text-glow 0.6s ease-out forwards;
-    }
-
+    /* ── Heartbeat circle ────────────────────────────────────── */
     #hb-circle {
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
-      background: #4ecca3;
-      transform: scale(0.35);
+      background: var(--color-green);
+      transform: scale(0.8);
       opacity: 0.3;
-      margin: 0.75rem auto 0.25rem;
+      margin: 0.25rem auto 0.5rem;
     }
-    #hb-circle.beat {
-      animation: hb-pulse 3s ease-out forwards;
-    }
+    #hb-circle.beat { animation: hb-pulse 3s ease-out forwards; }
     @keyframes hb-pulse {
       0%   { transform: scale(0.9); opacity: 0.3; }
       3%   { transform: scale(1.1); opacity: 1; }
       100% { transform: scale(0.8); opacity: 0.3; }
     }
-    #hb-label {
-      font-size: 0.72rem;
-      color: #555;
-      text-align: center;
-      margin-bottom: 0.75rem;
-    }
 
-    .btn-row {
+    /* ── Preflight check animations ──────────────────────────── */
+    @keyframes check-glow-green {
+      0%   { background: transparent; }
+      20%  { background: rgba(78,204,163,0.06); }
+      100% { background: transparent; }
+    }
+    @keyframes check-glow-red {
+      0%   { background: transparent; }
+      20%  { background: rgba(224,85,85,0.06); }
+      100% { background: transparent; }
+    }
+    @keyframes check-shake {
+      0%   { transform: translateX(0); }
+      20%  { transform: translateX(-1.5px); }
+      40%  { transform: translateX(1.5px); }
+      60%  { transform: translateX(-0.5px); }
+      80%  { transform: translateX(0.5px); }
+      100% { transform: translateX(0); }
+    }
+    @keyframes check-text-glow {
+      0%   { text-shadow: none; }
+      20%  { text-shadow: 0 0 8px currentColor; }
+      100% { text-shadow: none; }
+    }
+    .check-glow-green { animation: check-glow-green 0.6s ease-out forwards; }
+    .check-glow-red   { animation: check-glow-red   0.6s ease-out forwards; }
+    .check-shake      { animation: check-shake 0.4s ease-out forwards, check-glow-red 0.6s ease-out forwards; }
+    .check-text-glow  { animation: check-text-glow 0.6s ease-out forwards; }
+
+    /* ── Preflight: force-bypass dimming ─────────────────────── */
+    #preflight.bypassed { opacity: 0.4; }
+    #preflight.bypassed .tg { opacity: calc(1 / 0.4); }
+
+    /* ── Preflight header row ────────────────────────────────── */
+    .cc__header-row {
       display: flex;
-      gap: 0.5rem;
-      margin-top: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.1rem;
     }
-    .btn {
-      flex: 1;
-      padding: 0.75rem 0;
-      border: none;
-      border-radius: 0.5rem;
-      font-size: 0.8rem;
-      font-family: monospace;
-      cursor: pointer;
-      background: #1a1a2e;
-      color: #888;
-      transition: color 0.15s, background 0.15s;
-    }
-    .btn:hover { color: #e0e0e0; }
-    .btn.primary { background: #4ecca322; color: #4ecca3; }
-    .btn.primary:hover { background: #4ecca344; }
-    .btn.danger  { background: #e0606022; color: #e06060; }
-    .btn.danger:hover  { background: #e0606044; }
-    .btn:disabled { opacity: 0.35; cursor: default; }
+    .cc__header-row .cc__title { margin-bottom: 0; }
   </style>
 </head>
 <body>
-  <h1>Psilia Edge</h1>
-  <div class="subtitle">spatial perception runtime</div>
-  <nav>
-    <a href="/" class="active">status</a>
-    <a href="/runtime-status.html">runtime status</a>
-    <a href="/runtime-test.html">runtime test</a>
-    <a href="/recording.html">recording</a>
-    <a href="/config.html">config</a>
-    <a href="/network-test.html">network test</a>
-  </nav>
 
-  <!-- Uptime -->
-  <div id="uptime-header"><span id="base-uptime">connecting…</span></div>
-
-  <!-- Heartbeat -->
-  <div class="card">
-    <h2>/psilia/heartbeat</h2>
-    <div id="hb-circle"></div>
-    <div id="hb-label"></div>
+  <div class="topbar">
+    <div class="topbar__brand-row">
+      <div class="brand">
+        <span class="brand__psilia">Psilia</span>
+        <span class="brand__edge">Edge</span>
+      </div>
+      <div class="di">
+        <div class="di__dot"></div>
+        <span id="di-hostname"></span>
+      </div>
+    </div>
+    <nav class="topbar__nav">
+      <a href="/"               class="topbar__nav-item topbar__nav-item--active">home</a>
+      <a href="/recording.html" class="topbar__nav-item">recording</a>
+      <a href="/runtime-status.html" class="topbar__nav-item">status</a>
+    </nav>
   </div>
 
-  <!-- Spatial Layer -->
-  <div class="card">
-    <h2>Spatial Layer</h2>
-    <div class="row">
-      <span class="label">container</span>
-      <span class="value dim" id="req-container">—</span>
+  <main class="page">
+
+    <!-- Heartbeat -->
+    <div class="cc" style="padding: var(--space-lg);">
+      <div class="cc__title">/psilia/heartbeat</div>
+      <div id="hb-circle" style="margin: 0.25rem auto 0.5rem;"></div>
     </div>
-    <div class="row">
-      <span class="label">camera</span>
-      <span class="value dim" id="req-camera">—</span>
+
+    <!-- Preflight Checks -->
+    <div class="cc" id="preflight">
+      <div class="cc__header-row">
+        <div class="cc__title">Preflight Checks</div>
+        <label class="tg" title="Bypass preflight checks">
+          <input type="checkbox" id="force-toggle" checked>
+          <span class="tg__track"></span>
+        </label>
+      </div>
+      <div class="cc__row" id="row-container">
+        <span class="cc__label">container</span>
+        <span class="cc__check--fail" id="req-container">—</span>
+      </div>
+      <div class="cc__row" id="row-camera">
+        <span class="cc__label">camera</span>
+        <span class="cc__check--fail" id="req-camera">—</span>
+      </div>
+      <div class="cc__row" id="row-hotspot">
+        <span class="cc__label">hotspot</span>
+        <span class="cc__check--fail" id="req-hotspot">—</span>
+      </div>
     </div>
-    <div class="row">
-      <span class="label">hotspot</span>
-      <span class="value dim" id="req-hotspot">—</span>
+
+    <!-- Spatial toggle -->
+    <div class="cc" style="padding: var(--space-md) var(--space-lg);">
+      <button class="btn btn--start btn--gradient" id="btn-toggle" onclick="spatialToggle()">start</button>
     </div>
-    <div class="btn-row">
-      <button class="btn primary" id="btn-toggle" onclick="spatialToggle()">start</button>
-    </div>
-  </div>
+
+    <!-- Recording link -->
+    <a href="/recording.html" class="cl">
+      <div class="cl__body">
+        <div class="cl__title-row">
+          <span class="cl__title">Recording</span>
+          <svg class="cl__arrow" width="14" height="14" viewBox="0 0 12 12" fill="none">
+            <polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="cl__subtitle">start / stop · name sessions · pick topics</div>
+      </div>
+    </a>
+
+  </main>
 
   <script>
+    // ── Device hostname ───────────────────────────────────────
+    document.getElementById('di-hostname').textContent = location.hostname;
+
+    // ── Render state from SSE ─────────────────────────────────
     function render(s) {
-      const base    = s.uptime          || {};
       const spatial = s.spatial_running || {};
+      const reqs    = s.spatial_requirements || {};
 
-      // Uptime
-      if (base.running && base.uptime) {
-        startUptimeTick(base.uptime);
-      } else {
-        stopUptimeTick();
-        document.getElementById('base-uptime').textContent = base.running === false ? 'offline' : '—';
-      }
-
-      // Spatial layer
+      // Spatial button
       spatialRunning = !!spatial.running;
       const btn = document.getElementById('btn-toggle');
       btn.textContent = spatialRunning ? 'stop' : 'start';
-      btn.className   = spatialRunning ? 'btn danger' : 'btn primary';
-      btn.disabled    = false;
+      btn.className   = spatialRunning
+        ? 'btn btn--stop btn--gradient'
+        : 'btn btn--start btn--gradient';
+      btn.disabled = false;
 
-      // Show starting… if spatial is up but rosbridge not connected yet
-      if (spatialRunning && !rosbridgeConnected) {
-        hbLabel.textContent = 'starting…';
-      } else if (!spatialRunning) {
-        hbLabel.textContent = '';
-      }
-
-      // Requirements checklist
-      const reqs = s.spatial_requirements || {};
-      setReq('req-container', !!reqs.container?.ok);
-      setReq('req-camera',    !!reqs.camera?.ok);
-      setReq('req-hotspot',   !!reqs.hotspot?.ok);
+      // Preflight checks
+      setCheck('container', !!reqs.container?.ok);
+      setCheck('camera',    !!reqs.camera?.ok);
+      setCheck('hotspot',   !!reqs.hotspot?.ok);
     }
 
-    function set(id, text, cls) {
-      const el = document.getElementById(id);
-      el.textContent = text;
-      el.className = 'value ' + (cls || '');
-    }
-
-    function setReq(id, ok) {
-      const el = document.getElementById(id);
+    function setCheck(key, ok) {
+      const el  = document.getElementById(`req-${key}`);
+      const row = document.getElementById(`row-${key}`);
       const symbol = ok ? '✓' : '✗';
       const changed = el.textContent !== symbol;
       el.textContent = symbol;
-      el.className   = 'value ' + (ok ? 'green' : 'red');
+      el.className   = ok ? 'cc__check--ok' : 'cc__check--fail';
       if (changed) {
-        el.classList.remove('req-text-glow');
+        el.classList.remove('check-text-glow');
         void el.offsetWidth;
-        el.classList.add('req-text-glow');
-
-        const row = el.closest('.row');
-        const glowClass = ok ? 'req-glow-green' : 'req-glow-red';
-        row.classList.remove('req-glow-green', 'req-glow-red');
+        el.classList.add('check-text-glow');
+        row.classList.remove('check-glow-green', 'check-glow-red');
         void row.offsetWidth;
-        row.classList.add(glowClass);
-
+        row.classList.add(ok ? 'check-glow-green' : 'check-glow-red');
       }
     }
 
-    // ── Spatial toggle ───────────────────────────────────────────────
+    // ── Spatial toggle ────────────────────────────────────────
     let spatialRunning = false;
 
     async function spatialToggle() {
       document.getElementById('btn-toggle').disabled = true;
-      const url = spatialRunning ? '/api/spatial/stop' : '/api/spatial/start';
-      await fetch(url, { method: 'POST' });
+      const force  = !document.getElementById('force-toggle').checked;
+      const base   = spatialRunning ? '/api/spatial/stop' : '/api/spatial/start';
+      const url    = (!spatialRunning && force) ? `${base}?force=true` : base;
+      const res    = await fetch(url, { method: 'POST' });
+
+      if (res.status === 412) {
+        const data = await res.json();
+        for (const [key, val] of Object.entries(data.checks || {})) {
+          if (!val.ok) {
+            const row = document.getElementById(`row-${key}`);
+            if (row) {
+              row.classList.remove('check-shake', 'check-glow-red', 'check-glow-green');
+              void row.offsetWidth;
+              row.classList.add('check-shake');
+            }
+          }
+        }
+        document.getElementById('btn-toggle').disabled = false;
+      }
     }
 
-    // ── Heartbeat (rosbridge) ────────────────────────────────────────
-    const circle   = document.getElementById('hb-circle');
-    const hbLabel  = document.getElementById('hb-label');
-    const ros = new ROSLIB.Ros({ url: `ws://${location.hostname}:${window.PSILIA.rosbridgePort}` });
-
-    let rosbridgeConnected = false;
-    ros.on('connection', () => { rosbridgeConnected = true;  hbLabel.textContent = ''; });
-    ros.on('error',      () => { rosbridgeConnected = false; hbLabel.textContent = ''; });
-    ros.on('close',      () => {
-      rosbridgeConnected = false;
-      setTimeout(() => ros.connect(`ws://${location.hostname}:${window.PSILIA.rosbridgePort}`), 3000);
+    // ── Force toggle (bypass preflight) ──────────────────────
+    const forceToggle  = document.getElementById('force-toggle');
+    const preflightEl  = document.getElementById('preflight');
+    forceToggle.addEventListener('change', () => {
+      preflightEl.classList.toggle('bypassed', !forceToggle.checked);
     });
+
+    // ── Heartbeat (rosbridge) ─────────────────────────────────
+    const circle = document.getElementById('hb-circle');
+    const diDot  = document.querySelector('.di__dot');
+    const ros = new ROSLIB.Ros({ url: `ws://${location.hostname}:${window.PSILIA.rosbridgePort}` });
+    ros.on('close', () =>
+      setTimeout(() => ros.connect(`ws://${location.hostname}:${window.PSILIA.rosbridgePort}`), 3000));
 
     new ROSLIB.Topic({ ros, name: '/psilia/heartbeat', messageType: 'std_msgs/String' })
       .subscribe(() => {
-        hbLabel.textContent = '';
         circle.classList.remove('beat');
         void circle.offsetWidth;
         circle.classList.add('beat');
+
+        diDot.classList.remove('beat');
+        void diDot.offsetWidth;
+        diDot.classList.add('beat');
       });
 
-    // ── Uptime tick ──────────────────────────────────────────────────
-    let _uptimeSecs = 0;
-    let _uptimeTimer = null;
-
-    function startUptimeTick(uptimeStr) {
-      _uptimeSecs = parseUptime(uptimeStr);
-      if (_uptimeTimer) clearInterval(_uptimeTimer);
-      _uptimeTimer = setInterval(() => {
-        _uptimeSecs++;
-        document.getElementById('base-uptime').textContent = `up ${formatUptime(_uptimeSecs)}`;
-      }, 1000);
-    }
-
-    function stopUptimeTick() {
-      if (_uptimeTimer) { clearInterval(_uptimeTimer); _uptimeTimer = null; }
-    }
-
-    function parseUptime(str) {
-      let s = 0;
-      const h = str.match(/(\d+)h/);
-      const m = str.match(/(\d+)m/);
-      const sec = str.match(/(\d+)s/);
-      if (h) s += parseInt(h[1]) * 3600;
-      if (m) s += parseInt(m[1]) * 60;
-      if (sec) s += parseInt(sec[1]);
-      return s;
-    }
-
-    function formatUptime(s) {
-      const h = Math.floor(s / 3600);
-      const m = Math.floor((s % 3600) / 60);
-      const sec = s % 60;
-      if (h) return `${h}h ${m}m`;
-      if (m) return `${m}m ${sec}s`;
-      return `${sec}s`;
-    }
-
-    // ── SSE: pushes current state immediately on connect, then on change ──
+    // ── SSE ───────────────────────────────────────────────────
     const es = new EventSource('/api/events');
     es.onmessage = e => render(JSON.parse(e.data));
   </script>

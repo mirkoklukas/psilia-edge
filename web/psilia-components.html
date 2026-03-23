@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Psilia Edge — Components Finalists</title>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400&family=Roboto+Mono:wght@300;400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="psilia-components.css">
+<style>
+/* ============================================================
+   OVERVIEW PAGE CHROME (not part of the design system)
+   ============================================================ */
+
+.ov-section { width: 100%; max-width: 420px; margin-top: 2.5rem; }
+.ov-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-md); border-bottom: var(--border-subtle); padding-bottom: var(--space-sm); }
+.ov-name { font-family: var(--font-ui); font-size: 0.75rem; font-weight: 400; color: var(--color-text); letter-spacing: 0.04em; }
+.ov-id { font-family: var(--font-mono); font-size: 0.65rem; color: var(--color-text-muted); letter-spacing: 0.06em; }
+.ov-row { display: flex; align-items: flex-start; gap: var(--space-md); margin-bottom: var(--space-md); }
+.ov-label { font-family: var(--font-mono); font-size: 0.6rem; color: var(--color-text-muted); letter-spacing: 0.06em; min-width: 52px; padding-top: 0.15rem; flex-shrink: 0; }
+.ov-item { flex: 1; }
+.ov-class { font-family: var(--font-mono); font-size: 0.6rem; color: #2a4a6a; letter-spacing: 0.04em; margin-top: 0.4rem; }
+
+</style>
+</head>
+<body>
+
+<div style="max-width:420px;margin:0 auto;padding:2rem 1rem 0;">
+  <div style="font-family:var(--font-mono);font-size:0.65rem;color:var(--color-text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.25rem;">Psilia Edge</div>
+  <div style="font-family:var(--font-ui);font-size:1.1rem;font-weight:300;color:var(--color-text);letter-spacing:0.04em;">Components — Finalists</div>
+</div>
+
+<!-- HDR-01 -->
+<div class="ov-section" style="max-width:420px;margin:2.5rem auto 0;padding:0 1rem;">
+  <div class="ov-header"><span class="ov-name">Header</span><span class="ov-id">HDR</span></div>
+  <div class="ov-row">
+    <span class="ov-label">HDR-01</span>
+    <div class="ov-item">
+      <div class="hdr">
+        <div class="hdr__title">
+          <span class="hdr__title--psilia">Psilia</span>
+          <span class="hdr__title--edge">Edge</span>
+        </div>
+      </div>
+      <div class="ov-class">.hdr › .hdr__title › .hdr__title--psilia + .hdr__title--edge</div>
+    </div>
+  </div>
+</div>
+
+<!-- DI-05 -->
+<div class="ov-section" style="max-width:420px;margin:2.5rem auto 0;padding:0 1rem;">
+  <div class="ov-header"><span class="ov-name">Device Indicator</span><span class="ov-id">DI</span></div>
+  <div class="ov-row">
+    <span class="ov-label">DI-01</span>
+    <div class="ov-item">
+      <div class="di"><div class="di__dot"></div>jetson-nano-01</div>
+      <div class="ov-class">.di › .di__dot</div>
+    </div>
+  </div>
+</div>
+
+<!-- TB-02 -->
+<div class="ov-section" style="max-width:420px;margin:2.5rem auto 0;padding:0 1rem;">
+  <div class="ov-header"><span class="ov-name">Top Bar</span><span class="ov-id">TB</span></div>
+  <div class="ov-row">
+    <span class="ov-label">TB-02</span>
+    <div class="ov-item">
+      <div class="topbar">
+        <div class="topbar__brand-row">
+          <div class="hdr__title">
+            <span class="hdr__title--psilia">Psilia</span>
+            <span class="hdr__title--edge">Edge</span>
+          </div>
+          <div class="di"><div class="di__dot"></div>jetson-nano-01</div>
+        </div>
+        <div class="topbar__nav">
+          <a href="#" class="topbar__nav-item topbar__nav-item--active" onclick="return false;">status</a>
+          <a href="#" class="topbar__nav-item" onclick="return false;">runtime</a>
+          <a href="#" class="topbar__nav-item" onclick="return false;">recording</a>
+          <a href="#" class="topbar__nav-item" onclick="return false;">config</a>
+        </div>
+      </div>
+      <div class="ov-class">.topbar › .topbar__brand-row + .topbar__nav › .topbar__nav-item[--active]</div>
+    </div>
+  </div>
+</div>
+
+<!-- CL-01 -->
+<div class="ov-section" style="max-width:420px;margin:2.5rem auto 0;padding:0 1rem;">
+  <div class="ov-header"><span class="ov-name">Card Link</span><span class="ov-id">CL</span></div>
+  <div class="ov-row">
+    <span class="ov-label">CL-01</span>
+    <div class="ov-item">
+      <a href="#" class="cl" onclick="return false;">
+        <div class="cl__body">
+          <div class="cl__title-row">
+            <span class="cl__title">Recording</span>
+            <svg class="cl__arrow" width="14" height="14" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="cl__subtitle">start / stop · name sessions · pick topics</div>
+          <span class="badge badge--idle">idle</span>
+        </div>
+      </a>
+      <div class="ov-class">.cl › .cl__body › .cl__title-row › .cl__title + .cl__arrow · .cl__subtitle · .badge[--idle]</div>
+    </div>
+  </div>
+  <div class="ov-row">
+    <span class="ov-label">CL grid</span>
+    <div class="ov-item">
+      <div class="cl-grid">
+        <a href="#" class="cl" onclick="return false;">
+          <div class="cl__body">
+            <div class="cl__title-row">
+              <span class="cl__title">Status</span>
+              <svg class="cl__arrow" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="badge badge--live">live</span>
+          </div>
+        </a>
+        <a href="#" class="cl" onclick="return false;">
+          <div class="cl__body">
+            <div class="cl__title-row">
+              <span class="cl__title">Network</span>
+              <svg class="cl__arrow" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="badge badge--live">ok</span>
+          </div>
+        </a>
+      </div>
+      <div class="ov-class">.cl-grid › .cl</div>
+    </div>
+  </div>
+</div>
+
+<!-- BL-01 -->
+<div class="ov-section" style="max-width:420px;margin:2.5rem auto 0;padding:0 1rem;">
+  <div class="ov-header"><span class="ov-name">Back Link</span><span class="ov-id">BL</span></div>
+  <div class="ov-row">
+    <span class="ov-label">BL-01</span>
+    <div class="ov-item">
+      <a href="#" class="bl" onclick="return false;">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="8,2 4,6 8,10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        status
+      </a>
+      <div class="ov-class">.bl</div>
+    </div>
+  </div>
+</div>
+
+<!-- CC -->
+<div class="ov-section" style="max-width:420px;margin:2.5rem auto 0;padding:0 1rem;">
+  <div class="ov-header"><span class="ov-name">Content Card</span><span class="ov-id">CC</span></div>
+  <div class="ov-row">
+    <span class="ov-label">CC-01</span>
+    <div class="ov-item">
+      <div class="cc">
+        <div class="cc__title">Spatial</div>
+        <div class="cc__row"><span class="cc__label">running</span><span class="cc__value">true</span></div>
+        <div class="cc__row"><span class="cc__label">heartbeat.status</span><span class="cc__value">ok</span></div>
+        <div class="cc__row cc__row--list">
+          <span class="cc__label">ros.nodes</span>
+          <div class="cc__list">
+            <div class="cc__list-item">/camera_node</div>
+            <div class="cc__list-item">/psilia_core</div>
+            <div class="cc__list-item">/rosbridge_websocket</div>
+          </div>
+        </div>
+        <div class="cc__row"><span class="cc__label">ros.rosbridge.port</span><span class="cc__value">9090</span></div>
+      </div>
+      <div class="ov-class">.cc › .cc__title · .cc__row › .cc__label + .cc__value · .cc__row--list › .cc__list › .cc__list-item</div>
+    </div>
+  </div>
+  <div class="ov-row">
+    <span class="ov-label">CC-02</span>
+    <div class="ov-item">
+      <div class="cc">
+        <div class="cc__title">Preflight Checks</div>
+        <div class="cc__row"><span class="cc__label">container</span><span class="cc__check--ok">✓</span></div>
+        <div class="cc__row"><span class="cc__label">camera</span><span class="cc__check--fail">✗</span></div>
+        <div class="cc__row"><span class="cc__label">hotspot</span><span class="cc__check--fail">✗</span></div>
+      </div>
+      <div class="ov-class">.cc › .cc__row › .cc__label + .cc__check[--ok|--fail]</div>
+    </div>
+  </div>
+</div>
+
+<!-- BTN -->
+<div class="ov-section" style="max-width:420px;margin:2.5rem auto 0;padding:0 1rem;">
+  <div class="ov-header"><span class="ov-name">Button</span><span class="ov-id">BTN</span></div>
+  <div class="ov-row">
+    <span class="ov-label">button-toggle</span>
+    <div class="ov-item">
+      <div class="cc" style="padding:1rem 1.25rem;">
+        <button class="btn btn--start btn--full btn--gradient"
+          onclick="
+            const s = this.textContent.trim()==='start';
+            this.textContent = s ? 'stop' : 'start';
+            this.className = s
+              ? 'btn btn--stop btn--full btn--gradient'
+              : 'btn btn--start btn--full btn--gradient';
+          ">start</button>
+      </div>
+      <div class="ov-class">.btn.btn--start.btn--full.btn--gradient</div>
+    </div>
+  </div>
+  <div class="ov-row">
+    <span class="ov-label">button-row</span>
+    <div class="ov-item">
+      <div class="cc" style="padding:1rem 1.25rem;">
+        <div class="btn-row">
+          <button class="btn btn--start">start</button>
+          <button class="btn btn--stop">stop</button>
+        </div>
+      </div>
+      <div class="ov-class">.btn-row › .btn.btn--start + .btn.btn--stop</div>
+    </div>
+  </div>
+  <div class="ov-row">
+    <span class="ov-label">button-switch</span>
+    <div class="ov-item">
+      <div class="cc" style="padding:1rem 1.25rem;">
+        <button class="btn btn--start btn--full" id="btn-switch-demo"
+          onclick="
+            const el = document.getElementById('btn-switch-demo');
+            const s = el.textContent.trim()==='start';
+            el.textContent = s ? 'stop' : 'start';
+            el.className = s ? 'btn btn--stop btn--full' : 'btn btn--start btn--full';
+          ">start</button>
+      </div>
+      <div class="ov-class">.btn.btn--start.btn--full ↔ .btn.btn--stop.btn--full</div>
+    </div>
+  </div>
+</div>
+
+<!-- TG -->
+<div class="ov-section" style="max-width:420px;margin:2.5rem auto 0;padding:0 1rem;">
+  <div class="ov-header"><span class="ov-name">Toggle Switch</span><span class="ov-id">TG</span></div>
+  <div class="ov-row">
+    <span class="ov-label">TG-01</span>
+    <div class="ov-item">
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <label class="tg"><input type="checkbox"><span class="tg__track"></span></label>
+        <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--color-idle);">off</span>
+      </div>
+    </div>
+  </div>
+  <div class="ov-row">
+    <span class="ov-label">TG-02</span>
+    <div class="ov-item">
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <label class="tg"><input type="checkbox" checked><span class="tg__track"></span></label>
+        <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--color-green);">on</span>
+      </div>
+      <div class="ov-class">.tg › input[checked] + .tg__track</div>
+    </div>
+  </div>
+</div>
+
+<!-- BD -->
+<div class="ov-section" style="max-width:420px;margin:2.5rem auto 0;padding:0 1rem;">
+  <div class="ov-header"><span class="ov-name">Badge</span><span class="ov-id">BD</span></div>
+  <div style="display:flex;gap:0.75rem;flex-wrap:wrap;padding:0 1rem;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0.35rem;">
+      <span class="badge badge--live">live</span>
+      <span style="font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);">BD-01</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0.35rem;">
+      <span class="badge badge--idle">idle</span>
+      <span style="font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);">BD-02</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0.35rem;">
+      <span class="badge badge--warn">warn</span>
+      <span style="font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);">BD-03</span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0.35rem;">
+      <span class="badge badge--fail">fail</span>
+      <span style="font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);">BD-04</span>
+    </div>
+  </div>
+  <div style="padding:0.5rem 1rem 0;"><div class="ov-class">.badge[--live|--idle|--warn|--fail]</div></div>
+</div>
+
+<!-- CLR -->
+<div class="ov-section" style="max-width:420px;margin:2.5rem auto 0;padding:0 1rem 3rem;">
+  <div class="ov-header"><span class="ov-name">Tokens</span><span class="ov-id">CLR</span></div>
+  <div style="display:flex;flex-wrap:wrap;gap:0.6rem;">
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-blue);"></div>--color-blue</div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-blue-mid);"></div>--color-blue-mid</div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-blue-dim);"></div>--color-blue-dim</div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-green);"></div>--color-green</div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-magenta);"></div>--color-magenta</div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-purple);"></div>--color-purple</div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-live);"></div>--color-live</div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-warn);"></div>--color-warn</div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-fail);"></div>--color-fail</div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-bg);border:1px solid rgba(255,255,255,0.08);"></div>--color-bg</div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-family:var(--font-mono);font-size:0.55rem;color:var(--color-text-muted);"><div style="width:40px;height:40px;border-radius:6px;background:var(--color-surface);border:1px solid rgba(255,255,255,0.08);"></div>--color-surface</div>
+  </div>
+</div>
+
+</body>
+</html>

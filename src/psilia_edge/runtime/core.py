@@ -91,10 +91,13 @@ def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
 def stop_base_layer() -> dict:
     """Stop the runtime container then the FastAPI daemon. Returns a result dict."""
     from psilia_edge.runtime.daemon import stop_daemon
-    from psilia_edge.runtime.docker import stop_runtime_container
+    from psilia_edge.runtime.docker import is_container_running, stop_runtime_container
 
-    rc, _, err = stop_runtime_container()
-    container = "stopped" if rc == 0 else f"error: {err}"
+    if is_container_running():
+        rc, _, err = stop_runtime_container()
+        container = "stopped" if rc == 0 else f"error: {err}"
+    else:
+        container = "not_running"
 
     stopped = stop_daemon()
     return {
@@ -125,35 +128,32 @@ def check_spatial_requirements() -> dict:
         "detail": "running" if container_ok else "not running — start base layer first",
     }
 
-    if sys.platform == "linux":
-        # Camera
-        from psilia_edge.runtime.hotplug import pick_camera_device
+    # Camera
+    from psilia_edge.runtime.hotplug import pick_camera_device
 
-        camera = pick_camera_device()
-        checks["camera"] = {
-            "ok": bool(camera),
-            "detail": camera.get("device", "detected")
-            if camera
-            else "no camera detected",
-        }
+    camera = pick_camera_device()
+    checks["camera"] = {
+        "ok": bool(camera),
+        "detail": camera.get("device", "detected") if camera else "no camera detected",
+    }
 
-        # Hotspot
-        from psilia_edge.network.hotspot import get_ap_ssid
-        from psilia_edge.network.probe import list_interfaces
-        from psilia_edge.runtime.config import read_config
+    # Hotspot
+    from psilia_edge.network.hotspot import get_ap_ssid
+    from psilia_edge.network.probe import list_interfaces
+    from psilia_edge.runtime.config import read_config
 
-        expected_ssid = read_config().get("network", {}).get("ap", {}).get("ssid")
-        active_ssid = None
-        for iface in list_interfaces():
-            if iface.is_wifi:
-                ssid = get_ap_ssid(iface.name)
-                if ssid and ssid == expected_ssid:
-                    active_ssid = ssid
-                    break
-        checks["hotspot"] = {
-            "ok": active_ssid is not None,
-            "detail": active_ssid if active_ssid else "hotspot not active",
-        }
+    expected_ssid = read_config().get("network", {}).get("ap", {}).get("ssid")
+    active_ssid = None
+    for iface in list_interfaces():
+        if iface.is_wifi:
+            ssid = get_ap_ssid(iface.name)
+            if ssid and ssid == expected_ssid:
+                active_ssid = ssid
+                break
+    checks["hotspot"] = {
+        "ok": active_ssid is not None,
+        "detail": active_ssid if active_ssid else "hotspot not active",
+    }
 
     return checks
 
@@ -192,7 +192,10 @@ def start_spatial_layer(force: bool = False) -> dict:
 
 def stop_spatial_layer() -> dict:
     """Stop ros2 launch inside the container. Returns a result dict."""
-    from psilia_edge.runtime.docker import stop_ros_launch
+    from psilia_edge.runtime.docker import is_ros_launch_running, stop_ros_launch
+
+    if not is_ros_launch_running():
+        return {"status": "not_running"}
 
     rc, _, err = stop_ros_launch()
     if rc != 0:

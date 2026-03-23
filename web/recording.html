@@ -4,114 +4,82 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Psilia Edge — Recording</title>
-
-  <!-- TODO: roslibjs loaded from CDN. In the field there may be no internet access.
-             Consider vendoring roslib.min.js into web/vendor/ and updating this path. -->
   <script src="/vendor/roslib.min.js"></script>
   <script src="/api/js/config.js"></script>
-
   <link rel="stylesheet" href="/psilia.css">
   <style>
-    #ros-status { font-size: 0.75rem; color: #555; margin-bottom: 1.25rem; }
-    input[type="text"] {
-      width: 100%;
-      padding: 0.65rem 0.75rem;
-      background: #1a1a2e;
-      border: 1px solid #2a2a4e;
-      border-radius: 0.5rem;
-      color: #e0e0e0;
-      font-size: 0.85rem;
-      font-family: monospace;
-      margin-top: 0.75rem;
-    }
-    input[type="text"]:focus { outline: none; border-color: #4ecca3; }
-    input[type="text"]::placeholder { color: #555; }
-    .input-label {
-      font-size: 0.75rem;
-      color: #888;
-      font-family: monospace;
-      margin-top: 0.75rem;
-      display: block;
-    }
-    button {
-      width: 100%;
-      padding: 0.75rem;
-      background: #4ecca3;
-      color: #1a1a2e;
-      border: none;
-      border-radius: 0.5rem;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      letter-spacing: 0.04em;
-    }
-    button.stop { background: #e05c5c; color: #fff; }
-    button:disabled { opacity: 0.4; cursor: default; }
-    button:active:not(:disabled) { opacity: 0.8; }
     #preview-img {
       width: 100%;
       image-rendering: pixelated;
-      border-radius: 0.35rem;
+      border-radius: var(--radius-sm);
       display: block;
+      margin-top: var(--space-md);
     }
-    #preview-status { font-size: 0.75rem; color: #555; margin-top: 0.5rem; }
-    .topic-list { list-style: none; padding: 0; margin: 0; }
-    .topic-list li { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0; border-bottom: 1px solid #1a1a2e; }
-    .topic-list li:last-child { border-bottom: none; }
-    .topic-list label { font-family: monospace; font-size: 0.8rem; color: #e0e0e0; cursor: pointer; }
-    input[type="checkbox"] { accent-color: #4ecca3; cursor: pointer; flex-shrink: 0; }
-    #topics-placeholder { font-size: 0.75rem; color: #555; }
+    #preview-placeholder {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-idle);
+      margin-top: var(--space-sm);
+    }
+    .cc__field {
+      margin-top: var(--space-md);
+    }
   </style>
 </head>
 <body>
-  <h1>Psilia Edge</h1>
-  <div class="subtitle">spatial perception runtime</div>
-  <nav>
-    <a href="/">status</a>
-    <a href="/runtime-status.html">runtime status</a>
-    <a href="/runtime-test.html">runtime test</a>
-    <a href="/recording.html" class="active">recording</a>
-    <a href="/config.html">config</a>
-  </nav>
-  <div id="ros-status">connecting to rosbridge…</div>
 
-  <div class="card">
-    <h2>/psilia/heartbeat</h2>
-    <div class="row">
-      <span class="label">status</span>
-      <span class="value dim" id="hb-status">—</span>
+  <div class="topbar">
+    <div class="topbar__brand-row">
+      <div class="brand">
+        <span class="brand__psilia">Psilia</span>
+        <span class="brand__edge">Edge</span>
+      </div>
+      <div class="di">
+        <div class="di__dot" id="di-dot"></div>
+        <span id="di-hostname"></span>
+      </div>
     </div>
-    <div class="row">
-      <span class="label">stamp</span>
-      <span class="value dim" id="hb-stamp">—</span>
+    <nav class="topbar__nav">
+      <a href="/"               class="topbar__nav-item">home</a>
+      <a href="/recording.html" class="topbar__nav-item topbar__nav-item--active">recording</a>
+      <a href="/runtime-status.html" class="topbar__nav-item">status</a>
+    </nav>
+  </div>
+
+  <main class="page">
+
+    <!-- Image preview -->
+    <div class="cc" id="preview-card">
+      <div class="cc__title">/psilia/image/preview</div>
+      <div id="preview-placeholder">waiting for /psilia/image/preview/compressed…</div>
+      <img id="preview-img" style="display:none;" />
     </div>
-    <div class="row">
-      <span class="label">last received</span>
-      <span class="value dim" id="hb-received">—</span>
+
+    <!-- Recording controls -->
+    <div class="cc">
+      <div class="cc__title">Recording</div>
+      <div class="cc__field">
+        <label class="input-label" for="session-input">session name</label>
+        <input class="input" type="text" id="session-input" placeholder="e.g. crimson-falcon" />
+      </div>
+      <div style="margin-top: var(--space-md);">
+        <button class="btn btn--start btn--gradient" id="record-btn" disabled onclick="toggleRecording()">start</button>
+      </div>
     </div>
-  </div>
 
-  <div class="card">
-    <h2>/psilia/image/preview</h2>
-    <img id="preview-img" style="display:none" />
-    <div id="preview-status">waiting for /psilia/image/preview/compressed…</div>
-  </div>
+    <!-- Topics -->
+    <div class="cc">
+      <div class="cc__title">Topics</div>
+      <ul class="topic-list" id="topic-list">
+        <li id="topics-placeholder" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--color-idle);">waiting for rosbridge…</li>
+      </ul>
+    </div>
 
-  <div class="card">
-    <h2>recording</h2>
-    <button id="record-btn" disabled onclick="toggleRecording()">Start Recording</button>
-    <span class="input-label">session name</span>
-    <input type="text" id="session-input" placeholder="e.g. crimson-falcon" />
-  </div>
-
-  <div class="card">
-    <h2>topics</h2>
-    <ul class="topic-list" id="topic-list">
-      <li id="topics-placeholder">waiting for rosbridge…</li>
-    </ul>
-  </div>
+  </main>
 
   <script>
+    document.getElementById('di-hostname').textContent = location.hostname;
+
     const ROSBRIDGE_URL = `ws://${location.hostname}:${window.PSILIA.rosbridgePort}`;
 
     // TODO: make topics configurable from runtime.yaml
@@ -122,7 +90,6 @@
     const ros = new ROSLIB.Ros({ url: ROSBRIDGE_URL });
 
     ros.on('connection', () => {
-      document.getElementById('ros-status').textContent = '';
       document.getElementById('record-btn').disabled = false;
       ros.getTopics(({ topics }) => {
         const list = document.getElementById('topic-list');
@@ -132,15 +99,15 @@
           if (ap !== bp) return ap ? -1 : 1;
           return a.localeCompare(b);
         }).forEach(topic => {
-          const li = document.createElement('li');
-          const id = 'topic-' + topic.replace(/\//g, '-');
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.id = id;
-          cb.value = topic;
-          cb.checked = DEFAULT_TOPICS.includes(topic);
+          const li    = document.createElement('li');
+          const id    = 'topic-' + topic.replace(/\//g, '-');
+          const cb    = document.createElement('input');
+          cb.type     = 'checkbox';
+          cb.id       = id;
+          cb.value    = topic;
+          cb.checked  = DEFAULT_TOPICS.includes(topic);
           const label = document.createElement('label');
-          label.htmlFor = id;
+          label.htmlFor   = id;
           label.textContent = topic;
           li.append(cb, label);
           list.appendChild(li);
@@ -149,76 +116,46 @@
     });
 
     ros.on('error', () => {
-      document.getElementById('ros-status').textContent = 'rosbridge error';
-      document.getElementById('ros-status').style.color = '#f0c040';
       document.getElementById('record-btn').disabled = true;
     });
 
     ros.on('close', () => {
-      document.getElementById('ros-status').textContent = 'rosbridge disconnected';
-      document.getElementById('ros-status').style.color = '#555';
       document.getElementById('record-btn').disabled = true;
+      setTimeout(() => ros.connect(ROSBRIDGE_URL), 3000);
     });
 
-    // --- /psilia/heartbeat subscriber ---
-    const heartbeatTopic = new ROSLIB.Topic({
-      ros,
-      name: '/psilia/heartbeat',
-      messageType: 'std_msgs/String',
-    });
+    // ── Heartbeat → di dot ────────────────────────────────────
+    const diDot = document.getElementById('di-dot');
+    new ROSLIB.Topic({ ros, name: '/psilia/heartbeat', messageType: 'std_msgs/String' })
+      .subscribe(() => {
+        diDot.classList.remove('beat');
+        void diDot.offsetWidth;
+        diDot.classList.add('beat');
+      });
 
-    heartbeatTopic.subscribe(msg => {
-      let data;
-      try { data = JSON.parse(msg.data); } catch { return; }
-      document.getElementById('hb-status').textContent = data.status ?? '—';
-      document.getElementById('hb-status').className   = 'value ' + (data.status === 'ok' ? 'green' : 'yellow');
-      document.getElementById('hb-stamp').textContent  = data.stamp ?? '—';
-      document.getElementById('hb-stamp').className    = 'value dim';
-      document.getElementById('hb-received').textContent = new Date().toLocaleTimeString();
-      document.getElementById('hb-received').className   = 'value green';
-    });
+    // ── Image preview ─────────────────────────────────────────
+    new ROSLIB.Topic({ ros, name: '/psilia/image/preview/compressed', messageType: 'sensor_msgs/CompressedImage' })
+      .subscribe(msg => {
+        const img = document.getElementById('preview-img');
+        img.src = 'data:image/jpeg;base64,' + msg.data;
+        img.style.display = 'block';
+        document.getElementById('preview-placeholder').style.display = 'none';
+      });
 
-    // --- /psilia/image/preview/compressed subscriber ---
-    const previewTopic = new ROSLIB.Topic({
-      ros,
-      name: '/psilia/image/preview/compressed',
-      messageType: 'sensor_msgs/CompressedImage',
-    });
+    // ── Recording status ──────────────────────────────────────
+    new ROSLIB.Topic({ ros, name: '/psilia/recording/status', messageType: 'std_msgs/Bool' })
+      .subscribe(msg => {
+        isRecording = msg.data;
+        const btn = document.getElementById('record-btn');
+        btn.textContent = isRecording ? 'stop' : 'start';
+        btn.className   = isRecording
+          ? 'btn btn--stop btn--gradient'
+          : 'btn btn--start btn--gradient';
+      });
 
-    previewTopic.subscribe(msg => {
-      const img = document.getElementById('preview-img');
-      img.src = 'data:image/jpeg;base64,' + msg.data;
-      img.style.display = 'block';
-      document.getElementById('preview-status').textContent = '';
-    });
-
-    // --- /psilia/recording/status subscriber ---
-    const recordingStatusTopic = new ROSLIB.Topic({
-      ros,
-      name: '/psilia/recording/status',
-      messageType: 'std_msgs/Bool',
-    });
-
-    recordingStatusTopic.subscribe(msg => {
-      isRecording = msg.data;
-      const btn = document.getElementById('record-btn');
-      btn.textContent = isRecording ? 'Stop Recording' : 'Start Recording';
-      btn.className   = isRecording ? 'stop' : '';
-    });
-
-    // --- /psilia/web/recording/start publisher ---
-    const startTopic = new ROSLIB.Topic({
-      ros,
-      name: '/psilia/web/recording/start',
-      messageType: 'std_msgs/String',
-    });
-
-    // --- /psilia/web/recording/stop publisher ---
-    const stopTopic = new ROSLIB.Topic({
-      ros,
-      name: '/psilia/web/recording/stop',
-      messageType: 'std_msgs/String',
-    });
+    // ── Recording publishers ──────────────────────────────────
+    const startTopic = new ROSLIB.Topic({ ros, name: '/psilia/web/recording/start', messageType: 'std_msgs/String' });
+    const stopTopic  = new ROSLIB.Topic({ ros, name: '/psilia/web/recording/stop',  messageType: 'std_msgs/String' });
 
     function getCheckedTopics() {
       return [...document.querySelectorAll('#topic-list input[type="checkbox"]:checked')]
@@ -230,9 +167,8 @@
         stopTopic.publish(new ROSLIB.Message({ data: '' }));
       } else {
         const session = document.getElementById('session-input').value.trim() || 'session';
-        const topics = getCheckedTopics();
-        const payload = JSON.stringify({ session, topics });
-        startTopic.publish(new ROSLIB.Message({ data: payload }));
+        const topics  = getCheckedTopics();
+        startTopic.publish(new ROSLIB.Message({ data: JSON.stringify({ session, topics }) }));
       }
     }
   </script>

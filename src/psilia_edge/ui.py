@@ -41,7 +41,7 @@ LOGOS = {
     "4x5_psi": ["  ▄  ", "▚ █ ▞", "  █  ", "  ▀  "],
     "4x5_psi_fat": ["  ▄  ", "▚ █ ▞", "  █  ", "  ▀  "],
 }
-LOGO = LOGOS["4x5_psi"]
+LOGO = LOGOS["1x1_psi_upper"]
 
 
 def banner_nav(path, descr=None) -> None:
@@ -100,7 +100,24 @@ def header(path: list[str], descr=None) -> None:
     """Branded header using grouped padding (original version)."""
     # banner()
     # nav_path(path, descr)
-    banner_nav(path, descr)
+    # banner_nav(path, descr)
+    title = " → ".join([*path[:-1], f"[bold]{path[-1]}[/bold ]"])
+
+    title = f"Psilia∙Edge [dim]{psilia_version}[/dim]"
+    descr = None
+    if descr is None:
+        group = Group(f"{LOGOS['1x1_psi_upper'][0]} {title}")
+    else:
+        group = Group(f"{LOGOS['1x1_psi_upper'][0]} {title}", f"[dim]{descr}[/dim]")
+    console.print(
+        Padding(
+            group,
+            (1, 0, 1, PADDING_LEFT),
+            style="",
+            expand=False,
+        ),
+        highlight=False,
+    )
 
 
 def done(msg: str, hint: str = "") -> None:
@@ -114,15 +131,13 @@ def done(msg: str, hint: str = "") -> None:
 def title(text: str) -> None:
     """Simple title line with bold text."""
     console.print(
-        Padding(Text(text, style="bold"), (1, PADDING_LEFT), style="", expand=False)
+        Padding(f"⏵⏵ [bold]{text}[/bold]", (0, PADDING_LEFT), style="", expand=False)
     )
 
 
-def print(text: str, padding_left=PADDING_LEFT, highlight=True) -> None:
+def print(text: str, padding_left=PADDING_LEFT, highlight=False) -> None:
     """Simple line of text."""
-    console.print(
-        Padding(text, (0, padding_left), style="", expand=False), highlight=highlight
-    )
+    console.print(Padding(text, (0, padding_left), expand=False), highlight=highlight)
 
 
 def print_line(text: str, padding_left=PADDING_LEFT, highlight=True) -> None:
