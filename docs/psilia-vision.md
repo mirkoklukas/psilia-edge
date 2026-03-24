@@ -2,7 +2,7 @@
 
 > **Psilia is the perception and spatial intelligence platform for the edge.**
 
----f
+---
 
 ## The Problem
 
