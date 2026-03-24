@@ -1,76 +1,69 @@
-<img src="../assets/psilia-logo-transparent-bg.svg" width="350" style="margin-top: 1em; margin-bottom: 1em;">
+<!--
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!                                                        !!
+  !!   ARCHIVED — THIS DOCUMENT IS OUTDATED.               !!
+  !!   See docs/design.md for the current version.      !!
+  !!                                                        !!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+-->
 
-**Table of contents:**
+# Psilia Edge — Spatial Runtime for Embodied AI.
+
+(THIS IS A LIVING DOCUMENT.)
+
+## Table of Contents
+
 (TODO: KEEP THIS UP TO DATE)
 
 - [Guiding Principles](#guiding-principles)
-- [Architecture](#architecture)
-  - [Two Roles](#two-roles)
-  - [Filesystem Layout](#filesystem-layout)
-  - [Key Config Files and Variables](#key-config-files-and-variables)
-    - [Main Config: `~/.psilia/psilia.yaml`](#main-config-psiliaconfpsiliayaml)
-    - [Runtime Config: `psilia-runtime-home/runtime.yaml`](#runtime-config-psilia-runtime-homeruntimeyaml)
-    - [Environment Vars](#environment-vars)
-    - [Variable names and getters](#variable-names-and-getters)
-  - [Two Runtime Layers](#two-runtime-layers)
-  - [Code Structure](#code-structure)
-    - [Output channels](#output-channels)
-    - [`runtime/` module layout](#runtime-module-layout)
-  - [Docker Container Layout](#docker-container-layout)
-- [Setup & Install](#setup--install)
-  - [Install Flow](#install-flow)
-    - [Laptop setup (once)](#laptop-setup-once)
-    - [Connecting to a Jetson (once per device)](#connecting-to-a-jetson-once-per-device)
-    - [Bootstrapping a fresh Jetson (once per device)](#bootstrapping-a-fresh-jetson-once-per-device)
-    - [First-time runtime setup (local, on the Jetson)](#first-time-runtime-setup-local-on-the-jetson)
-    - [Reconfiguring specific aspects](#reconfiguring-specific-aspects)
-    - [Command roles summary](#command-roles-summary)
-  - [Network Setup](#network-setup)
-    - [Config (`psilia.yaml`)](#config-psiliayaml)
-    - [Wizard Flow (`psilia runtime setup --network`)](#wizard-flow-psilia-runtime-setup---network)
-    - [Network Test (`/network-test.html`)](#network-test-network-testhtml)
-  - [Dependencies](#dependencies)
-- [Operations](#operations)
-  - [Logging & Runtime Files](#logging--runtime-files)
-  - [Interacting with the Runtime](#interacting-with-the-runtime)
-    - [CLI](#cli)
-    - [Web UI](#web-ui)
-    - [Network Connections](#network-connections)
-- [V0 Scope](#v0-scope)
-  - [V0 Features and Experience](#v0-features-and-experience)
-    - [Desired Experience for V0](#desired-experience-for-v0)
-    - [Features](#features)
-    - [Future Versions](#future-versions)
-- [Dev Notes](#dev-notes)
+- [Filesystem Layout](#filesystem-layout)
+- [Two Roles](#two-roles)
+- [Key Config Files and Variables](#key-config-files-and-variables)
+  - [Main Config: `~/.psilia/psilia.yaml`](#main-config-psiliaconfpsiliayaml)
+  - [Runtime Config: `psilia-runtime-home/runtime.yaml`](#runtime-config-psilia-runtime-homeruntimeyaml)
+  - [Environment Vars](#environment-vars)
+  - [Variable names and getters](#variable-names-and-getters)
+- [Code Structure](#code-structure)
+  - [Output channels](#output-channels)
+  - [`runtime/` module layout](#runtime-module-layout)
+- [Two Runtime Layers](#two-runtime-layers)
+- [Install Flow](#install-flow)
+  - [Laptop setup (once)](#laptop-setup-once)
+  - [Connecting to a Jetson (once per device)](#connecting-to-a-jetson-once-per-device)
+  - [Bootstrapping a fresh Jetson (once per device)](#bootstrapping-a-fresh-jetson-once-per-device)
+  - [First-time runtime setup (local, on the Jetson)](#first-time-runtime-setup-local-on-the-jetson)
+  - [Reconfiguring specific aspects](#reconfiguring-specific-aspects)
+  - [Command roles summary](#command-roles-summary)
+- [Dependencies](#dependencies)
+- [Docker Container Layout](#docker-container-layout)
+- [Logging & Runtime Files](#logging--runtime-files)
+- [Interacting with the Runtime](#interacting-with-the-runtime)
+  - [CLI](#cli)
+  - [Web UI](#web-ui)
+  - [Network Connections](#network-connections)
+- [Network Setup](#network-setup)
+  - [Config (`psilia.yaml`)](#config-psiliayaml)
+  - [Wizard Flow (`psilia runtime setup --network`)](#wizard-flow-psilia-runtime-setup---network)
+  - [Network Test (`/network-test.html`)](#network-test-network-testhtml)
+- [V0 Features and Experience](#v0-features-and-experience)
+  - [Desired Experience for V0](#desired-experience-for-v0)
+  - [Features](#features)
+  - [Future Versions](#future-versions)
+- [Notes, TODOs, and Ideas](#notes-todos-and-so-on)
   - [TODOs](#todos)
   - [Troubleshooting](#troubleshooting)
   - [Notes & Ideas & Keep-in-minds](#notes--ideas--keep-in-minds)
 
-# Psilia Edge — Spatial Runtime for Embodied AI.
 
 ## Guiding Principles
 
 - **Our goal is to be the first thing installed on Jetson. The Docker Desktop for spatial perception.**
 - The easiest way to get spatial perception running on Jetson
 - Runtime-first, not camera-first. Experience is hardware agnostic.
-- Simpler, open, and hackable. "Edge-native perception for builders and developers."
-- Avoid "cheap alternative to StereoLabs" framing. That's a trap. Zed is camera-first, we're runtime first. Better positioning:
-    **NOT** "Low-cost ZED replacement". **INSTEAD** "Edge-native perception for builders." Not just *cheaper*, it is **simpler and more hackable**.
-- "It kind of feels like ZED but easier." That's fine. But internally you must think: "We are not replacing ZED. We are replacing ROS setup pain and remove all friction to enable a quick prototyping cycle."
-
-
-# Architecture
-
-## Two Roles
-
-The same `psilia-edge` package is installed on both your laptop and Jetson device, but each takes on a distinct role:
-
-**(Spatial) Runtime host** (Jetson) — runs the spatial perception stack. Hosts the base layer daemon, the ROS layer in Docker, and serves the Control UI. Anything you called `psilia runimte init/setup` on, which basically means it has a "runtime home".
-
-**Device/Data manager** (Laptop) — manages one or more runtime hosts. Handles pairing, bootstrapping over SSH, and data operations (pull, sync, cloud push). Keeps a registry of registered devices in `~/.psilia/psilia.yaml`.
-
-The role distinction is intentional and usually distinct for a given machine — a Jetson is usually  a runtime host, a laptop is usually a device/data manager. However, a single machine *can* play both roles, but that is used mainly during development.
-
+- Simpler, open, and hackable. “Edge-native perception for builders and developers.”
+- Avoid “cheap alternative to StereoLabs” framing. That’s a trap. Zed is camera-first, we're runtime first. Better positioning:
+    **NOT** “Low-cost ZED replacement”. **INSTEAD** “Edge-native perception for builders.” Not just *cheaper*, it is **simpler and more hackable**.
+- “It kind of feels like ZED but easier.” That’s fine. But internally you must think: “We are not replacing ZED. We are replacing ROS setup pain and remove all friction to enable a quick prototyping cycle.”
 
 ## Filesystem Layout
 
@@ -122,6 +115,16 @@ We could make `pull_to` a field on each paired device in `psilia.yaml` (per-devi
 📄 **Other files** the CLI touches:
 
 `psilia pair` also adds a managed section to `~/.ssh/config` (bounded by `# >>> psilia-edge` / `# <<< psilia-edge` markers) with one entry per registered device. Nothing outside that section is touched. (actually sync that with data in psilia.yaml)
+
+## Two Roles
+
+The same `psilia-edge` package is installed on both your laptop and Jetson device, but each takes on a distinct role:
+
+**(Spatial) Runtime host** (Jetson) — runs the spatial perception stack. Hosts the base layer daemon, the ROS layer in Docker, and serves the Control UI. Anything you called `psilia runimte init/setup` on, which basically means it has a "runtime home".
+
+**Device/Data manager** (Laptop) — manages one or more runtime hosts. Handles pairing, bootstrapping over SSH, and data operations (pull, sync, cloud push). Keeps a registry of registered devices in `~/.psilia/psilia.yaml`.
+
+The role distinction is intentional and usually distinct for a given machine — a Jetson is usually  a runtime host, a laptop is usually a device/data manager. However, a single machine *can* play both roles, but that is used mainly during development.
 
 
 ## Key Config Files and Variables
@@ -192,7 +195,6 @@ A machine with `runtime.home_path` set has a local runtime installed. A machine 
 
 
 ### Runtime Config: `psilia-runtime-home/runtime.yaml`
-
 **`{home_path}/runtime.yaml`** is user-editable and controls what nodes to start, which topics to record, and so on. Created with defaults by `psilia runtime init/setup`. Its path is stored in `psilia.yaml`.
 Everything runtime-specifig configurable information should go in here.
 
@@ -230,23 +232,6 @@ Managing ssh connection for registered devices |
 | Runtime home | `get_runtime_home()` | `~/runtime-home`|
 | ... | ... | ... |
 
-
-## Two Runtime Layers
-
-The runtime consists of two layers with distinct lifecycles:
-
-**Base layer** — always-on, starts and stops with `psilia runtime start/stop --base-only`:
-- FastAPI webserver serving the Web UI and REST API
-- Docker container (started with the base layer, kept running)
-
-**Spatial layer** — on-demand, fast to start and stop via `psilia runtime start/stop --spatial-only`:
-- ROS nodes launched inside the already-running container (e.g. camera, depth, pose)
-- Stopping the spatial layer sends a shutdown signal to the ROS launch process inside the container — fast, no container teardown
-- Can be restarted with a different `runtime.yaml` config without touching the container
-
-The container itself is only torn down when the base layer stops. The slow `docker stop` timeout is therefore only paid once — at full runtime shutdown, where it's acceptable. Restarting just the ROS nodes is quick.
-
-`psilia runtime update` is the only operation that rebuilds the Docker image or clears the colcon build cache. It runs `colcon build` on the next container start (incremental, fast after first build).
 
 
 ## Code Structure
@@ -287,45 +272,23 @@ For long-running steps (e.g. `docker build`), raw process output scrolls by via 
 | `server.py` | Service | FastAPI app definition |
 
 
-## Docker Container Layout
 
-The container mounts a few directories from the host:
+## Two Runtime Layers
 
-```
-Host                             Container
-{runtime_home}/ros/          →   /psilia/ros/            colcon workspace (built on startup)
-{runtime_home}/log/          →   /psilia/log/            runtime logs
-{runtime_home}/data/         →   /psilia/data/           MCAP recordings
-{runtime_home}/runtime.yaml  →   /psilia/runtime.yaml    runtime config (read-only)
-~/.psilia/psilia.yaml        →   /psilia/psilia.yaml     psilia config (read-only)
-~/.psilia/run/               →   /psilia/run/            status files written by core_node
-```
+The runtime consists of two layers with distinct lifecycles:
 
-`/psilia/run/` is the shared state channel between the ROS layer and the host:
-- `heartbeat.json` — written every 1 Hz tick by `core_node`: `status`, `stamp`, `ros_domain_id`
-- `status.json` — written on demand when `core_node` receives a `/psilia/status_request` message: heartbeat fields + `nodes`, `topics`
+**Base layer** — always-on, starts and stops with `psilia runtime start/stop --base-only`:
+- FastAPI webserver serving the Web UI and REST API
+- Docker container (started with the base layer, kept running)
 
-The colcon workspace layout inside the container mirrors the host:
-```
-/psilia/
-  ros/
-    src/psilia_runtime/   # mounted from host — editable without rebuilding image
-    build/                # created by colcon on container startup
-    install/
-    log/
-  log/                    # runtime logs (mounted from host)
-  data/                   # MCAP recordings (mounted from host)
-  runtime.yaml            # runtime config (mounted read-only from host)
-  psilia.yaml             # psilia config (mounted read-only from host)
-  run/                    # status files written by core_node (mounted from host)
-```
+**Spatial layer** — on-demand, fast to start and stop via `psilia runtime start/stop --spatial-only`:
+- ROS nodes launched inside the already-running container (e.g. camera, depth, pose)
+- Stopping the spatial layer sends a shutdown signal to the ROS launch process inside the container — fast, no container teardown
+- Can be restarted with a different `runtime.yaml` config without touching the container
 
-The entrypoint runs `colcon build --packages-select psilia_runtime` on every startup (incremental — fast after first build), sources the workspace, then launches `ros2 launch psilia_runtime default.launch.py`.
+The container itself is only torn down when the base layer stops. The slow `docker stop` timeout is therefore only paid once — at full runtime shutdown, where it's acceptable. Restarting just the ROS nodes is quick.
 
-To clear the build cache (e.g. after `setup.py` changes), `psilia runtime update` spins up a temporary container to `rm -rf` the build dirs — no sudo needed on the host.
-
-
-# Setup & Install
+`psilia runtime update` is the only operation that rebuilds the Docker image or clears the colcon build cache. It runs `colcon build` on the next container start (incremental, fast after first build).
 
 ## Install Flow
 
@@ -383,58 +346,6 @@ Run at any time after `init` to configure or reconfigure specific aspects (netwo
 | `psilia config <key>` | Anywhere | Read-only config query |
 
 
-## Network Setup
-
-Two distinct concerns:
-
-**1. Field connectivity** — how the phone/laptop and Jetson find each other in the field so the Web UI and rosbridge are reachable. Configured via `psilia runtime setup --network`, stored under `network.mode` / `network.ap` / `network.client`. Two modes:
-- **Mode 1 — Jetson AP** (dongle or built-in WiFi): Jetson hosts a hotspot, phone/laptop connects to it.
-- **Mode 2 — Jetson client**: phone creates a hotspot, Jetson connects to it.
-
-**2. Home network** — a known WiFi the Jetson connects to when available (e.g. at home base). Not for field use. The base layer detects if the Jetson is on this network and indicates it in the Web UI. Future: trigger cloud uploads when connected. Stored under `network.home`. WiFi only for now; other connection types (ethernet) may be relevant in the future.
-
-### Config (`psilia.yaml`)
-
-```yaml
-network:
-  mode: ap          # field connectivity: ap | client
-  ap:
-    ssid: psilia-ap
-    password: psilia1234
-    interfaces:
-      - name: wlx...        # detected during setup
-        type: usb-dongle    # usb-dongle | built-in
-        autostart: true     # nmcli autoconnect when interface is available (boot or plug-in)
-        start_on_runtime: true  # brought up on `psilia runtime start`
-  client:
-    ssid: MyPhone
-    password: secret
-    autostart: true
-    start_on_runtime: true
-  home:
-    ssid: my-home-wifi      # known WiFi — base layer detects if in range and
-    password: secret        # indicates connectivity in the Web UI.
-    # Future: trigger cloud upload when connected.
-    # Future: other connection types (ethernet) may be relevant here too.
-```
-
-### Wizard Flow (`psilia runtime setup --network`)
-
-1. Enumerate AP-capable interfaces; detect type via `wlx` prefix and `lsusb` cross-reference
-2. If multiple, let the user pick one
-3. Prompt for SSID, password, `autostart`, and `start_on_runtime` for the selected interface
-4. Create an NM connection profile for that interface
-5. Write config to `psilia.yaml`
-
-For **Mode 2 (client)**, the wizard collects the phone hotspot SSID and password and creates a single NM client profile. `psilia runtime start` calls `nmcli connection up` if not already connected.
-
-### Network Test (`/network-test.html`)
-
-The web UI includes a network test page where the user can verify the connection is sufficient for camera streaming. The target is low-res image streaming (e.g. 320×240 @ 5 fps). The latency and throughput tests on the page should be calibrated against this requirement — pass/fail thresholds set accordingly.
-
-When both a dongle and built-in WiFi are present, the Jetson can act as its own client: host the AP on one interface and connect to it with the other, then run the throughput test over that link. Traffic goes over the air so it's a real measurement, useful for validating an interface during setup before a phone is connected.
-
-
 ## Dependencies
 
 (MAKE SURE THESE ARE UP TO DATE)
@@ -455,7 +366,43 @@ ROS 2 Humble, CUDA / JetPack-compatible base, camera drivers, MCAP recorder, Fox
 `numpy`, `opencv-python`, and optional inference deps (`torch`, `onnxruntime`) installed as extras.
 
 
-# Operations
+## Docker Container Layout
+
+The container mounts a few directories from the host:
+
+```
+Host                             Container
+{runtime_home}/ros/          →   /psilia/ros/            colcon workspace (built on startup)
+{runtime_home}/log/          →   /psilia/log/            runtime logs
+{runtime_home}/data/         →   /psilia/data/           MCAP recordings
+{runtime_home}/runtime.yaml  →   /psilia/runtime.yaml    runtime config (read-only)
+~/.psilia/psilia.yaml        →   /psilia/psilia.yaml     psilia config (read-only)
+~/.psilia/run/               →   /psilia/run/            status files written by core_node
+```
+
+`/psilia/run/` is the shared state channel between the ROS layer and the host:
+- `heartbeat.json` — written every 1 Hz tick by `core_node`: `status`, `stamp`, `ros_domain_id`
+- `status.json` — written on demand when `core_node` receives a `/psilia/status_request` message: heartbeat fields + `nodes`, `topics`
+
+The colcon workspace layout inside the container mirrors the host:
+```
+/psilia/
+  ros/
+    src/psilia_runtime/   # mounted from host — editable without rebuilding image
+    build/                # created by colcon on container startup
+    install/
+    log/
+  log/                    # runtime logs (mounted from host)
+  data/                   # MCAP recordings (mounted from host)
+  runtime.yaml            # runtime config (mounted read-only from host)
+  psilia.yaml             # psilia config (mounted read-only from host)
+  run/                    # status files written by core_node (mounted from host)
+```
+
+The entrypoint runs `colcon build --packages-select psilia_runtime` on every startup (incremental — fast after first build), sources the workspace, then launches `ros2 launch psilia_runtime default.launch.py`.
+
+To clear the build cache (e.g. after `setup.py` changes), `psilia runtime update` spins up a temporary container to `rm -rf` the build dirs — no sudo needed on the host.
+
 
 ## Logging & Runtime Files
 
@@ -561,7 +508,57 @@ The table below shows how each part of the system communicates with the others. 
 - **ros2 CLI** — used by Docker's entrypoint to launch ROS (`ros2 launch`); also available as an escape hatch via `docker exec`. -->
 
 
-# V0 Scope
+## Network Setup
+
+Two distinct concerns:
+
+**1. Field connectivity** — how the phone/laptop and Jetson find each other in the field so the Web UI and rosbridge are reachable. Configured via `psilia runtime setup --network`, stored under `network.mode` / `network.ap` / `network.client`. Two modes:
+- **Mode 1 — Jetson AP** (dongle or built-in WiFi): Jetson hosts a hotspot, phone/laptop connects to it.
+- **Mode 2 — Jetson client**: phone creates a hotspot, Jetson connects to it.
+
+**2. Home network** — a known WiFi the Jetson connects to when available (e.g. at home base). Not for field use. The base layer detects if the Jetson is on this network and indicates it in the Web UI. Future: trigger cloud uploads when connected. Stored under `network.home`. WiFi only for now; other connection types (ethernet) may be relevant in the future.
+
+### Config (`psilia.yaml`)
+
+```yaml
+network:
+  mode: ap          # field connectivity: ap | client
+  ap:
+    ssid: psilia-ap
+    password: psilia1234
+    interfaces:
+      - name: wlx...        # detected during setup
+        type: usb-dongle    # usb-dongle | built-in
+        autostart: true     # nmcli autoconnect when interface is available (boot or plug-in)
+        start_on_runtime: true  # brought up on `psilia runtime start`
+  client:
+    ssid: MyPhone
+    password: secret
+    autostart: true
+    start_on_runtime: true
+  home:
+    ssid: my-home-wifi      # known WiFi — base layer detects if in range and
+    password: secret        # indicates connectivity in the Web UI.
+    # Future: trigger cloud upload when connected.
+    # Future: other connection types (ethernet) may be relevant here too.
+```
+
+### Wizard Flow (`psilia runtime setup --network`)
+
+1. Enumerate AP-capable interfaces; detect type via `wlx` prefix and `lsusb` cross-reference
+2. If multiple, let the user pick one
+3. Prompt for SSID, password, `autostart`, and `start_on_runtime` for the selected interface
+4. Create an NM connection profile for that interface
+5. Write config to `psilia.yaml`
+
+For **Mode 2 (client)**, the wizard collects the phone hotspot SSID and password and creates a single NM client profile. `psilia runtime start` calls `nmcli connection up` if not already connected.
+
+### Network Test (`/network-test.html`)
+
+The web UI includes a network test page where the user can verify the connection is sufficient for camera streaming. The target is low-res image streaming (e.g. 320×240 @ 5 fps). The latency and throughput tests on the page should be calibrated against this requirement — pass/fail thresholds set accordingly.
+
+When both a dongle and built-in WiFi are present, the Jetson can act as its own client: host the AP on one interface and connect to it with the other, then run the throughput test over that link. Traffic goes over the air so it's a real measurement, useful for validating an interface during setup before a phone is connected.
+
 
 ## V0 Features and Experience
 
@@ -620,8 +617,7 @@ The table below shows how each part of the system communicates with the others. 
  - IMU and other sensors
 
 
-# Dev Notes
-
+# Notes todos and so on.
 ## TODOs
 
 (MAKE SURE THIS IS SOMEHWAT UP TO DATE)
@@ -645,7 +641,6 @@ The table below shows how each part of the system communicates with the others. 
 - Add a `psilia runtime status --reliable` (or `--slow`) mode that fetches ROS nodes and topics directly via `docker exec ros2 node list` / `ros2 topic list` — slower but ground-truth, doesn't depend on rosbridge or status.json.
 - `psilia runtime status` should never show stale state from a previous session. Any data sourced from files (`heartbeat.json`, `status.json`) must either pass a freshness check or be shown as unavailable.
 - `run_streamed` and any `docker run` calls should avoid the `-t` (pseudo-TTY) flag when not running interactively — `-t` causes the container to emit `\r\n` line endings, which produce staircase rendering in Rich when piped.
-
 
 ## Troubleshooting
 
@@ -772,6 +767,7 @@ For sharing frames across OS processes without copying through ROS topics or que
 Synchronization is minimal — one atomic int write. No locks needed if memory ordering is handled carefully. At 3200x1200 color (11.5 MB/frame) zero-copy at the handoff matters — each consumer still pays one copy into their working buffer, but no additional copies for routing/queuing.
 
 - `runtime.yaml` should eventually have a `launch_args:` section — a user-friendly place to configure ROS node parameters (camera type, resolution, etc.). Before launch, `start_spatial_layer()` reads this section and writes a properly formatted ROS params yaml to `~/.psilia/run/` which gets passed to the nodes via `parameters=[...]`. Currently the params file is written directly from auto-detected values.
+
 
 - "runtime home" has a nice ring to it — `runtime.home_path` in the config reads naturally. Settled on `psilia-runtime-home` as the default directory name.
 - The ROS workspace (`psilia_runtime`) is copied to the runtime home and mounted into the container at runtime — it is NOT baked into the Docker image. This keeps it visible and editable on the host without rebuilding the image. May revisit if we ever want a fully self-contained image.

@@ -6,6 +6,8 @@
 **/.DS_Store
 docs/*
 !docs/*.md
+!docs/archive/
+!docs/**/*.md
 __pycache__/
 
 # Temporary files and directories
