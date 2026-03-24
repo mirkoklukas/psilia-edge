@@ -168,6 +168,26 @@ async def api_js_config() -> str:
     )
 
 
+@app.get("/api/recordings")
+async def api_recordings() -> JSONResponse:
+    from psilia_edge.runtime.config import get_data_dir
+
+    data_dir = get_data_dir()
+    files = []
+    for mcap in sorted(
+        data_dir.glob("**/*.mcap"), key=lambda p: p.stat().st_mtime, reverse=True
+    ):
+        stat = mcap.stat()
+        files.append(
+            {
+                "name": mcap.stem,
+                "size": stat.st_size,
+                "mtime": stat.st_mtime,
+            }
+        )
+    return JSONResponse(files)
+
+
 @app.get("/api/network/ping")
 async def api_network_ping() -> JSONResponse:
     return JSONResponse({"ok": True})
