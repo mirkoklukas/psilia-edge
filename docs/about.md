@@ -1,4 +1,7 @@
-# About Psilia
+
+# Psilia: Perception & Spatial Intelligence on the Edge
+
+## About Psilia
 
 The name, Psilia, is derived from the greek letter psi (Ψ), which we take as an acronym for Perception & Spatial Intelligence.
 
@@ -6,7 +9,7 @@ We are building the spatial intelligence stack for embodied AI, starting at the 
 
 (For the first stage we are going to lean heavily into the installation and setup experience and remove all friction to set up a sensor rig to record data in the field and explore that data later in a Jupyter notebook.)
 
-# Psilia-Edge: The Spatial Runtime for Embodied AI
+## Psilia-Edge: The Spatial Runtime for Embodied AI
 
 *Our goal is to be the first thing installed on Jetson. The Docker Desktop for spatial perception.*
 

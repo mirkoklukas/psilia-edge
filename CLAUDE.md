@@ -11,7 +11,8 @@
 
 # Project Context
 
-@docs/*
-@docs/design.md
-@design-docs/about.md
-@design-docs/description.md
+@docs/design.md — Guiding principles, architecture, and runtime operations
+
+Additional docs (load on demand):
+- docs/setup.md — Install flow, network setup, dependencies
+- docs/dev-notes.md — V0 scope, TODOs, troubleshooting, design ideas

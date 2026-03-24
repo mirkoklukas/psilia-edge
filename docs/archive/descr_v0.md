@@ -1,4 +1,4 @@
-# Psilia: Perception & Spatial Intelligence on the Edge
+# Psilia-Edge: The Spatial Runtime for Embodied AI
 
 ## **Overview**
 
@@ -10,7 +10,7 @@ Psilia-edge is an installable spatial-perception runtime exposing a small stable
 
 It includes (maybe not in v0) an optional minimal spatial intelligence layer (e.g. `/psilia/ground_plane`, `/psilia/obstacle_map`). This remains lightweight at first and serves as an entry point for future spatial intelligence. (What is the minimal layer of information needed to enable autonomy.)
 
-The runtime is configurable / programmable. That means I should be able to switch algorithms for pose and depth estimation.
+The runtime is configurable / programmable. That means I should be able to switch algorithms for pose and depth estimation (without ROS mingling).
 
 It is not a camera product nor a SDK competing with Stereolabs. Psilia Edge is a runtime layer that sits one level below autonomy stacks and one level above raw sensors and the edge device (Docker Desktop for spatial perception).
 
