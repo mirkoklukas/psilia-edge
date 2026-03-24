@@ -14,6 +14,7 @@
 @docs/design.md — Guiding principles, architecture, and runtime operations
 
 Additional docs (load on demand):
+- Todos are in docs/dev-notes.md
 - docs/setup.md — Install flow, network setup, dependencies
 - docs/dev-notes.md — V0 scope, TODOs, troubleshooting, design ideas
 - docs/psilia-vision.md — Company vision, positioning, product description, business model

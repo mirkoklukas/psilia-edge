@@ -99,7 +99,12 @@ class CameraStream:
         if self._thread is not None:
             self._thread.join(timeout=2.0)
 
-        cap = cv2.VideoCapture(self.device, cv2.CAP_V4L2)
+        # TODO: make device opening solid — explicit cv2.CAP_V4L2 fails with string
+        # device paths on some OpenCV builds ("can't be used to capture by name").
+        # Auto-detection works on Linux (falls through to V4L2) but is less explicit.
+        # Consider: detect path vs index, test CAP_V4L2 with int index, or probe backends.
+        # cap = cv2.VideoCapture(self.device, cv2.CAP_V4L2)
+        cap = cv2.VideoCapture(self.device)
         if not cap.isOpened():
             self._log_warn(f"Could not open camera device: {self.device}")
             return False
