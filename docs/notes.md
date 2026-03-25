@@ -237,3 +237,10 @@ tail -f ~/.ros/log/latest/launch.log
 
 ros2 topic hz /psilia/image/raw
 ```
+
+## Everything else
+
+Call from `/docs`:
+```bash
+pandoc psilia-vision.md -o psilia-vision.pdf --pdf-engine=xelatex -V geometry:margin=1.75in
+```

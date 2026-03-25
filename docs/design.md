@@ -1,5 +1,3 @@
-<img src="../assets/psilia-logo-transparent-bg.svg" width="350" style="margin-top: 1em; margin-bottom: 1em;">
-
 > **Summary:** Guiding principles, system architecture, and runtime operations. Covers the two roles (Jetson vs. laptop), filesystem layout, config files, the two-layer runtime (base + spatial), code structure, Docker container layout, logging reference, and how to interact with the runtime via CLI and Web UI.
 
 # Psilia Edge — Spatial Runtime for Embodied AI.

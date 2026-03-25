@@ -110,6 +110,7 @@ The open runtime gets adoption. The data platform and premium services get reven
 Psilia is not a camera product. It overlaps with ZED in what it delivers -- depth, pose, spatial outputs -- but the approach is different. ZED's SDK exists to make their hardware useful; it's a means to sell cameras. Psilia's runtime is the product. It's open, hackable, and hardware-agnostic. And it goes further than perception outputs: the goal is to own the full cycle from runtime to data to dev tooling, not just the sensor interface.
 
 Differentiators to ZED/Stereolabs are:
+
 - **Open vs closed** -- you can swap algorithms, see what's happening, hack it
 - **Hardware-agnostic vs hardware-locked** -- Psilia works with any camera.
 - **Platform vs product** -- Psilia aims to be an ecosystem (runtime + data + dev tooling), ZED is a camera SDK

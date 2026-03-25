@@ -3,7 +3,31 @@
 
 ## About Psilia
 
-The name, Psilia, is derived from the greek letter psi (Ψ), which we take as an acronym for Perception & Spatial Intelligence.
+Every robotics team working with perception on edge hardware hits the same wall. Device setup, camera calibration, field workflow, data pipelines, algorithm development — each stage has its own friction, its own duct-tape solutions. Nothing covers the full cycle. Proprietary SDKs cover parts of it, but lock you into their hardware and their algorithms.
+
+We are building the **perception and spatial intelligence platform** for the edge. The layer between raw sensors and the autonomy logic above, and the tooling around it — so teams can focus on what's unique to their mission.
+
+Concretely, that means building toward three things:
+
+- A reliable perception layer you can build on.
+- The tooling for fast, frictionless prototyping.
+- High-quality spatial perception at a fraction of the hardware cost.
+
+## Psilia Edge: The foundational layer for spatial perception.
+
+*Psilia Edge* is our first product: a **spatial perception runtime** for Jetson, packaged to be easy to install, easy to operate, and easy to build on.
+
+*Our goal is to be the first thing installed on Jetson. The Docker Desktop for spatial perception.*
+
+Plug in a stereo camera, run one command, and get reliable depth, pose, and spatial outputs as a stable ROS interface in under 5 minutes. Hardware-agnostic,
+no ROS wrangling, no bash scripts. Unless you want to. Everything is open and accessible. Swap or extend the underlying algorithms without changing the interface.
+
+A lightweight control UI handles device pairing, network setup, monitoring, recording, and data sync. Recorded data is stored as open MCAP files and accessible via a lightweight Python API. Query topics by time, sync streams, and inspect message statistics in a few lines of code.
+
+
+<!-- ## About Psilia
+
+Our name, Psilia, is derived from the greek letter psi (Ψ), which we take as an acronym for Perception & Spatial Intelligence.
 
 We are building the spatial intelligence stack for embodied AI, starting at the foundation. **Psilia Edge** is the first layer: a reliable, hardware-agnostic perception runtime that gives robotics teams a stable base to build on. From there we expand into the full stack: SDK, data platform, and spatial intelligence.
 
@@ -15,4 +39,4 @@ We are building the spatial intelligence stack for embodied AI, starting at the 
 
 Plug in a stereo camera, run one command, and get reliable depth, pose, and spatial outputs as a stable ROS interface in under 5 minutes. Hardware-agnostic, no ROS wrangling required. Swap or extend the underlying algorithms without changing the interface.
 
-A lightweight control UI handles device pairing, network setup, monitoring, recording, and data sync. No manual node orchestration, no bash scripts. Unless you want to. Everything is open and accessible. Recorded data is stored as open MCAP files and accessible via a lightweight Python API. Query topics by time, sync streams, and inspect message statistics in a few lines of code.
+A lightweight control UI handles device pairing, network setup, monitoring, recording, and data sync. No manual node orchestration, no bash scripts. Unless you want to. Everything is open and accessible. Recorded data is stored as open MCAP files and accessible via a lightweight Python API. Query topics by time, sync streams, and inspect message statistics in a few lines of code. -->

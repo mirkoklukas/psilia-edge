@@ -48,12 +48,11 @@ def fail(msg: str) -> None:
 
 def header(install_dir: Path) -> None:
     print(f"""
-    ▄
-  ▚ █ ▞   Psilia Edge → Bootstrap
-    █     Install directory: {install_dir}
-    ▀
-""")
 
+  Ψ Psilia Edge → Bootstrap
+    Install directory: {install_dir}
+
+""")
 
 # ── steps ─────────────────────────────────────────────────────────────────────
 
@@ -113,7 +112,7 @@ def step_install_or_existing(install_dir: Path) -> Path:
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-def main(install_dir: Path, no_init: bool = True) -> None:
+def main(install_dir: Path) -> None:
     install_dir = install_dir.expanduser().resolve()
     if not install_dir.exists():
         fail(f"Install directory does not exist: {install_dir}")
@@ -121,15 +120,12 @@ def main(install_dir: Path, no_init: bool = True) -> None:
     header(install_dir)
     step_preflight()
     step_install_or_existing(install_dir)
+    runtime_home = install_dir / "psilia-runtime-home"
+
+    print("Handing off to `psilia runtime init` …\n")
+    os.execvp("psilia", ["psilia", "runtime", "init", str(runtime_home), "--mkdir"])
 
     print("\nBootstrap complete.\n")
-
-    if no_init:
-        print("Run `psilia runtime init <path>` to set up the runtime home.\n")
-    else:
-        print("Handing off to `psilia runtime init` …\n")
-        os.execvp("psilia", ["psilia", "runtime", "init", "--create"])
-
 
 if __name__ == "__main__":
     import argparse
@@ -143,14 +139,9 @@ if __name__ == "__main__":
         "install_dir",
         type=Path,
         nargs="?",
-        default=DEFAULT_INSTALL_DIR,
+        default="./",
         metavar="DIR",
-        help=f"Directory to clone psilia-edge into (default: {DEFAULT_INSTALL_DIR})",
-    )
-    parser.add_argument(
-        "--no-init",
-        action="store_true",
-        help="Skip `psilia runtime init` after bootstrapping.",
+        help=f"Directory to clone psilia-edge into",
     )
     args = parser.parse_args()
-    main(args.install_dir, args.no_init)
+    main(args.install_dir)
