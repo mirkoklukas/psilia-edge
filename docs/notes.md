@@ -243,4 +243,6 @@ ros2 topic hz /psilia/image/raw
 Call from `/docs`:
 ```bash
 pandoc psilia-vision.md -o psilia-vision.pdf --pdf-engine=xelatex -V geometry:margin=1.75in
+pandoc about.md -o about.pdf --pdf-engine=xelatex -V geometry:margin=1.75in
+pandoc psilia-pitch.md -o psilia-pitch.pdf --pdf-engine=xelatex -V geometry:margin=1.5in
 ```
