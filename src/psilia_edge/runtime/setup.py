@@ -27,6 +27,8 @@ from psilia_edge.runtime.config import (
     get_docker_dir,
     get_ros_dir,
     get_docker_image,
+    initial_config,
+    initial_runime_config,
     read_config,
     write_config,
     read_runtime_config,
@@ -363,10 +365,16 @@ def run_update() -> None:
 
 
 def _step_init_configs(runtime_home: Path) -> None:
-    config = read_config(missing_ok=True)
+    # Start from initial defaults, then merge existing config on top.
+    # This backfills any new keys added to the initial config
+    # while preserving existing user values.
+    config = initial_config()
+    config.update(read_config(missing_ok=True))
     config.update({"runtime": {"home_path": str(runtime_home)}})
     write_config(config)
-    runtime_config = read_runtime_config(missing_ok=True)
+
+    runtime_config = initial_runime_config()
+    runtime_config.update(read_runtime_config(missing_ok=True))
     write_runtime_config(runtime_config)
     ui.ok(f"Config written — runtime home: {runtime_home}")
 

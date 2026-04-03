@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y \
     v4l-utils \
     ros-humble-rosbridge-server \
     ros-humble-rosbag2-storage-mcap \
+    ros-humble-foxglove-bridge \
     # ros-humble-cv-bridge \  # only needed if using CvBridge (requires numpy<2 pin)
-    # ros-humble-foxglove-bridge \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y \
 #   - Add a requirements.txt next to the Dockerfile and RUN pip install -r requirements.txt
 #   - Use a uv venv inside the container for fast, reproducible installs
 #   Currently installing directly into the system Python to keep it simple.
-RUN pip install opencv-python-headless
+RUN pip install opencv-python-headless scipy
 # RUN pip install "numpy<2" opencv-python-headless  # numpy<2 only needed if using CvBridge
 
 # Install psilia inference library (depth + pose algorithms)
