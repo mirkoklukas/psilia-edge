@@ -61,32 +61,6 @@
  - IMU and other sensors
 
 
-## TODOs
-
-(MAKE SURE THIS IS SOMEHWAT UP TO DATE)
-
-- **[NEXT]** Implement `psilia data pull` — pull recorded MCAP data from Jetson to laptop over SSH/rsync. Design the CLI command, naming conventions, and destination path (`data.pull_to` in `psilia.yaml`).
-- Implement `psilia data push` — push recorded MCAP data from Jetson to a remote destination (laptop or cloud). Complement to `data pull`: where pull is laptop-initiated, push is Jetson-initiated. Design target configuration (cloud bucket URL or laptop address), authentication, and how the destination is stored in `psilia.yaml`.
-- **[NEXT]** Finish runtime refactoring — review any remaining loose ends from the two-layer runtime redesign (base layer owns container, spatial layer via docker exec).
-
-- **[HIGH PRIORITY]** Fix `device_decorator` to forward flags to the remote command. Currently it only forwards `psilia runtime {func_name}` with no arguments, so any decorated command that also takes flags (e.g. `psilia runtime config --data-dir -d my-jetson`) silently drops those flags when run with `-d`. Fix by reconstructing the full CLI invocation from `sys.argv`, stripping `--device`/`-d` and its value, before passing to `run_on_device`.
-- **[HIGH PRIORITY]** Revisit the network setup step (`_step_network`). Currently it looks for a USB WiFi dongle, but we should enumerate all interfaces that support AP mode and let the user choose. Show clearly which are USB dongles vs. built-in PCIe (e.g. via `wlx` prefix and `lsusb` cross-reference). Also handle hotspot autostart via NetworkManager during setup so the hotspot comes up on boot without manual intervention. Keep in mind that the connection needs to support live camera streaming to the web UI — low-res, low frame rate (e.g. 320x240 @ 5fps), but smooth enough to be useful for monitoring. Original full-res images are recorded separately; only downsampled versions are streamed. The hotspot interface choice and configuration should be validated against this bandwidth requirement.
-- **[HIGH PRIORITY]** Camera support: scanning for connected cameras is roughly done (`hotplug.py`). Next step is a ROS node that reads from different camera types (USB, ZED, OAK-D, RealSense, etc.) and publishes on the stable `/psilia/image` interface. The node should be configurable (camera type and parameters from `runtime.yaml`) and handle device detection at startup.
-- Write tests for camera device opening — validate that `cv2.VideoCapture` works with string device paths (`/dev/video0`) and integer indices across OpenCV versions. Had a regression where explicit `cv2.CAP_V4L2` + string path stopped working; see TODO in `camera_stream.py`.
-- Fix `psilia runtime stop` behavior when spatial layer is already stopped — currently shows `spatial.status: error` even when spatial was never running. Should show a neutral/not-running status instead of an error when stopping something that wasn't started.
-- Implement home network detection in the base layer: check whether the Jetson is connected to the WiFi SSID declared under `network.home` in `psilia.yaml` (e.g. via `nmcli -t -f active,ssid dev wifi`) and expose the result in `/api/status`. Indicate home network connectivity in the Web UI.
-- show logs in live view, ros2 logs and so on
-- Implement `hotplug` in the daemon: use `pyudev` to watch for USB device events (cameras, network dongles) and react — update `psilia.yaml`, notify the UI. Replaces the current "written once, may go stale" camera/hotspot detection.
-- Structure logging across the stack and document a clear map of what writes where: daemon PID and log (`~/.psilia/run/`, `~/.psilia/log/`), ROS node logs (`{runtime_home}/log/` via `ROS_LOG_DIR`), colcon build logs (`{runtime_home}/ros/log/`), FastAPI/uvicorn logs, and `heartbeat.json`/`status.json` in `~/.psilia/run/`. Should answer: where do I look when something goes wrong at each layer?
-- Design how the spatial runtime ros node configuration and so on can be configured.
-- Add validation for config files (`psilia.yaml`, `runtime.yaml`) — schema check on read, clear error messages for missing or malformed fields.
-- Set up structured logging across `psilia_edge` (currently using `logging.getLogger(__name__)` in places but no root config). Warnings like rosbridge publish failures currently go nowhere.
-- Check Runtime status reliability: `status.json` and `heartbeat.json` are ephemeral (cleared on container start), and `_read_heartbeat()` now checks file mtime to detect stale data. But `_read_ros_status()` still depends on the rosbridge WebSocket publish succeeding — if that fails, `status.json` won't be refreshed and the ros section will be missing. Needs a reliable trigger mechanism (WebSocket, ROS topic, or direct container exec).
-- Add a `psilia runtime status --reliable` (or `--slow`) mode that fetches ROS nodes and topics directly via `docker exec ros2 node list` / `ros2 topic list` — slower but ground-truth, doesn't depend on rosbridge or status.json.
-- `psilia runtime status` should never show stale state from a previous session. Any data sourced from files (`heartbeat.json`, `status.json`) must either pass a freshness check or be shown as unavailable.
-- `run_streamed` and any `docker run` calls should avoid the `-t` (pseudo-TTY) flag when not running interactively — `-t` causes the container to emit `\r\n` line endings, which produce staircase rendering in Rich when piped.
-
-
 ## Troubleshooting
 
 ### Viewing ROS node logs
@@ -142,7 +116,9 @@ docker builder prune -f
 Then rebuild.
 
 
-## Notes & Ideas & Keep-in-minds
+## Notes & Ideas
+
+> TODOs and actionable items have moved to `docs/todo.md`.
 
 ### Package distribution: extras vs namespace packages
 
@@ -186,8 +162,6 @@ calibrations:
 
 May split into a separate `calibrations.yaml` once the schema is stable, with a pointer in `psilia.yaml`.
 
-- Home network (`network.home`) is declared in `psilia.yaml`. The base layer detects if the Jetson is on that network and indicates it in the Web UI. Future: trigger cloud upload when connected. Other connection types (ethernet) may be relevant here too.
-
 ### Camera pipeline architecture
 
 The frame pipeline is central to the runtime. The target architecture separates concerns into three layers:
@@ -210,26 +184,3 @@ For sharing frames across OS processes without copying through ROS topics or que
 - At 30fps and N=10 slots, consumers have ~300ms of slack before their slot gets overwritten
 
 Synchronization is minimal — one atomic int write. No locks needed if memory ordering is handled carefully. At 3200x1200 color (11.5 MB/frame) zero-copy at the handoff matters — each consumer still pays one copy into their working buffer, but no additional copies for routing/queuing.
-
-- `runtime.yaml` should eventually have a `launch_args:` section — a user-friendly place to configure ROS node parameters (camera type, resolution, etc.). Before launch, `start_spatial_layer()` reads this section and writes a properly formatted ROS params yaml to `~/.psilia/run/` which gets passed to the nodes via `parameters=[...]`. Currently the params file is written directly from auto-detected values.
-
-- "runtime home" has a nice ring to it — `runtime.home_path` in the config reads naturally. Settled on `psilia-runtime-home` as the default directory name.
-- The ROS workspace (`psilia_runtime`) is copied to the runtime home and mounted into the container at runtime — it is NOT baked into the Docker image. This keeps it visible and editable on the host without rebuilding the image. May revisit if we ever want a fully self-contained image.
-
-### /psilia/interface — keeping it honest
-
-The static info topic currently hardcodes the list of topics Psilia publishes.
-This is a promise to other nodes — but if a node isn't running (e.g. depth_node
-disabled, camera not connected), the promise is broken.
-
-Need a way to keep /psilia/info in sync with what is actually being published.
-Some directions worth exploring:
-
-- Have each node register itself at startup (e.g. publish to a /psilia/registry
-  topic or write to a shared state). The status node aggregates and re-broadcasts.
-- Introspect the ROS graph at startup (ros2 topic list) and filter for /psilia/*
-  topics that have active publishers before broadcasting /psilia/info.
-- Delay the /psilia/info broadcast slightly to let all nodes come up, then
-  discover what's actually live before publishing.
-- Treat /psilia/info as dynamic (re-publish periodically) rather than truly static,
-  so it reflects the current state of the graph.
