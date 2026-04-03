@@ -22,10 +22,10 @@ import json
 import os
 from pathlib import Path
 
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile
-from std_msgs.msg import String
+import rclpy # type: ignore
+from rclpy.node import Node # type: ignore
+from rclpy.qos import DurabilityPolicy, QoSProfile # type: ignore
+from std_msgs.msg import String # type: ignore
 
 _LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 

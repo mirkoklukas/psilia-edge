@@ -12,9 +12,10 @@
 # Project Context
 
 @docs/design.md — Guiding principles, architecture, and runtime operations
+@docs/repo-structure.md - Rough overview of how the `psilia-edge` repository is organized.
 
 Additional docs (load on demand):
 - Todos are in docs/dev-notes.md
 - docs/setup.md — Install flow, network setup, dependencies
 - docs/dev-notes.md — V0 scope, TODOs, troubleshooting, design ideas
-- docs/psilia-vision.md — Company vision, positioning, product description, business model
+- docs/psilia-pitch.md — Short two pager with company vision, positioning, product description, business model

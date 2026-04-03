@@ -15,7 +15,7 @@ import time
 
 import numpy as np
 
-import rclpy
+import rclpy # type: ignore
 from builtin_interfaces.msg import Time # type: ignore
 from rclpy.node import Node # type: ignore
 from sensor_msgs.msg import Image # type: ignore
@@ -45,6 +45,9 @@ class CameraNode(Node):
         self._stream.open()
         self._last_open_attempt = 0.0
         self.frame_count = 0
+        # Pre-allocated publish buffer reused every frame. _np_buf is a numpy
+        # view into _buf (shared memory), so np.copyto(_np_buf, ...) writes
+        # directly into the array.array that rclpy can bulk-copy at the C level.
         self._buf = array.array('B', bytes(self.width * self.height * 3))
         self._np_buf = np.frombuffer(self._buf, dtype=np.uint8)
         self.create_timer(1.0 / self.fps, self.publish_frame)
@@ -88,7 +91,7 @@ class CameraNode(Node):
         msg.height, msg.width = frame.shape[:2]
         msg.encoding = "bgr8"
         msg.step = msg.width * 3
-        np.copyto(self._np_buf, frame.ravel())
+        np.copyto(self._np_buf, frame.ravel())  # writes into _buf via shared memory
         msg.data = self._buf
         self.pub.publish(msg)
         self.frame_count += 1

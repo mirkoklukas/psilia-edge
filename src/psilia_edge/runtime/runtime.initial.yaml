@@ -5,3 +5,8 @@ ros:
     topics:
       - /psilia/interface
       - /psilia/heartbeat
+  foxglove:
+    enabled: true
+    topics:
+      - /psilia/image/preview/compressed
+      - /psilia/depth/preview/compressed

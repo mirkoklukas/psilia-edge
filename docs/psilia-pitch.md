@@ -41,14 +41,15 @@ Year 1 focus is shipping the runtime, a compelling showcase prototype, and getti
 
 ## Market and Timing
 
-2M+ developers on NVIDIA Jetson, doubled in the last three years. $10B+ invested in robotics startups in 2025. Edge AI is a ~$25B market growing at 22% annually.
+Spatial perception is a core requirement for most robotics applications. No one owns this layer. ZED is hardware-first. NVIDIA provides blocks, not a runtime.
 
-The target is early-stage startups, small teams, and researchers -- the people feeling the pain today and building the robotics companies of tomorrow. Large companies have already built internal pipelines. That's not the target. Meeting early-stage teams now and growing with them is the strategy.
+2M+ developers on NVIDIA Jetson, doubled in three years. $10B+ invested in robotics startups in 2025. Edge AI is a ~$25B market growing at 22% annually.
+
+The target is early-stage startups, small teams, and researchers -- the people feeling the pain today and building the robotics companies of tomorrow. Large companies have already built internal pipelines.
+Meeting early-stage teams now and growing with them is the strategy.
 
 Robotics hardware is getting cheaper. Entry barriers are falling. But that alone doesn't accelerate the field, the tooling and abstractions around them do. PyTorch didn't win because it had better algorithms.
-It won by making the iteration cycle fast, which unlocked an entire community. The community became the moat.
-
-No one owns this layer. ZED is hardware-first. NVIDIA provides blocks, not a runtime.
+It made the iteration cycle fast, which unlocked an entire community.
 
 ## Team
 
