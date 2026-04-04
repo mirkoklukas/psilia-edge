@@ -63,8 +63,8 @@ class RectifyNode(Node):
             self.height, full_width, 3
         )
 
-        self.pub = self.create_publisher(Image, "/psilia/image/rectified", 10)
-        self.create_subscription(Image, "/psilia/image/raw", self.on_image, 10)
+        self.pub = self.create_publisher(Image, "/psilia/image/rectified", 1)
+        self.create_subscription(Image, "/psilia/image/raw", self.on_image, 1)
 
     def on_image(self, msg: Image):
         if not self._ready:

@@ -76,8 +76,8 @@ class DepthNode(Node):
             f"num_disparities={self.num_disparities} block_size={self.block_size}"
         )
 
-        self.pub = self.create_publisher(Image, "/psilia/depth", 10)
-        self.create_subscription(Image, "/psilia/image/rectified", self.on_image, 10)
+        self.pub = self.create_publisher(Image, "/psilia/depth", 1)
+        self.create_subscription(Image, "/psilia/image/rectified", self.on_image, 1)
 
     def on_image(self, msg: Image):
         if not self._ready:
