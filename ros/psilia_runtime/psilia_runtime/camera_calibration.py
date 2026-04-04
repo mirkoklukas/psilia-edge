@@ -159,7 +159,7 @@ class CameraCalibration:
             # and describes the position of
             #   *camera 0 relative to camera 1*.
 
-            M = data[camera_name]["T_cn_cnm1"]
+            M = np.array(data[camera_name]["T_cn_cnm1"])
             q = Rot.from_matrix(M[:3, :3]).as_quat()
             x = M[:3, 3]
             extrinsics = np.concatenate([x, q])
