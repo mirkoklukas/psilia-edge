@@ -110,6 +110,9 @@ def remove_sensor(key: str, delete_calibration: bool = False) -> None:
 def push_sensors(device: str, keys: list[str] | None = None) -> list[str]:
     """Push sensor entries and calibration files to a remote device.
 
+    Copies calibration files via rsync, then registers each sensor on the
+    device using `psilia sensor add --key ...` (non-interactive mode).
+
     Args:
         device: Registered device name (SSH host alias).
         keys: Specific sensor keys to push. If None, pushes all.
@@ -120,21 +123,19 @@ def push_sensors(device: str, keys: list[str] | None = None) -> list[str]:
     Raises:
         KeyError: If a requested key is not found locally.
     """
-    import json as _json
     from psilia_edge.utils import run_on_device_capture, run_streamed
 
     sensors = list_sensors()
     if keys is None:
         keys = list(sensors.keys())
 
-    # Validate all keys exist locally.
     for key in keys:
         if key not in sensors:
             raise KeyError(f"Sensor '{key}' not found locally.")
 
     to_push = {key: sensors[key] for key in keys}
 
-    # 1. rsync calibration files
+    # 1. rsync calibration files to ~/.psilia/calibrations/ on device.
     cal_files = []
     for entry in to_push.values():
         cal_name = entry.get("calibration")
@@ -144,7 +145,6 @@ def push_sensors(device: str, keys: list[str] | None = None) -> list[str]:
                 cal_files.append(cal_path)
 
     if cal_files:
-        # Ensure remote calibrations dir exists.
         run_on_device_capture(device, "mkdir -p ~/.psilia/calibrations")
         file_args = " ".join(str(f) for f in cal_files)
         rc = run_streamed(
@@ -154,25 +154,24 @@ def push_sensors(device: str, keys: list[str] | None = None) -> list[str]:
         if rc != 0:
             raise RuntimeError(f"Failed to rsync calibration files to {device}")
 
-    # 2. Merge sensor entries into remote psilia.yaml.
-    #    Base64-encode the JSON to avoid shell quoting issues.
-    import base64
-
-    sensors_json = _json.dumps(to_push)
-    b64 = base64.b64encode(sensors_json.encode()).decode()
-    merge_script = (
-        'python3 -c "'
-        "import json, base64; "
-        "from psilia_edge.runtime.config import read_config, write_config; "
-        "c = read_config(); "
-        "c.setdefault('sensors', {}); "
-        f"c['sensors'].update(json.loads(base64.b64decode('{b64}').decode())); "
-        "write_config(c)"
-        '"'
-    )
-    rc, _, stderr = run_on_device_capture(device, merge_script)
-    if rc != 0:
-        raise RuntimeError(f"Failed to merge sensor entries on {device}: {stderr}")
+    # 2. Register each sensor on the device via `psilia sensor add --key`.
+    for key, entry in to_push.items():
+        cal_name = entry.get("calibration")
+        if not cal_name:
+            continue
+        cmd = f"psilia sensor add --key {key!r} --calibration ~/.psilia/calibrations/{cal_name}"
+        label = entry.get("label")
+        if label:
+            cmd += f" --label {label!r}"
+        if entry.get("manufacturer"):
+            cmd += f" --manufacturer {entry['manufacturer']!r}"
+        if entry.get("product"):
+            cmd += f" --product {entry['product']!r}"
+        rc, _, stderr = run_on_device_capture(device, cmd)
+        if rc != 0:
+            raise RuntimeError(
+                f"Failed to register sensor '{key}' on {device}: {stderr}"
+            )
 
     return keys
 

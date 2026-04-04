@@ -41,15 +41,61 @@ def sensor_add(
         str,
         typer.Option("--label", "-l", help="Human-friendly sensor name."),
     ] = None,
+    key: Annotated[
+        str,
+        typer.Option(
+            "--key",
+            "-k",
+            help="Sensor key (UID or label). Non-interactive when provided.",
+        ),
+    ] = None,
+    manufacturer: Annotated[
+        str,
+        typer.Option("--manufacturer", help="Manufacturer name."),
+    ] = None,
+    product: Annotated[
+        str,
+        typer.Option("--product", help="Product name."),
+    ] = None,
 ) -> None:
     """Register a sensor and associate a calibration file."""
-    import sys
-    from psilia_edge.runtime.hotplug import scan_cameras
     from psilia_edge.runtime.sensor import (
-        build_sensor_id,
         list_sensors,
         register_sensor,
     )
+
+    # -- Non-interactive mode (--key provided) --
+    if key is not None:
+        if calibration is None:
+            ui.fail("--calibration is required when using --key.")
+            raise typer.Exit(1)
+        calibration = calibration.expanduser().resolve()
+        if not calibration.is_file():
+            ui.fail(f"File not found: {calibration}")
+            raise typer.Exit(1)
+
+        if label is None:
+            label = key
+
+        entry: dict = {"type": "camera"}
+        if manufacturer:
+            entry["manufacturer"] = manufacturer
+        if product:
+            entry["product"] = product
+        if label != key:
+            entry["label"] = label
+
+        register_sensor(key, entry, calibration)
+        ui.ok(f"Sensor registered: [bold]{label}[/bold]")
+        if key != label:
+            ui.detail("uid", key)
+        ui.detail("calibration", calibration.name)
+        return
+
+    # -- Interactive mode --
+    import sys
+    from psilia_edge.runtime.hotplug import scan_cameras
+    from psilia_edge.runtime.sensor import build_sensor_id
 
     ui.header(["Sensor", "Add"])
 
@@ -119,26 +165,26 @@ def sensor_add(
 
     # -- build entry and register --
     if selected:
-        key = selected["id"]
-        entry = {
+        _key = selected["id"]
+        _entry: dict = {
             "type": "camera",
             "manufacturer": selected["manufacturer"],
             "product": selected["product"],
             "label": label,
         }
     else:
-        key = label
-        entry = {
+        _key = label
+        _entry = {
             "type": "camera",
             "id": None,
         }
 
-    register_sensor(key, entry, calibration)
+    register_sensor(_key, _entry, calibration)
 
     ui.ok(f"Sensor registered: [bold]{label}[/bold]")
-    if key != label:
+    if _key != label:
         ui.detail("label", label)
-        ui.detail("uid", key)
+        ui.detail("uid", _key)
     ui.detail("calibration", calibration.name)
 
 
