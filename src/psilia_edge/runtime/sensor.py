@@ -159,14 +159,14 @@ def push_sensors(device: str, keys: list[str] | None = None) -> list[str]:
         cal_name = entry.get("calibration")
         if not cal_name:
             continue
-        cmd = f"psilia sensor add --key {key!r} --calibration ~/.psilia/calibrations/{cal_name}"
+        cmd = f'psilia sensor add --key "{key}" --calibration ~/.psilia/calibrations/{cal_name}'
         label = entry.get("label")
         if label:
-            cmd += f" --label {label!r}"
+            cmd += f' --label "{label}"'
         if entry.get("manufacturer"):
-            cmd += f" --manufacturer {entry['manufacturer']!r}"
+            cmd += f' --manufacturer "{entry["manufacturer"]}"'
         if entry.get("product"):
-            cmd += f" --product {entry['product']!r}"
+            cmd += f' --product "{entry["product"]}"'
         rc, _, stderr = run_on_device_capture(device, cmd)
         if rc != 0:
             raise RuntimeError(
