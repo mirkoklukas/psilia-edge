@@ -5,6 +5,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 from psilia_edge.runtime.config import (  # noqa: E402
+    CALIBRATIONS_DIR,
     CONFIG_PATH,
     CONTAINER_NAME,
     RUN_DIR,
@@ -34,6 +35,7 @@ def start_runtime_container() -> tuple[int, str, str]:
         f"-v {str(get_data_dir())}:/psilia/data "
         f"-v {str(get_runtime_config_path())}:/psilia/runtime.yaml:ro "
         f"-v {str(CONFIG_PATH)}:/psilia/psilia.yaml:ro "
+        f"-v {str(CALIBRATIONS_DIR)}:/psilia/calibrations:ro "
         f"-v {RUN_DIR}:/psilia/run "
         f"-e ROS_LOG_DIR=/psilia/log "
         f"-e RCUTILS_LOGGING_USE_STDOUT=1 "
