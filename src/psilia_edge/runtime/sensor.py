@@ -64,7 +64,8 @@ def register_sensor(
     cal_name = _calibration_filename(label, uid, calibration_src.suffix)
 
     calibration_dst = CALIBRATIONS_DIR / cal_name
-    shutil.copy2(calibration_src, calibration_dst)
+    if calibration_src.resolve() != calibration_dst.resolve():
+        shutil.copy2(calibration_src, calibration_dst)
 
     entry["calibration"] = cal_name
 
