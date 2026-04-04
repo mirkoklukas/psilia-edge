@@ -38,6 +38,11 @@ What remains:
 ## Other
 
 ### Depth pipeline
+- GPU acceleration for rectify and depth nodes on Jetson. Currently rectify
+  uses ~250% CPU (`cv2.remap` x2) and depth ~113% CPU (`StereoSGBM`) at
+  1280x720, starving other nodes. Use `cv2.cuda.remap` for rectification
+  and explore CUDA stereo matching (`cv2.cuda.StereoSGBM` or
+  `cv2.cuda.StereoBM`) for depth. This would free most of the CPU budget.
 - Replace Kalibr camchain format with our own calibration format
   (noted in rectify_node.py and depth_node.py).
 - Compute and publish a confidence map alongside depth (depth_node.py).
