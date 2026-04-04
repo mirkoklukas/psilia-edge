@@ -64,7 +64,7 @@ class CameraCalibration:
         self.name = name
         self.parent = parent
 
-        extrinsics = extrinsics or np.array([0.,0.,0.,0.,0.,0.,1.])
+        extrinsics = extrinsics if extrinsics is not None else np.array([0.,0.,0.,0.,0.,0.,1.])
         x = extrinsics[:3]
         q = extrinsics[3:]
 
