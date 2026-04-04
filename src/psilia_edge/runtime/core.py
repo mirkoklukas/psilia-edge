@@ -237,9 +237,12 @@ def start_spatial_layer(force: bool = False) -> dict:
         launch_params["camera_node"] = {"ros__parameters": camera_params}
 
     if calibration_container_path:
-        cal_params = {"calibration_file": calibration_container_path}
-        launch_params["rectify_node"] = {"ros__parameters": cal_params}
-        launch_params["depth_node"] = {"ros__parameters": cal_params}
+        launch_params["rectify_node"] = {
+            "ros__parameters": {"calibration_file": calibration_container_path}
+        }
+        launch_params["depth_node"] = {
+            "ros__parameters": {"calibration_file": calibration_container_path}
+        }
 
     if launch_params:
         RUN_DIR.mkdir(parents=True, exist_ok=True)
