@@ -194,6 +194,24 @@ def find_sensor(name: str) -> tuple[str, dict] | None:
     return None
 
 
+def is_calibration_compatible(
+    cal_w: int, cal_h: int, frame_w: int, frame_h: int
+) -> bool:
+    """Check if a calibration can be uniformly rescaled to a stereo frame size.
+
+    The frame is side-by-side stereo, so per-eye width is frame_w // 2.
+    Returns True if the calibration resolution is an exact integer multiple
+    of the per-eye frame resolution with the same scale factor in both dimensions.
+    """
+    eye_w = frame_w // 2
+    eye_h = frame_h
+    if eye_w == 0 or eye_h == 0:
+        return False
+    if cal_w % eye_w != 0 or cal_h % eye_h != 0:
+        return False
+    return cal_w // eye_w == cal_h // eye_h
+
+
 def get_calibration_resolution(cal_path: Path) -> tuple[int, int] | None:
     """Read the resolution from a Kalibr calibration file.
 

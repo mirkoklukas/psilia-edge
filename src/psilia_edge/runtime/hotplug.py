@@ -434,6 +434,7 @@ def pick_camera_device(fps: int = 30) -> dict | None:
             "width": size["width"],
             "height": size["height"],
             "fps": fps,
+            "available_sizes": sizes,
         }
         # Include all identity fields from the camera entry.
         for field in (

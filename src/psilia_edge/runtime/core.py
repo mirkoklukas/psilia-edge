@@ -114,6 +114,65 @@ def stop_base_layer() -> dict:
 #   Spatial layer
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def _configure_camera_resolution(camera: dict, cal_path) -> None:
+    """Pick the best camera resolution for the given calibration.
+
+    Mutates camera["width"] and camera["height"] in place.
+    # TODO: Make strategy configurable via runtime.yaml.
+    """
+    _resolution_smallest_compatible(camera, cal_path)
+
+
+def _resolution_calibration_match(camera: dict, cal_path) -> None:
+    """Set camera to the exact calibration resolution (stereo: 2*cal_w x cal_h)."""
+    from psilia_edge.runtime.sensor import get_calibration_resolution
+
+    cal_res = get_calibration_resolution(cal_path)
+    if not cal_res:
+        return
+    cal_w, cal_h = cal_res
+    camera["width"] = cal_w * 2
+    camera["height"] = cal_h
+    logger.info(
+        "Camera resolution (calibration match): %dx%d",
+        camera["width"],
+        camera["height"],
+    )
+
+
+def _resolution_smallest_compatible(camera: dict, cal_path) -> None:
+    """Pick the smallest available resolution compatible with the calibration.
+
+    A resolution is compatible if the calibration can be uniformly rescaled to it
+    (exact integer divisor in both dimensions). Falls back to calibration_match
+    if no compatible resolution is found in the available sizes.
+    """
+    from psilia_edge.runtime.sensor import (
+        get_calibration_resolution,
+        is_calibration_compatible,
+    )
+
+    cal_res = get_calibration_resolution(cal_path)
+    if not cal_res:
+        return
+    cal_w, cal_h = cal_res
+
+    sizes = camera.get("available_sizes", [])
+    for size in sorted(sizes, key=lambda s: s["width"] * s["height"]):
+        if is_calibration_compatible(cal_w, cal_h, size["width"], size["height"]):
+            camera["width"] = size["width"]
+            camera["height"] = size["height"]
+            logger.info(
+                "Camera resolution (smallest compatible): %dx%d",
+                camera["width"],
+                camera["height"],
+            )
+            return
+
+    # Fallback: use exact calibration resolution.
+    _resolution_calibration_match(camera, cal_path)
+
+
 def check_spatial_requirements() -> dict:
     """Check that all requirements for the spatial layer are met (preflight checks).
 
@@ -194,11 +253,7 @@ def start_spatial_layer(force: bool = False) -> dict:
 
     # Detect camera and resolve calibration.
     from psilia_edge.runtime.config import read_runtime_config
-    from psilia_edge.runtime.sensor import (
-        build_sensor_id,
-        get_calibration_file,
-        get_calibration_resolution,
-    )
+    from psilia_edge.runtime.sensor import build_sensor_id, get_calibration_file
 
     camera = None
     if sys.platform == "linux":
@@ -229,20 +284,9 @@ def start_spatial_layer(force: bool = False) -> dict:
     else:
         logger.info("No camera detected and no camera configured.")
 
-    # Configure camera resolution from calibration.
-    # Stereo cameras produce side-by-side frames, so capture width = 2 * cal width.
-    # TODO: Support rescaling calibrations to other available resolutions.
+    # Configure camera resolution based on calibration.
     if camera and cal_path:
-        cal_res = get_calibration_resolution(cal_path)
-        if cal_res:
-            cal_w, cal_h = cal_res
-            camera["width"] = cal_w * 2  # stereo side-by-side
-            camera["height"] = cal_h
-            logger.info(
-                "Camera resolution set from calibration: %dx%d",
-                camera["width"],
-                camera["height"],
-            )
+        _configure_camera_resolution(camera, cal_path)
 
     # Write launch_params.yaml for ROS nodes.
     launch_params = {}
