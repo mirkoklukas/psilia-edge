@@ -358,6 +358,7 @@ The colcon workspace layout inside the container mirrors the host:
   data/                   # MCAP recordings (mounted from host)
   runtime.yaml            # runtime config (mounted read-only from host)
   psilia.yaml             # psilia config (mounted read-only from host)
+  calibrations/           # camera calibration files (mounted read-only from host)
   run/                    # status files written by core_node (mounted from host)
 ```
 
