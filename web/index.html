@@ -113,6 +113,10 @@
         <span class="cc__label">camera</span>
         <span class="cc__check--fail" id="req-camera">—</span>
       </div>
+      <div class="cc__row" id="row-calibration">
+        <span class="cc__label">calibration</span>
+        <span class="cc__check--fail" id="req-calibration">—</span>
+      </div>
       <div class="cc__row" id="row-hotspot">
         <span class="cc__label">hotspot</span>
         <span class="cc__check--fail" id="req-hotspot">—</span>
@@ -158,9 +162,10 @@
       btn.disabled = false;
 
       // Preflight checks
-      setCheck('container', !!reqs.container?.ok);
-      setCheck('camera',    !!reqs.camera?.ok);
-      setCheck('hotspot',   !!reqs.hotspot?.ok);
+      setCheck('container',   !!reqs.container?.ok);
+      setCheck('camera',      !!reqs.camera?.ok);
+      setCheck('calibration', !!reqs.calibration?.ok);
+      setCheck('hotspot',     !!reqs.hotspot?.ok);
     }
 
     function setCheck(key, ok) {

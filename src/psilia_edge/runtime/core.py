@@ -115,7 +115,10 @@ def stop_base_layer() -> dict:
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 def check_spatial_requirements() -> dict:
-    """Check that all requirements for the spatial layer are met.
+    """Check that all requirements for the spatial layer are met (preflight checks).
+
+    These checks are shown as "Preflight Checks" in the web UI (web/index.html)
+    and used by `start_spatial_layer()` to gate launch when `force=False`.
 
     Returns a dict of check name → {ok, detail}.
     On non-Linux platforms, camera and hotspot checks are skipped.
@@ -138,6 +141,23 @@ def check_spatial_requirements() -> dict:
     checks["camera"] = {
         "ok": bool(camera),
         "detail": camera.get("device", "detected") if camera else "no camera detected",
+    }
+
+    # Calibration
+    from psilia_edge.runtime.config import read_runtime_config
+    from psilia_edge.runtime.sensor import build_sensor_id, get_calibration_file
+
+    rt_config = read_runtime_config()
+    camera_config = rt_config.get("camera", {})
+    sensor_id = build_sensor_id(camera) if camera else None
+
+    cal_path = get_calibration_file(
+        camera_config.get("name"),
+        sensor_id,
+    )
+    checks["calibration"] = {
+        "ok": cal_path is not None,
+        "detail": cal_path.name if cal_path else "no calibration found",
     }
 
     # Hotspot
@@ -174,7 +194,7 @@ def start_spatial_layer(force: bool = False) -> dict:
 
     # Detect camera and resolve calibration.
     from psilia_edge.runtime.config import read_runtime_config
-    from psilia_edge.runtime.sensor import build_sensor_id, find_sensor
+    from psilia_edge.runtime.sensor import build_sensor_id, get_calibration_file
 
     camera = None
     if sys.platform == "linux":
@@ -182,69 +202,28 @@ def start_spatial_layer(force: bool = False) -> dict:
 
         camera = pick_camera_device()
 
-    # Resolve calibration file via the three-step resolution order:
-    #   1. runtime.yaml camera.calibration → explicit override
-    #   2. runtime.yaml camera.name → sensor lookup by label/UID
-    #   3. No camera config → auto-detect connected camera → sensor lookup by UID
+    # Resolve calibration file via sensor registry lookup.
+    # Tries runtime.yaml camera.name first, then auto-detected camera UID.
+    # TODO: Support explicit file path (runtime.yaml camera.calibration) as bypass.
     rt_config = read_runtime_config()
     camera_config = rt_config.get("camera", {})
-    calibration_container_path = None
+    sensor_id = build_sensor_id(camera) if camera else None
 
-    if camera_config.get("calibration"):
-        # 1. Explicit calibration path in runtime.yaml.
-        calibration_container_path = camera_config["calibration"]
-        logger.info(
-            "Calibration: using explicit path from runtime.yaml: %s",
-            calibration_container_path,
-        )
-    elif camera_config.get("name"):
-        # 2. Lookup by name (label or UID).
-        result = find_sensor(camera_config["name"])
-        if result:
-            _, entry = result
-            cal_name = entry.get("calibration")
-            if cal_name:
-                calibration_container_path = f"/psilia/calibrations/{cal_name}"
-                logger.info(
-                    "Calibration: resolved via camera.name '%s': %s",
-                    camera_config["name"],
-                    cal_name,
-                )
-            else:
-                logger.warning(
-                    "Sensor '%s' found but has no calibration file.",
-                    camera_config["name"],
-                )
-        else:
-            logger.warning(
-                "camera.name '%s' in runtime.yaml does not match any registered sensor.",
-                camera_config["name"],
-            )
+    cal_path = get_calibration_file(camera_config.get("name"), sensor_id)
+    calibration_container_path = (
+        f"/psilia/calibrations/{cal_path.name}" if cal_path else None
+    )
+
+    if calibration_container_path:
+        logger.info("Calibration resolved: %s", calibration_container_path)
     elif camera:
-        # 3. Auto-detect: build UID from connected camera, look up sensor.
-        sensor_id = build_sensor_id(camera)
-        result = find_sensor(sensor_id)
-        if result:
-            _, entry = result
-            cal_name = entry.get("calibration")
-            if cal_name:
-                calibration_container_path = f"/psilia/calibrations/{cal_name}"
-                logger.info(
-                    "Calibration: auto-resolved via UID %s: %s", sensor_id, cal_name
-                )
-            else:
-                logger.warning(
-                    "Sensor '%s' found but has no calibration file.", sensor_id
-                )
-        else:
-            logger.warning(
-                "No registered sensor for detected camera (UID: %s). Rectify/depth nodes will not launch.",
-                sensor_id,
-            )
-    else:
-        logger.info(
-            "No camera detected and no camera configured — skipping calibration resolution."
+        logger.warning(
+            "No calibration found for camera (UID: %s). "
+            "Rectify/depth nodes will not launch.",
+            sensor_id,
         )
+    else:
+        logger.info("No camera detected and no camera configured.")
 
     # Write launch_params.yaml for ROS nodes.
     launch_params = {}

@@ -12,10 +12,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from psilia_edge.runtime.config import CONFIG_DIR, read_config, write_config
-
-
-CALIBRATIONS_DIR = CONFIG_DIR / "calibrations"
+from psilia_edge.runtime.config import CALIBRATIONS_DIR, read_config, write_config
 
 
 def build_sensor_id(usb_info: dict) -> str:
@@ -197,16 +194,23 @@ def find_sensor(name: str) -> tuple[str, dict] | None:
     return None
 
 
-def resolve_calibration(name: str) -> Path | None:
-    """Resolve the calibration file path for a sensor by key or label.
+def get_calibration_file(*names: str) -> Path | None:
+    """Try each name (UID or label), return the first matching calibration path.
 
-    Returns the full path to the calibration file, or None if not found.
+    Iterates through the given names, looks up each in the sensor registry
+    (by key first, then by label), and returns the calibration file path
+    for the first match that has one. Returns None if no match is found.
+
+    TODO: Support explicit file paths (e.g. from runtime.yaml camera.calibration)
+    as a bypass that skips the sensor registry lookup.
     """
-    result = find_sensor(name)
-    if not result:
-        return None
-    _, entry = result
-    cal_name = entry.get("calibration")
-    if not cal_name:
-        return None
-    return CALIBRATIONS_DIR / cal_name
+    for name in names:
+        if not name:
+            continue
+        result = find_sensor(name)
+        if result:
+            _, entry = result
+            cal_name = entry.get("calibration")
+            if cal_name:
+                return CALIBRATIONS_DIR / cal_name
+    return None

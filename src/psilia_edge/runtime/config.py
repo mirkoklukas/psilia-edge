@@ -38,6 +38,7 @@ CONFIG_DIR = Path(os.environ.get("PSILIA_DIR", "~/.psilia")).expanduser()
 CONFIG_PATH = CONFIG_DIR / "psilia.yaml"
 RUN_DIR = CONFIG_DIR / "run"
 LOG_DIR = CONFIG_DIR / "log"
+CALIBRATIONS_DIR = CONFIG_DIR / "calibrations"
 INITIAL_CONFIG_PATH = (
     importlib.resources.files("psilia_edge.runtime") / "psilia.initial.yaml"
 )
