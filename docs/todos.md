@@ -32,6 +32,17 @@ What remains:
 - Make resolution strategy configurable via `runtime.yaml` (e.g.
   `camera.resolution_strategy: smallest_compatible | calibration_match`).
   Currently hardcoded to `smallest_compatible` in `_configure_camera_resolution`.
+- Investigate non-uniform calibration rescaling for cameras with different aspect
+  ratios at different resolutions. Currently `is_calibration_compatible` requires
+  uniform scaling (same factor in x and y). Non-uniform scaling is mathematically
+  valid for pinhole intrinsics, but only correct if the camera uses binning (not
+  cropping) across resolution modes. To verify:
+  1. Quick test: capture a checkerboard at each resolution, overlay the images
+     scaled to the same size — if the field of view matches, it's binning.
+  2. Eye test: record short clips at each resolution, let the user visually
+     compare FOV and distortion to confirm the sensor readout mode.
+  If confirmed, relax `is_calibration_compatible` to allow non-uniform scaling
+  and update `CameraCalibration.rescale` to accept separate x/y factors.
 
 ## Other
 
