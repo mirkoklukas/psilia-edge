@@ -19,20 +19,16 @@ Need: detect context (CLI vs daemon) and configure handlers accordingly:
 This also ties into the broader "structure logging across the stack" TODO under
 Status & Logging.
 
-### Depth pipeline integration with calibration
+### Calibration — remaining items
 
-Sensor registration and calibration management is done (`psilia sensor add/list/remove/push/scan`).
-Calibration files live in `~/.psilia/calibrations/`, sensor entries in `psilia.yaml` under `sensors:`.
+Sensor registration, calibration resolution, and depth pipeline wiring are done.
 See design.md "Sensors & Calibration" section.
 
 What remains:
-- Wire calibration resolution into the launch flow: `start_spatial_layer()` resolves
-  the calibration file (via `resolve_calibration()` in `sensor.py`) and passes it
-  to `launch_params.yaml`.
-- Add rectify_node, depth_node, and depth_preview_node to the launch script with
-  the `calibration_file` parameter.
 - Backfill USB fields on label-keyed sensors when detected for the first time
   (designed but not yet implemented).
+- Support explicit calibration file path in `runtime.yaml` (`camera.calibration`)
+  as a bypass that skips sensor registry lookup (TODO in `sensor.py`).
 
 ## Other
 
