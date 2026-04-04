@@ -62,6 +62,31 @@ def generate_launch_description():
         output="screen",
     )
 
+    # Calibration file path is resolved by start_spatial_layer() and written to
+    # launch_params.yaml. These nodes only launch when a calibration is available.
+    rectify_node = Node(
+        package="psilia_runtime",
+        executable="rectify",
+        name="rectify_node",
+        output="screen",
+        parameters=[_LAUNCH_PARAMS],
+    )
+
+    depth_node = Node(
+        package="psilia_runtime",
+        executable="depth",
+        name="depth_node",
+        output="screen",
+        parameters=[_LAUNCH_PARAMS],
+    )
+
+    depth_preview_node = Node(
+        package="psilia_runtime",
+        executable="depth_preview",
+        name="depth_preview_node",
+        output="screen",
+    )
+
     rosbridge = Node(
         package="rosbridge_server",
         executable="rosbridge_websocket",
@@ -87,6 +112,14 @@ def generate_launch_description():
         rosapi,
     ]
 
+    # Only launch depth pipeline nodes if a calibration file was resolved.
+    launch_params = _load_yaml(_LAUNCH_PARAMS)
+    rectify_params = launch_params.get("rectify_node", {}).get("ros__parameters", {})
+    if rectify_params.get("calibration_file"):
+        nodes.append(rectify_node)
+        nodes.append(depth_node)
+        nodes.append(depth_preview_node)
+
     psilia_cfg = _load_yaml(_PSILIA_CONFIG)
     runtime_cfg = _load_yaml(_RUNTIME_CONFIG)
     foxglove_cfg = runtime_cfg.get("ros", {}).get("foxglove", {})
@@ -102,5 +135,7 @@ def generate_launch_description():
             parameters=[{"port": port, "topic_whitelist": topics}],
         )
         nodes.append(foxglove_bridge)
+        print(f"\n[psilia] Foxglove bridge on ws://localhost:{port}")
+        print(f"[psilia] Open https://app.foxglove.dev and connect to ws://<device-ip>:{port}\n")
 
     return LaunchDescription(nodes)

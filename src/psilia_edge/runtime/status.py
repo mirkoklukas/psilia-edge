@@ -90,6 +90,29 @@ def _spatial_section() -> dict:
     if running:
         section["heartbeat"] = _heartbeat_section()
         section["ros"] = _SECTIONS["ros"]()
+
+        # Show calibration and foxglove status from launch_params / config.
+        from psilia_edge.utils import read_yaml
+        from psilia_edge.runtime.config import read_runtime_config
+
+        launch_params = read_yaml(RUN_DIR / "launch_params.yaml") or {}
+        rectify_params = launch_params.get("rectify_node", {}).get(
+            "ros__parameters", {}
+        )
+        cal_file = rectify_params.get("calibration_file")
+        section["calibration"] = cal_file or "none"
+
+        rt_config = read_runtime_config()
+        foxglove_cfg = rt_config.get("ros", {}).get("foxglove", {})
+        if foxglove_cfg.get("enabled", False):
+            from psilia_edge.runtime.config import read_config
+
+            port = read_config().get("runtime", {}).get("foxglove_port", 8765)
+            hostname = socket.gethostname().split(".")[0]
+            section["foxglove"] = {
+                "ws": f"ws://{hostname}.local:{port}",
+                "app": "https://app.foxglove.dev",
+            }
     return section
 
 

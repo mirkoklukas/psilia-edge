@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import socket
 import sys
 import time
 
 from psilia_edge.runtime.config import get_api_port, read_config
+
+logger = logging.getLogger(__name__)
 
 
 class SpatialRequirementsError(Exception):
@@ -169,25 +172,111 @@ def start_spatial_layer(force: bool = False) -> dict:
         if not all(v["ok"] for v in checks.values()):
             raise SpatialRequirementsError(checks)
 
-    # Detect camera and write launch_params.yaml for ROS nodes.
+    # Detect camera and resolve calibration.
+    from psilia_edge.runtime.config import read_runtime_config
+    from psilia_edge.runtime.sensor import build_sensor_id, find_sensor
+
     camera = None
     if sys.platform == "linux":
         from psilia_edge.runtime.hotplug import pick_camera_device
 
         camera = pick_camera_device()
 
-    if camera:
-        RUN_DIR.mkdir(parents=True, exist_ok=True)
-        write_yaml(
-            RUN_DIR / "launch_params.yaml", {"camera_node": {"ros__parameters": camera}}
+    # Resolve calibration file via the three-step resolution order:
+    #   1. runtime.yaml camera.calibration → explicit override
+    #   2. runtime.yaml camera.name → sensor lookup by label/UID
+    #   3. No camera config → auto-detect connected camera → sensor lookup by UID
+    rt_config = read_runtime_config()
+    camera_config = rt_config.get("camera", {})
+    calibration_container_path = None
+
+    if camera_config.get("calibration"):
+        # 1. Explicit calibration path in runtime.yaml.
+        calibration_container_path = camera_config["calibration"]
+        logger.info(
+            "Calibration: using explicit path from runtime.yaml: %s",
+            calibration_container_path,
         )
+    elif camera_config.get("name"):
+        # 2. Lookup by name (label or UID).
+        result = find_sensor(camera_config["name"])
+        if result:
+            _, entry = result
+            cal_name = entry.get("calibration")
+            if cal_name:
+                calibration_container_path = f"/psilia/calibrations/{cal_name}"
+                logger.info(
+                    "Calibration: resolved via camera.name '%s': %s",
+                    camera_config["name"],
+                    cal_name,
+                )
+            else:
+                logger.warning(
+                    "Sensor '%s' found but has no calibration file.",
+                    camera_config["name"],
+                )
+        else:
+            logger.warning(
+                "camera.name '%s' in runtime.yaml does not match any registered sensor.",
+                camera_config["name"],
+            )
+    elif camera:
+        # 3. Auto-detect: build UID from connected camera, look up sensor.
+        sensor_id = build_sensor_id(camera)
+        result = find_sensor(sensor_id)
+        if result:
+            _, entry = result
+            cal_name = entry.get("calibration")
+            if cal_name:
+                calibration_container_path = f"/psilia/calibrations/{cal_name}"
+                logger.info(
+                    "Calibration: auto-resolved via UID %s: %s", sensor_id, cal_name
+                )
+            else:
+                logger.warning(
+                    "Sensor '%s' found but has no calibration file.", sensor_id
+                )
+        else:
+            logger.warning(
+                "No registered sensor for detected camera (UID: %s). Rectify/depth nodes will not launch.",
+                sensor_id,
+            )
+    else:
+        logger.info(
+            "No camera detected and no camera configured — skipping calibration resolution."
+        )
+
+    # Write launch_params.yaml for ROS nodes.
+    launch_params = {}
+    if camera:
+        # Only pass launch-relevant params to camera_node (not identity fields).
+        camera_params = {
+            k: camera[k]
+            for k in ("device", "pixel_format", "width", "height", "fps")
+            if k in camera
+        }
+        launch_params["camera_node"] = {"ros__parameters": camera_params}
+
+    if calibration_container_path:
+        cal_params = {"calibration_file": calibration_container_path}
+        launch_params["rectify_node"] = {"ros__parameters": cal_params}
+        launch_params["depth_node"] = {"ros__parameters": cal_params}
+
+    if launch_params:
+        RUN_DIR.mkdir(parents=True, exist_ok=True)
+        write_yaml(RUN_DIR / "launch_params.yaml", launch_params)
 
     launch_script = get_launch_script()
     rc, _, err = start_ros_launch(launch_script)
     if rc != 0:
         return {"status": "error", "error": err}
 
-    return {"status": "started", "launch": launch_script, "camera": camera}
+    return {
+        "status": "started",
+        "launch": launch_script,
+        "camera": camera,
+        "calibration": calibration_container_path,
+    }
 
 
 def stop_spatial_layer() -> dict:

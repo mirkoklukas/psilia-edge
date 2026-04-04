@@ -449,21 +449,6 @@ def cam() -> None:
 
 
 @app.command(hidden=True)
-def scan() -> Path:
-    """Print the runtime home directory path."""
-    from psilia_edge.runtime.hotplug import scan_cameras, usb_list_devices
-
-    ui.header(["Runtime", "Scan"], "Scanning for connected cameras…")
-    groups = scan_cameras()
-    if not groups:
-        ui.warn("No cameras found.")
-    else:
-        ui.print_tree(groups, label="cameras")
-
-    ui.print_tree(usb_list_devices(), label="USB devices")
-
-
-@app.command(hidden=True)
 def home() -> Path:
     """Print the runtime home directory path."""
     from psilia_edge.runtime.config import get_runtime_home

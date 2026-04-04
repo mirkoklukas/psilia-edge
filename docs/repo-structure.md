@@ -18,9 +18,10 @@ The installable Python package. Provides the `psilia` CLI entry point.
 
 ```
 psilia_edge/
-  cli.py                Top-level CLI (click)
+  cli.py                Top-level CLI (typer) — runtime, sensor, data sub-apps
   ui.py                 Rich-based terminal output helpers
   runtime/              Runtime lifecycle (the core product)
+    sensor.py           Sensor registration and calibration management
   device_manager/       Laptop-side device and data management
   network/              Network/connectivity helpers
   mcap/                 MCAP recording utilities (WIP)

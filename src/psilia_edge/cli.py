@@ -7,6 +7,7 @@
 #   leading underscore    → helper (returns a value or renderable we use here)
 
 from pathlib import Path
+from typing import Annotated, Optional
 
 import typer
 
@@ -20,6 +21,202 @@ app.add_typer(
     name="runtime",
     help="Commands to operate the runtime on Jetson devices",
 )
+
+# ── sensor sub-app ───────────────────────────────────────────��───────────────
+sensor_app = typer.Typer(help="Manage sensors and calibrations.")
+app.add_typer(sensor_app, name="sensor")
+
+
+@sensor_app.command("add")
+def sensor_add(
+    calibration: Annotated[
+        Path,
+        typer.Option(
+            "--calibration",
+            "-c",
+            help="Path to the calibration file.",
+        ),
+    ] = None,
+    label: Annotated[
+        str,
+        typer.Option("--label", "-l", help="Human-friendly sensor name."),
+    ] = None,
+) -> None:
+    """Register a sensor and associate a calibration file."""
+    import sys
+    from psilia_edge.runtime.hotplug import scan_cameras
+    from psilia_edge.runtime.sensor import (
+        build_sensor_id,
+        list_sensors,
+        register_sensor,
+    )
+
+    ui.header(["Sensor", "Add"])
+
+    # -- detect cameras --
+    if sys.platform == "linux":
+        with ui.status("Scanning for cameras…"):
+            groups = scan_cameras()
+    else:
+        groups = scan_cameras()
+
+    # Flatten groups into a list of physical devices (one per group).
+    devices = []
+    for group in groups:
+        cam = group[0]
+        sensor_id = build_sensor_id(cam)
+        product_name = cam.get("product", cam.get("name", "Unknown"))
+        devices.append(
+            {
+                "id": sensor_id,
+                "product": product_name,
+                "manufacturer": cam.get("manufacturer", ""),
+                "group": group,
+            }
+        )
+
+    selected = None
+    if devices:
+        ui.info("Detected cameras:")
+        for i, dev in enumerate(devices):
+            ui.info(f"  [{i + 1}] {dev['product']}  [dim]({dev['id']})[/dim]")
+        ui.info(f"  [{len(devices) + 1}] No camera (register by label only)")
+        choice = ui.ask_int("Select", choices=list(range(1, len(devices) + 2)))
+        if choice <= len(devices):
+            selected = devices[choice - 1]
+    else:
+        ui.info("No cameras detected — registering by label only.")
+
+    # -- resolve calibration file --
+    if calibration is None:
+        cal_str = ui.ask("Calibration file")
+        calibration = Path(cal_str)
+
+    calibration = calibration.expanduser().resolve()
+    if not calibration.is_file():
+        ui.fail(f"File not found: {calibration}")
+        raise typer.Exit(1)
+
+    # -- resolve label --
+    if label is None:
+        default_label = selected["product"] if selected else ""
+        label = ui.ask("Label", default=default_label)
+
+    if not label:
+        ui.fail("A label is required.")
+        raise typer.Exit(1)
+
+    # Check uniqueness.
+    existing = list_sensors()
+    if label in existing:
+        ui.fail(f"A sensor with key '{label}' already exists.")
+        raise typer.Exit(1)
+    if selected:
+        sensor_id = selected["id"]
+        if sensor_id in existing:
+            ui.fail(f"A sensor with key '{sensor_id}' already exists.")
+            raise typer.Exit(1)
+
+    # -- build entry and register --
+    if selected:
+        key = selected["id"]
+        entry = {
+            "type": "camera",
+            "manufacturer": selected["manufacturer"],
+            "product": selected["product"],
+            "label": label,
+        }
+    else:
+        key = label
+        entry = {
+            "type": "camera",
+            "id": None,
+        }
+
+    register_sensor(key, entry, calibration)
+
+    ui.ok(f"Sensor registered: [bold]{label}[/bold]")
+    if key != label:
+        ui.detail("label", label)
+        ui.detail("uid", key)
+    ui.detail("calibration", calibration.name)
+
+
+@sensor_app.command("list")
+def sensor_list() -> None:
+    """Show registered sensors."""
+    from psilia_edge.runtime.sensor import list_sensors
+
+    sensors = list_sensors()
+    if not sensors:
+        ui.info(
+            "[dim]No sensors registered. Run 'psilia sensor add' to register one.[/dim]"
+        )
+        return
+    ui.print_tree(sensors, label="Sensors")
+
+
+@sensor_app.command("remove")
+def sensor_remove(
+    key: str = typer.Argument(help="Sensor key (label or UID) to remove."),
+    delete_calibration: bool = typer.Option(
+        False,
+        "--delete-calibration",
+        help="Also delete the calibration file.",
+    ),
+) -> None:
+    """Unregister a sensor."""
+    from psilia_edge.runtime.sensor import remove_sensor
+
+    try:
+        remove_sensor(key, delete_calibration=delete_calibration)
+    except KeyError as e:
+        ui.fail(str(e))
+        raise typer.Exit(1)
+    ui.ok(f"Sensor removed: {key}")
+
+
+@sensor_app.command("push")
+def sensor_push(
+    device: str = typer.Argument(help="Registered device name."),
+    key: Optional[str] = typer.Option(
+        None, "--key", "-k", help="Push only this sensor key."
+    ),
+) -> None:
+    """Push sensor entries and calibration files to a remote device."""
+    from psilia_edge.runtime.sensor import push_sensors
+
+    ui.header(["Sensor", "Push"])
+
+    keys = [key] if key else None
+    try:
+        pushed = push_sensors(device, keys=keys)
+    except KeyError as e:
+        ui.fail(str(e))
+        raise typer.Exit(1)
+    except RuntimeError as e:
+        ui.fail(str(e))
+        raise typer.Exit(1)
+
+    for k in pushed:
+        ui.ok(f"{k}")
+    ui.ok(f"Pushed {len(pushed)} sensor(s) to {device}")
+
+
+@sensor_app.command("scan")
+def sensor_scan() -> None:
+    """Scan for connected cameras and USB devices."""
+    from psilia_edge.runtime.hotplug import scan_cameras, usb_list_devices
+
+    ui.header(["Sensor", "Scan"], "Scanning for connected cameras…")
+    groups = scan_cameras()
+    if not groups:
+        ui.warn("No cameras found.")
+    else:
+        ui.print_tree(groups, label="cameras")
+
+    ui.print_tree(usb_list_devices(), label="USB devices")
+
 
 # ── data sub-app ──────────────────────────────────────────────────────────────
 data_app = typer.Typer(help="Data operations (pull, sync)")

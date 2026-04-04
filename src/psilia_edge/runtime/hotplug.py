@@ -67,8 +67,7 @@ def _group_cameras(cameras: list[dict]) -> list[list[dict]]:
     groups: dict[str, list[dict]] = {}
     ungrouped: list[dict] = []
     for cam in cameras:
-        usb = cam.get("usb", {})
-        key = usb.get("serial") or usb.get("bus_id")
+        key = cam.get("serial") or cam.get("bus_id")
         if key:
             groups.setdefault(key, []).append(cam)
         else:
@@ -175,7 +174,9 @@ def _scan_linux() -> list[dict]:
             vendor_id = usb.pop("idVendor", "")
             product_id = usb.pop("idProduct", "")
             entry["type"] = _identify_type(vendor_id, product_id)
-            entry["usb"] = {"vendor_id": vendor_id, "product_id": product_id, **usb}
+            entry["vendor_id"] = vendor_id
+            entry["product_id"] = product_id
+            entry.update(usb)  # bus_id, manufacturer, product, serial
 
         cameras.append(entry)
     return cameras
@@ -427,13 +428,27 @@ def pick_camera_device(fps: int = 30) -> dict | None:
 
         size = min(sizes, key=lambda s: s["width"] * s["height"])
 
-        return {
+        result = {
             "device": cam["device"],
             "pixel_format": fmt,
             "width": size["width"],
             "height": size["height"],
             "fps": fps,
         }
+        # Include all identity fields from the camera entry.
+        for field in (
+            "name",
+            "type",
+            "vendor_id",
+            "product_id",
+            "manufacturer",
+            "product",
+            "serial",
+            "bus_id",
+        ):
+            if field in cam:
+                result[field] = cam[field]
+        return result
 
     return None
 
@@ -469,15 +484,12 @@ def _scan_macos() -> list[dict]:
 
             entry["type"] = _identify_type(vendor_id, product_id)
 
-            usb: dict = {}
             if vendor_id:
-                usb["vendor_id"] = vendor_id
+                entry["vendor_id"] = vendor_id
             if product_id:
-                usb["product_id"] = product_id
+                entry["product_id"] = product_id
             if uid := cam.get("spcamera_unique-id"):
-                usb["serial"] = uid
-            if usb:
-                entry["usb"] = usb
+                entry["serial"] = uid
 
             cameras.append(entry)
         return cameras

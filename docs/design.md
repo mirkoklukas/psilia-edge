@@ -1,4 +1,4 @@
-> **Summary:** Guiding principles, system architecture, and runtime operations. Covers the two roles (Jetson vs. laptop), filesystem layout, config files, the two-layer runtime (base + spatial), code structure, Docker container layout, logging reference, and how to interact with the runtime via CLI and Web UI.
+> **Summary:** Guiding principles, system architecture, and runtime operations. Covers the two roles (Jetson vs. laptop), filesystem layout, config files, the two-layer runtime (base + spatial), code structure, Docker container layout, sensors and calibration, logging reference, and how to interact with the runtime via CLI and Web UI.
 
 # Psilia Edge — Spatial Runtime for Embodied AI.
 
@@ -45,6 +45,7 @@ The user never needs to know this exists. It stores the CLI's own state: a point
 ```
 ~/.psilia/
   psilia.yaml               # unified config: runtime home path, device registry
+  calibrations/             # camera calibration files (keyed by camera)
   run/psilia-edge.pid       # daemon PID file
   log/psilia-edge.log       # daemon log
   keys/<device-name>        # SSH private key per registered device
@@ -123,9 +124,15 @@ network:
     # Future: trigger cloud upload when connected.
     # Future: other connection types (ethernet) may be relevant here too.
 
-# written by `psilia runtime setup` (optional)
-camera:
-  type: null               # e.g. zed2i, oak-d, realsense
+# written by `psilia sensor add`
+# key is either a UID (vendor_id:product_id:serial) or a user-provided label
+sensors:
+  "2b03:0b3a:SN123456":
+    type: camera
+    manufacturer: "Stereolabs"
+    product: "ZED 2i"
+    label: "ZED 2i"
+    calibration: zed-2i.yaml       # relative to ~/.psilia/calibrations/
 
 #|
 #|  Role 2: Device and Data Management
@@ -153,6 +160,9 @@ Everything runtime-specifig configurable information should go in here.
 The default/initial runtime config (`runtime.default.yaml`):
 ```yaml
 name: My Runtime Config
+camera:
+  name: "ZED 2i"                      # matched against label, then camera ID
+  # calibration: /override/path.yaml  # optional, overrides registered calibration
 ros:
   launch: default.launch.py
   recording:
@@ -185,6 +195,81 @@ Managing ssh connection for registered devices |
 | ... | ... | ... |
 
 
+## Sensors & Calibration
+
+### Sensor Identity
+
+Each camera has a **UID** built from USB descriptor fields:
+
+```
+{vendor_id}:{product_id}:{serial}
+```
+
+For example: `2b03:0b3a:SN123456`. These fields are read from sysfs on Linux (`hotplug.py`) and `system_profiler` on macOS. If a camera has no serial number, the key ends with a trailing colon (e.g. `2b03:0b3a:`) — still unique enough when only one unit of that model is connected.
+
+### Sensor Registry
+
+The `sensors:` section in `psilia.yaml` maps a **key** to a sensor entry. The key can be either a human-friendly label or a UID — the system treats them the same way. Keys must be unique across the whole `sensors` dict.
+
+**Registered with camera plugged in** (UID as key, auto-detected fields filled in):
+
+```yaml
+sensors:
+  "2b03:0b3a:SN123456":             # UID as key
+    type: camera                     # auto-detected
+    manufacturer: "Stereolabs"       # auto-detected
+    product: "ZED 2i"                # auto-detected
+    label: "ZED 2i"                  # user-provided (default: product)
+    calibration: zed-2i.yaml         # user-provided → copied to ~/.psilia/calibrations/
+```
+
+**Registered without camera** (label as key, USB fields backfilled on first detection):
+
+```yaml
+sensors:
+  "ZED 2i":                          # label as key
+    id: null                          # backfilled on first detection
+    type: camera
+    calibration: zed-2i.yaml
+```
+
+When a label-keyed sensor is detected for the first time, the system backfills `id`, `manufacturer`, and `product` into the entry automatically.
+
+### Sensor Registration
+
+`psilia sensor add` has two modes:
+
+**Camera plugged in:**
+1. Detect connected sensors, show numbered list
+2. User picks one
+3. Prompt for calibration file path
+4. Prompt for label (default: `product` name)
+5. Copy calibration to `~/.psilia/calibrations/`, write entry with UID as key
+
+**No camera** (selected from the list, or no cameras detected):
+1. Prompt for calibration file path
+2. Prompt for label (used as key)
+3. Copy calibration to `~/.psilia/calibrations/`, write entry with label as key
+
+Related commands:
+- `psilia sensor list` — show registered sensors
+- `psilia sensor remove` — unregister a sensor
+- `psilia sensor scan` — detect connected cameras and USB devices
+- `psilia sensor push <device>` — push sensor entries and calibration files to a remote device (all sensors, or `--key` for a specific one)
+
+### Calibration Files
+
+Calibration files live in `~/.psilia/calibrations/`. They belong to the sensor (hardware), not to a runtime instance — they survive `psilia runtime init` and are shared across runtimes on the same machine.
+
+### Calibration Resolution
+
+At launch, the runtime resolves the calibration file for the active camera:
+
+1. **`runtime.yaml` specifies a `calibration:` path** → use that (explicit override).
+2. **`runtime.yaml` specifies `camera.name`** → look up that key in `sensors:`, use its calibration.
+3. **No `camera:` in `runtime.yaml`** → build UID from connected camera, look up in `sensors:`. Error if no match or ambiguous.
+
+
 ## Two Runtime Layers
 
 The runtime consists of two layers with distinct lifecycles:
@@ -215,7 +300,7 @@ Three tiers, each with distinct responsibilities:
 
 For long-running steps (e.g. `docker build`), raw process output scrolls by via `run_streamed` instead of a spinner — still followed by `ui.ok` / `ui.fail`.
 
-**Service modules** (`core.py`, `daemon.py`, `docker.py`, `status.py`, `config.py`, `hotplug.py`, `server.py`) — single-concern, no UI. Return dicts, raise on failure. `core.py` is the central service: runtime lifecycle and role detection. Others are single-concern helpers.
+**Service modules** (`core.py`, `daemon.py`, `docker.py`, `status.py`, `config.py`, `hotplug.py`, `sensor.py`, `server.py`) — single-concern, no UI. Return dicts, raise on failure. `core.py` is the central service: runtime lifecycle and role detection. Others are single-concern helpers.
 
 ### Output channels
 
@@ -238,6 +323,7 @@ For long-running steps (e.g. `docker build`), raw process output scrolls by via 
 | `status.py` | Service | State reads, no side effects |
 | `config.py` | Service | Path constants and config access |
 | `hotplug.py` | Service | Camera/device detection |
+| `sensor.py` | Service | Sensor registration and calibration management |
 | `server.py` | Service | FastAPI app definition |
 
 
@@ -252,6 +338,7 @@ Host                             Container
 {runtime_home}/data/         →   /psilia/data/           MCAP recordings
 {runtime_home}/runtime.yaml  →   /psilia/runtime.yaml    runtime config (read-only)
 ~/.psilia/psilia.yaml        →   /psilia/psilia.yaml     psilia config (read-only)
+~/.psilia/calibrations/      →   /psilia/calibrations/   camera calibration files (read-only)
 ~/.psilia/run/               →   /psilia/run/            status files written by core_node
 ```
 
@@ -319,6 +406,13 @@ There are two interfaces to the runtime, both available from laptop or phone: th
 - `psilia runtime start/stop` — lifecycle
 - `psilia runtime attach` — live status view (1 Hz refresh); the primary way to monitor the runtime
 - `psilia runtime update` — pull latest ROS package, rebuild Docker image
+
+`psilia sensor ...` — sensor and calibration management:
+- `psilia sensor add` — register a sensor, associate calibration file
+- `psilia sensor list` — show registered sensors
+- `psilia sensor remove` — unregister a sensor
+- `psilia sensor scan` — detect connected cameras and USB devices
+- `psilia sensor push <device>` — push sensor entries and calibration files to a remote device
 
 Dev tools:
 - `psilia runtime status` — one-shot status snapshot (debugging)

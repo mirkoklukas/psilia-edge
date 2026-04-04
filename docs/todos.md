@@ -2,24 +2,37 @@
 
 ## Next Session
 
-### Camera calibration management and depth pipeline integration
+### Logging: dual output (terminal + file) for CLI and daemon
 
-We added rectify_node, depth_node, and depth_preview_node but they are not yet
-in the launch script because they need a `calibration_file` parameter.
+Currently `logging.basicConfig` in `__init__.py` uses a single `RichHandler` (writes
+to stdout). This works for the CLI (terminal) and the daemon (stdout redirected to
+`~/.psilia/log/psilia-edge.log`), but:
+- CLI logs don't persist to the log file.
+- Daemon logs contain Rich markup in the file (messy).
+- `start_spatial_layer()` can be called from either context — calibration resolution
+  warnings should show in the terminal AND persist to the log file.
 
-What needs to happen:
-- Organize camera calibrations: decide where calibration files live. Probably
-  `{runtime_home}/conf/calibrations/` or similar, mounted into the container.
-- Map calibrations to cameras: when a camera is plugged in, we need to know
-  which calibration file belongs to it. This could be based on serial number,
-  device name, or a user-defined mapping.
-- Consider a `psilia camera register` (or similar) command that pairs a
-  connected camera with its calibration file and stores the mapping in
-  `psilia.yaml` or `runtime.yaml`.
-- Once that's in place, the host can resolve the calibration file path at
-  startup and pass it to `launch_params.yaml` (same pattern as camera params).
-- Then add rectify_node, depth_node, and depth_preview_node to the launch
-  script with the calibration_file parameter.
+Need: detect context (CLI vs daemon) and configure handlers accordingly:
+- CLI: `RichHandler` → terminal + plain `FileHandler` → log file
+- Daemon: plain `FileHandler` → log file only (no `RichHandler`, no terminal)
+
+This also ties into the broader "structure logging across the stack" TODO under
+Status & Logging.
+
+### Depth pipeline integration with calibration
+
+Sensor registration and calibration management is done (`psilia sensor add/list/remove/push/scan`).
+Calibration files live in `~/.psilia/calibrations/`, sensor entries in `psilia.yaml` under `sensors:`.
+See design.md "Sensors & Calibration" section.
+
+What remains:
+- Wire calibration resolution into the launch flow: `start_spatial_layer()` resolves
+  the calibration file (via `resolve_calibration()` in `sensor.py`) and passes it
+  to `launch_params.yaml`.
+- Add rectify_node, depth_node, and depth_preview_node to the launch script with
+  the `calibration_file` parameter.
+- Backfill USB fields on label-keyed sensors when detected for the first time
+  (designed but not yet implemented).
 
 ## Other
 
