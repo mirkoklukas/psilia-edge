@@ -14,7 +14,7 @@ def write_yaml(path: Path, data: dict, parents=True, exist_ok=True) -> None:
     path.parent.mkdir(parents=parents, exist_ok=exist_ok)
 
     with open(path, "w") as outfile:
-        yaml.dump(dict(**data), outfile, default_flow_style=False)
+        yaml.safe_dump(dict(**data), outfile, default_flow_style=False)
 
 
 def read_yaml(path: Path) -> dict:
