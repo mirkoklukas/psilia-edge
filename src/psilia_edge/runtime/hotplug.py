@@ -453,45 +453,55 @@ def pick_camera_device(fps: int = 30) -> dict | None:
     return None
 
 
-def _parse_macos_model_id(model_id: str) -> tuple[str, str]:
-    """Parse 'UVC Camera VendorID_1133 ProductID_2085' → ('046d', '0825')."""
-    import re
-
-    vendor = product = ""
-    if m := re.search(r"VendorID_(\d+)", model_id):
-        vendor = f"{int(m.group(1)):04x}"
-    if m := re.search(r"ProductID_(\d+)", model_id):
-        product = f"{int(m.group(1)):04x}"
-    return vendor, product
-
-
 def _scan_macos() -> list[dict]:
+    """Scan USB devices on macOS via system_profiler SPUSBDataType.
+
+    Uses the USB bus listing (not SPCameraDataType) so that we get the
+    real USB serial descriptor, matching what Linux reads from sysfs.
+    """
     try:
         result = subprocess.run(
-            ["system_profiler", "SPCameraDataType", "-json"],
+            ["system_profiler", "SPUSBDataType", "-json"],
             capture_output=True,
             text=True,
             timeout=5,
         )
         data = json.loads(result.stdout)
-        cameras = []
-        for cam in data.get("SPCameraDataType", []):
-            entry: dict = {"name": cam.get("_name", "Unknown")}
-
-            vendor_id, product_id = "", ""
-            if model_id := cam.get("spcamera_model-id"):
-                vendor_id, product_id = _parse_macos_model_id(model_id)
-
-            entry["type"] = _identify_type(vendor_id, product_id)
-
-            if vendor_id:
-                entry["vendor_id"] = vendor_id
-            if product_id:
-                entry["product_id"] = product_id
-            if uid := cam.get("spcamera_unique-id"):
-                entry["serial"] = uid
-
-            cameras.append(entry)
-        return cameras
     except Exception:
         return []
+
+    # Walk the bus tree and collect all USB devices.
+    usb_devices: list[dict] = []
+
+    def _collect(items: list[dict]) -> None:
+        for item in items:
+            if "vendor_id" in item:
+                usb_devices.append(item)
+            if "_items" in item:
+                _collect(item["_items"])
+
+    _collect(data.get("SPUSBDataType", []))
+
+    # Filter to cameras and build entries.
+    cameras = []
+    for dev in usb_devices:
+        vendor_id = dev.get("vendor_id", "").removeprefix("0x").lower()
+        product_id = dev.get("product_id", "").removeprefix("0x").lower()
+        cam_type = _identify_type(vendor_id, product_id)
+        if cam_type == "uvc" and not dev.get("_name", "").lower().endswith("camera"):
+            continue  # skip non-camera USB devices
+
+        entry: dict = {"name": dev.get("_name", "Unknown")}
+        entry["type"] = cam_type
+        if vendor_id:
+            entry["vendor_id"] = vendor_id
+        if product_id:
+            entry["product_id"] = product_id
+        if serial := dev.get("serial_num"):
+            entry["serial"] = serial
+        if manufacturer := dev.get("manufacturer"):
+            entry["manufacturer"] = manufacturer
+        entry["product"] = dev.get("_name", "Unknown")
+
+        cameras.append(entry)
+    return cameras
