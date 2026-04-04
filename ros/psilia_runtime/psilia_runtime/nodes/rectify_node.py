@@ -35,8 +35,27 @@ class RectifyNode(Node):
             self.get_logger().error("No calibration_file parameter set — cannot rectify.")
             return
 
-        cal0 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_left)
-        cal1 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_right)
+        self._cal0 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_left)
+        self._cal1 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_right)
+        self._ready = False
+
+        self.pub = self.create_publisher(Image, "/psilia/image/rectified", 1)
+        self.create_subscription(Image, "/psilia/image/raw", self.on_image, 1)
+
+    def _setup_rectification(self, frame_width: int, frame_height: int):
+        """Initialize rectification maps, rescaling calibration if needed."""
+        eye_w = frame_width // 2
+        cal0, cal1 = self._cal0, self._cal1
+
+        if eye_w != cal0.width or frame_height != cal0.height:
+            factor = eye_w / cal0.width
+            self.get_logger().info(
+                f"Rescaling calibration: {cal0.width}x{cal0.height} → {eye_w}x{frame_height} "
+                f"(factor={factor:.3f})"
+            )
+            cal0 = cal0.rescale(factor)
+            cal1 = cal1.rescale(factor)
+
         rect = CameraCalibration.stereo_rectification(cal0, cal1)
 
         self._map1_l = rect.map1_l
@@ -63,12 +82,11 @@ class RectifyNode(Node):
             self.height, full_width, 3
         )
 
-        self.pub = self.create_publisher(Image, "/psilia/image/rectified", 1)
-        self.create_subscription(Image, "/psilia/image/raw", self.on_image, 1)
-
     def on_image(self, msg: Image):
         if not self._ready:
-            return
+            self._setup_rectification(msg.width, msg.height)
+            if not self._ready:
+                return
 
         # Reconstruct frame from msg.data (side-by-side stereo).
         frame = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, 3)

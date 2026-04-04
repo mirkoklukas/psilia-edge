@@ -119,6 +119,27 @@ class CameraCalibration:
     def res(self):
         return (self.width, self.height)
 
+    def rescale(self, factor: float) -> "CameraCalibration":
+        """Return a new CameraCalibration with intrinsics and resolution scaled.
+
+        Args:
+            factor: Scale factor (e.g. 0.5 halves the resolution).
+
+        Distortion coefficients and extrinsics are unchanged.
+        """
+        fx, fy, cx, cy = self.intrinsics
+        return CameraCalibration(
+            intrinsics=np.array([fx * factor, fy * factor, cx * factor, cy * factor]),
+            distortion_coeffs=self.distortion_coeffs.copy(),
+            model=self.model,
+            distortion_model=self.distortion_model,
+            width=int(self.width * factor),
+            height=int(self.height * factor),
+            name=self.name,
+            extrinsics=self.extrinsics.copy(),
+            parent=self.parent,
+        )
+
     def as_dict(self):
         return {
             "intrinsics": self.intrinsics,
