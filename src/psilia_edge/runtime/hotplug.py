@@ -398,7 +398,7 @@ def pick_camera_device(fps: int = 30) -> dict | None:
     Scans for connected cameras, takes the first physical device, and picks:
     - The device node with actual image formats (skipping metadata-only nodes)
     - Preferred format: MJPG > YUYV > first available
-    - Preferred resolution: 640x480 if available, else largest
+    - Preferred resolution: largest available
 
     Returns a dict with device, pixel_format, width, height, fps — or None if no camera found.
     Only works on Linux; returns None on other platforms.
@@ -426,7 +426,7 @@ def pick_camera_device(fps: int = 30) -> dict | None:
         if not sizes:
             continue
 
-        size = min(sizes, key=lambda s: s["width"] * s["height"])
+        size = max(sizes, key=lambda s: s["width"] * s["height"])
 
         result = {
             "device": cam["device"],

@@ -194,6 +194,21 @@ def find_sensor(name: str) -> tuple[str, dict] | None:
     return None
 
 
+def get_calibration_resolution(cal_path: Path) -> tuple[int, int] | None:
+    """Read the resolution from a Kalibr calibration file.
+
+    Returns (width, height) from cam0.resolution, or None if unreadable.
+    """
+    import yaml
+
+    try:
+        data = yaml.safe_load(cal_path.read_text())
+        res = data["cam0"]["resolution"]
+        return int(res[0]), int(res[1])
+    except Exception:
+        return None
+
+
 def get_calibration_file(*names: str) -> Path | None:
     """Try each name (UID or label), return the first matching calibration path.
 

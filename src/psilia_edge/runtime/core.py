@@ -194,7 +194,11 @@ def start_spatial_layer(force: bool = False) -> dict:
 
     # Detect camera and resolve calibration.
     from psilia_edge.runtime.config import read_runtime_config
-    from psilia_edge.runtime.sensor import build_sensor_id, get_calibration_file
+    from psilia_edge.runtime.sensor import (
+        build_sensor_id,
+        get_calibration_file,
+        get_calibration_resolution,
+    )
 
     camera = None
     if sys.platform == "linux":
@@ -224,6 +228,21 @@ def start_spatial_layer(force: bool = False) -> dict:
         )
     else:
         logger.info("No camera detected and no camera configured.")
+
+    # Configure camera resolution from calibration.
+    # Stereo cameras produce side-by-side frames, so capture width = 2 * cal width.
+    # TODO: Support rescaling calibrations to other available resolutions.
+    if camera and cal_path:
+        cal_res = get_calibration_resolution(cal_path)
+        if cal_res:
+            cal_w, cal_h = cal_res
+            camera["width"] = cal_w * 2  # stereo side-by-side
+            camera["height"] = cal_h
+            logger.info(
+                "Camera resolution set from calibration: %dx%d",
+                camera["width"],
+                camera["height"],
+            )
 
     # Write launch_params.yaml for ROS nodes.
     launch_params = {}

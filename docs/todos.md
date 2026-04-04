@@ -29,6 +29,11 @@ What remains:
   (designed but not yet implemented).
 - Support explicit calibration file path in `runtime.yaml` (`camera.calibration`)
   as a bypass that skips sensor registry lookup (TODO in `sensor.py`).
+- Support rescaling calibrations to other resolutions. Currently the camera is
+  configured to the exact resolution the calibration was done at. We could rescale
+  intrinsics (fx, fy, cx, cy) proportionally for resolutions that are exact integer
+  fractions of the calibrated resolution, enabling lower-res modes without
+  re-calibrating.
 
 ## Other
 
