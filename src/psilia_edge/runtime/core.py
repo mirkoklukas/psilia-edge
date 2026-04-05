@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import logging
 import socket
-import sys
 import time
 
 from psilia_edge.runtime.config import get_api_port, read_config
+from psilia_edge.runtime.requirements import (
+    RequirementSpec,
+    ResolverResult,
+    run_requirements,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +19,145 @@ logger = logging.getLogger(__name__)
 class SpatialRequirementsError(Exception):
     """Raised when spatial layer requirements are not met."""
 
-    def __init__(self, checks: dict) -> None:
-        self.checks = checks
-        failed = [k for k, v in checks.items() if not v["ok"]]
-        super().__init__(f"Spatial requirements not met: {', '.join(failed)}")
+    def __init__(self, result) -> None:
+        self.result = result
+        super().__init__("Spatial requirements not met")
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Spatial resolvers
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def resolve_container() -> ResolverResult:
+    from psilia_edge.runtime.docker import is_container_running
+
+    ok = is_container_running()
+    return ResolverResult(
+        ok=ok,
+        detail="running" if ok else "not running — start base layer first",
+    )
+
+
+def resolve_camera() -> ResolverResult:
+    from psilia_edge.runtime.hotplug import pick_camera_device
+
+    camera = pick_camera_device()
+    if not camera:
+        return ResolverResult(ok=False, detail="no camera detected")
+
+    from psilia_edge.runtime.sensor import build_sensor_id
+
+    sensor_id = build_sensor_id(camera)
+    return ResolverResult(
+        ok=True,
+        detail=camera.get("device", "detected"),
+        data={"info": camera, "sensor_id": sensor_id},
+    )
+
+
+def resolve_calibration(camera) -> ResolverResult:
+    from psilia_edge.runtime.config import read_runtime_config
+    from psilia_edge.runtime.sensor import get_calibration_file
+
+    rt_config = read_runtime_config()
+    camera_config = rt_config.get("camera", {})
+    sensor_id = camera.data.get("sensor_id") if camera.ok else None
+
+    cal_path = get_calibration_file(camera_config.get("name"), sensor_id)
+    if not cal_path:
+        return ResolverResult(ok=False, detail="no calibration found")
+
+    container_path = f"/psilia/calibrations/{cal_path.name}"
+    return ResolverResult(
+        ok=True,
+        detail=cal_path.name,
+        data={"host_path": cal_path, "container_path": container_path},
+    )
+
+
+def resolve_resolution(camera, calibration) -> ResolverResult:
+    from psilia_edge.runtime.sensor import (
+        get_calibration_resolution,
+        is_calibration_compatible,
+    )
+
+    cal_path = calibration.data["host_path"]
+    camera_info = camera.data["info"]
+
+    cal_res = get_calibration_resolution(cal_path)
+    if not cal_res:
+        return ResolverResult(ok=False, detail="cannot read calibration resolution")
+
+    cal_w, cal_h = cal_res
+
+    # Try smallest compatible resolution.
+    sizes = camera_info.get("available_sizes", [])
+    for size in sorted(sizes, key=lambda s: s["width"] * s["height"]):
+        if is_calibration_compatible(cal_w, cal_h, size["width"], size["height"]):
+            return ResolverResult(
+                ok=True,
+                detail=f"{size['width']}x{size['height']}",
+                data={"width": size["width"], "height": size["height"]},
+            )
+
+    # Fallback: exact calibration resolution (stereo: 2*cal_w x cal_h).
+    width = cal_w * 2
+    height = cal_h
+    return ResolverResult(
+        ok=True,
+        detail=f"{width}x{height} (calibration match)",
+        data={"width": width, "height": height},
+    )
+
+
+def resolve_hotspot() -> ResolverResult:
+    from psilia_edge.network.hotspot import get_ap_ssid
+    from psilia_edge.network.probe import list_interfaces
+
+    expected_ssid = read_config().get("network", {}).get("ap", {}).get("ssid")
+    active_ssid = None
+    for iface in list_interfaces():
+        if iface.is_wifi:
+            ssid = get_ap_ssid(iface.name)
+            if ssid and ssid == expected_ssid:
+                active_ssid = ssid
+                break
+
+    return ResolverResult(
+        ok=active_ssid is not None,
+        detail=active_ssid if active_ssid else "hotspot not active",
+    )
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Spatial requirement spec
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+SPATIAL_REQUIREMENTS = [
+    RequirementSpec("container", resolve_container),
+    RequirementSpec(
+        "camera",
+        resolve_camera,
+        (),
+        [
+            RequirementSpec(
+                "calibration",
+                resolve_calibration,
+                ("camera",),
+                [
+                    RequirementSpec(
+                        "resolution",
+                        resolve_resolution,
+                        ("camera", "camera.calibration"),
+                    ),
+                ],
+            ),
+        ],
+    ),
+    RequirementSpec("hotspot", resolve_hotspot),
+]
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -114,198 +253,65 @@ def stop_base_layer() -> dict:
 #   Spatial layer
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-def _configure_camera_resolution(camera: dict, cal_path) -> None:
-    """Pick the best camera resolution for the given calibration.
-
-    Mutates camera["width"] and camera["height"] in place.
-    # TODO: Make strategy configurable via runtime.yaml.
-    """
-    _resolution_smallest_compatible(camera, cal_path)
-
-
-def _resolution_calibration_match(camera: dict, cal_path) -> None:
-    """Set camera to the exact calibration resolution (stereo: 2*cal_w x cal_h)."""
-    from psilia_edge.runtime.sensor import get_calibration_resolution
-
-    cal_res = get_calibration_resolution(cal_path)
-    if not cal_res:
-        return
-    cal_w, cal_h = cal_res
-    camera["width"] = cal_w * 2
-    camera["height"] = cal_h
-    logger.info(
-        "Camera resolution (calibration match): %dx%d",
-        camera["width"],
-        camera["height"],
-    )
-
-
-def _resolution_smallest_compatible(camera: dict, cal_path) -> None:
-    """Pick the smallest available resolution compatible with the calibration.
-
-    A resolution is compatible if the calibration can be uniformly rescaled to it
-    (exact integer divisor in both dimensions). Falls back to calibration_match
-    if no compatible resolution is found in the available sizes.
-    """
-    from psilia_edge.runtime.sensor import (
-        get_calibration_resolution,
-        is_calibration_compatible,
-    )
-
-    cal_res = get_calibration_resolution(cal_path)
-    if not cal_res:
-        return
-    cal_w, cal_h = cal_res
-
-    sizes = camera.get("available_sizes", [])
-    for size in sorted(sizes, key=lambda s: s["width"] * s["height"]):
-        if is_calibration_compatible(cal_w, cal_h, size["width"], size["height"]):
-            camera["width"] = size["width"]
-            camera["height"] = size["height"]
-            logger.info(
-                "Camera resolution (smallest compatible): %dx%d",
-                camera["width"],
-                camera["height"],
-            )
-            return
-
-    # Fallback: use exact calibration resolution.
-    _resolution_calibration_match(camera, cal_path)
-
-
-def check_spatial_requirements() -> dict:
+def check_spatial_requirements():
     """Check that all requirements for the spatial layer are met (preflight checks).
 
     These checks are shown as "Preflight Checks" in the web UI (web/index.html)
     and used by `start_spatial_layer()` to gate launch when `force=False`.
 
-    Returns a dict of check name → {ok, detail}.
-    On non-Linux platforms, camera and hotspot checks are skipped.
+    Returns a RequirementResult root node.
     """
-    from psilia_edge.runtime.docker import is_container_running
-
-    checks: dict = {}
-
-    # Container
-    container_ok = is_container_running()
-    checks["container"] = {
-        "ok": container_ok,
-        "detail": "running" if container_ok else "not running — start base layer first",
-    }
-
-    # Camera
-    from psilia_edge.runtime.hotplug import pick_camera_device
-
-    camera = pick_camera_device()
-    checks["camera"] = {
-        "ok": bool(camera),
-        "detail": camera.get("device", "detected") if camera else "no camera detected",
-    }
-
-    # Calibration
-    from psilia_edge.runtime.config import read_runtime_config
-    from psilia_edge.runtime.sensor import build_sensor_id, get_calibration_file
-
-    rt_config = read_runtime_config()
-    camera_config = rt_config.get("camera", {})
-    sensor_id = build_sensor_id(camera) if camera else None
-
-    cal_path = get_calibration_file(
-        camera_config.get("name"),
-        sensor_id,
-    )
-    checks["calibration"] = {
-        "ok": cal_path is not None,
-        "detail": cal_path.name if cal_path else "no calibration found",
-    }
-
-    # Hotspot
-    from psilia_edge.network.hotspot import get_ap_ssid
-    from psilia_edge.network.probe import list_interfaces
-    from psilia_edge.runtime.config import read_config
-
-    expected_ssid = read_config().get("network", {}).get("ap", {}).get("ssid")
-    active_ssid = None
-    for iface in list_interfaces():
-        if iface.is_wifi:
-            ssid = get_ap_ssid(iface.name)
-            if ssid and ssid == expected_ssid:
-                active_ssid = ssid
-                break
-    checks["hotspot"] = {
-        "ok": active_ssid is not None,
-        "detail": active_ssid if active_ssid else "hotspot not active",
-    }
-
-    return checks
+    return run_requirements(SPATIAL_REQUIREMENTS)
 
 
 def start_spatial_layer(force: bool = False) -> dict:
     """Launch ros2 inside the running container. Returns a result dict."""
+    from psilia_edge.runtime.config import RUN_DIR, get_launch_script
     from psilia_edge.runtime.docker import start_ros_launch
-    from psilia_edge.runtime.config import get_launch_script, RUN_DIR
     from psilia_edge.utils import write_yaml
 
-    if not force:
-        checks = check_spatial_requirements()
-        if not all(v["ok"] for v in checks.values()):
-            raise SpatialRequirementsError(checks)
+    ctx = run_requirements(SPATIAL_REQUIREMENTS)
 
-    # Detect camera and resolve calibration.
-    from psilia_edge.runtime.config import read_runtime_config
-    from psilia_edge.runtime.sensor import build_sensor_id, get_calibration_file
+    if not force and not ctx.ok:
+        raise SpatialRequirementsError(ctx)
 
-    camera = None
-    if sys.platform == "linux":
-        from psilia_edge.runtime.hotplug import pick_camera_device
+    # Build launch params from resolved context.
+    launch_params = {}
 
-        camera = pick_camera_device()
+    camera = ctx["camera"]
+    if camera.ok:
+        camera_info = camera.data["info"]
+        camera_params = {
+            k: camera_info[k]
+            for k in ("device", "pixel_format", "width", "height", "fps")
+            if k in camera_info
+        }
+        # Override resolution if resolved.
+        resolution = ctx["camera.calibration.resolution"] if camera.ok else None
+        if resolution and resolution.ok:
+            camera_params["width"] = resolution.data["width"]
+            camera_params["height"] = resolution.data["height"]
 
-    # Resolve calibration file via sensor registry lookup.
-    # Tries runtime.yaml camera.name first, then auto-detected camera UID.
-    # TODO: Support explicit file path (runtime.yaml camera.calibration) as bypass.
-    rt_config = read_runtime_config()
-    camera_config = rt_config.get("camera", {})
-    sensor_id = build_sensor_id(camera) if camera else None
+        launch_params["camera_node"] = {"ros__parameters": camera_params}
 
-    cal_path = get_calibration_file(camera_config.get("name"), sensor_id)
-    calibration_container_path = (
-        f"/psilia/calibrations/{cal_path.name}" if cal_path else None
-    )
-
-    if calibration_container_path:
-        logger.info("Calibration resolved: %s", calibration_container_path)
-    elif camera:
+    calibration = ctx["camera.calibration"] if camera.ok else None
+    if calibration and calibration.ok:
+        container_path = calibration.data["container_path"]
+        logger.info("Calibration resolved: %s", container_path)
+        launch_params["rectify_node"] = {
+            "ros__parameters": {"calibration_file": container_path}
+        }
+        launch_params["depth_node"] = {
+            "ros__parameters": {"calibration_file": container_path}
+        }
+    elif camera.ok:
         logger.warning(
             "No calibration found for camera (UID: %s). "
             "Rectify/depth nodes will not launch.",
-            sensor_id,
+            camera.data.get("sensor_id"),
         )
     else:
         logger.info("No camera detected and no camera configured.")
-
-    # Configure camera resolution based on calibration.
-    if camera and cal_path:
-        _configure_camera_resolution(camera, cal_path)
-
-    # Write launch_params.yaml for ROS nodes.
-    launch_params = {}
-    if camera:
-        # Only pass launch-relevant params to camera_node (not identity fields).
-        camera_params = {
-            k: camera[k]
-            for k in ("device", "pixel_format", "width", "height", "fps")
-            if k in camera
-        }
-        launch_params["camera_node"] = {"ros__parameters": camera_params}
-
-    if calibration_container_path:
-        launch_params["rectify_node"] = {
-            "ros__parameters": {"calibration_file": calibration_container_path}
-        }
-        launch_params["depth_node"] = {
-            "ros__parameters": {"calibration_file": calibration_container_path}
-        }
 
     if launch_params:
         RUN_DIR.mkdir(parents=True, exist_ok=True)
@@ -319,8 +325,10 @@ def start_spatial_layer(force: bool = False) -> dict:
     return {
         "status": "started",
         "launch": launch_script,
-        "camera": camera,
-        "calibration": calibration_container_path,
+        "camera": camera.data.get("info") if camera.ok else None,
+        "calibration": calibration.data.get("container_path")
+        if calibration and calibration.ok
+        else None,
     }
 
 

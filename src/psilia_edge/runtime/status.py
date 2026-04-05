@@ -192,7 +192,12 @@ def _recording_section() -> dict:
 def _spatial_requirements_section() -> dict:
     from psilia_edge.runtime.core import check_spatial_requirements
 
-    return check_spatial_requirements()
+    ctx = check_spatial_requirements()
+    result = {}
+    for key in ("container", "camera", "camera.calibration", "hotspot"):
+        node = ctx[key]
+        result[key] = {"ok": node.ok, "detail": node.detail}
+    return result
 
 
 @_register("storage")

@@ -5,6 +5,10 @@ from psilia_runtime.better_ros import better_launch
 
 _PSILIA_CONFIG = "/psilia/psilia.yaml"
 _RUNTIME_CONFIG = "/psilia/runtime.yaml"
+# launch_params.yaml is written by start_spatial_layer() on the host before container launch.
+# It contains camera parameters detected at startup (device, format, resolution, fps).
+# If the file doesn't exist the node falls back to its declared defaults.
+_LAUNCH_PARAMS = "/psilia/run/launch_params.yaml"
 
 def _load_yaml(path):
     try:
@@ -42,11 +46,6 @@ def generate_launch_description():
             output='screen',
     )
 
-
-    # launch_params.yaml is written by start_spatial_layer() on the host before container launch.
-    # It contains camera parameters detected at startup (device, format, resolution, fps).
-    # If the file doesn't exist the node falls back to its declared defaults.
-    _LAUNCH_PARAMS = "/psilia/run/launch_params.yaml"
     camera_node = Node(
         package="psilia_runtime",
         executable="camera",

@@ -105,22 +105,7 @@
           <span class="tg__track"></span>
         </label>
       </div>
-      <div class="cc__row" id="row-container">
-        <span class="cc__label">container</span>
-        <span class="cc__check--fail" id="req-container">—</span>
-      </div>
-      <div class="cc__row" id="row-camera">
-        <span class="cc__label">camera</span>
-        <span class="cc__check--fail" id="req-camera">—</span>
-      </div>
-      <div class="cc__row" id="row-calibration">
-        <span class="cc__label">calibration</span>
-        <span class="cc__check--fail" id="req-calibration">—</span>
-      </div>
-      <div class="cc__row" id="row-hotspot">
-        <span class="cc__label">hotspot</span>
-        <span class="cc__check--fail" id="req-hotspot">—</span>
-      </div>
+      <div id="preflight-rows"></div>
     </div>
 
     <!-- Spatial toggle -->
@@ -162,15 +147,34 @@
       btn.disabled = false;
 
       // Preflight checks
-      setCheck('container',   !!reqs.container?.ok);
-      setCheck('camera',      !!reqs.camera?.ok);
-      setCheck('calibration', !!reqs.calibration?.ok);
-      setCheck('hotspot',     !!reqs.hotspot?.ok);
+      for (const [key, val] of Object.entries(reqs)) {
+        setCheck(key, !!val?.ok);
+      }
+    }
+
+    function ensureRow(key) {
+      let row = document.getElementById(`row-${key}`);
+      if (row) return row;
+      const container = document.getElementById('preflight-rows');
+      row = document.createElement('div');
+      row.className = 'cc__row';
+      row.id = `row-${key}`;
+      const label = document.createElement('span');
+      label.className = 'cc__label';
+      label.textContent = key;
+      const check = document.createElement('span');
+      check.className = 'cc__check--fail';
+      check.id = `req-${key}`;
+      check.textContent = '—';
+      row.appendChild(label);
+      row.appendChild(check);
+      container.appendChild(row);
+      return row;
     }
 
     function setCheck(key, ok) {
+      const row = ensureRow(key);
       const el  = document.getElementById(`req-${key}`);
-      const row = document.getElementById(`row-${key}`);
       const symbol = ok ? '✓' : '✗';
       const changed = el.textContent !== symbol;
       el.textContent = symbol;

@@ -201,6 +201,14 @@ def update() -> None:
     run_update()
 
 
+_SPATIAL_CHECK_KEYS = ("container", "camera", "camera.calibration", "hotspot")
+
+
+def _checks_dict(ctx) -> dict:
+    """Extract a flat {key: {ok, detail}} dict from a RequirementResult."""
+    return {k: {"ok": ctx[k].ok, "detail": ctx[k].detail} for k in _SPATIAL_CHECK_KEYS}
+
+
 @app.command()
 @device_decorator
 def start(
@@ -245,7 +253,7 @@ def start(
             with ui.status("Starting spatial layer…"):
                 result = start_spatial_layer(force=force)
         except SpatialRequirementsError as e:
-            ui.print_tree(e.checks, label="requirements")
+            ui.print_tree(_checks_dict(e.result), label="requirements")
             ui.fail(
                 "Spatial requirements not met. Run: psilia runtime start --spatial --force"
             )
@@ -258,7 +266,7 @@ def start(
         with ui.status("Starting runtime…"):
             result = start_runtime(host=host, port=port, force=force)
     except SpatialRequirementsError as e:
-        ui.print_tree(e.checks, label="requirements")
+        ui.print_tree(_checks_dict(e.result), label="requirements")
         ui.fail(
             "Spatial requirements not met. Run: psilia runtime start --spatial --force"
         )
