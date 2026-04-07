@@ -338,6 +338,16 @@ For long-running steps (e.g. `docker build`), raw process output scrolls by via 
 | `server.py` | Service | FastAPI app definition |
 
 
+## Docker Image
+
+There are two Dockerfiles in `ros/docker/`, selected automatically based on platform (`get_dockerfile()` in `config.py`):
+
+- **`Dockerfile.laptop`** — `ros:humble` base, CPU-only OpenCV (`opencv-python-headless` via pip). For development on laptop/desktop.
+- **`Dockerfile.jetson`** — `dustynv/ros:humble-ros-base-l4t-r36.4.0` base, CUDA + system OpenCV with CUDA support. Requires JetPack 6.x (L4T R36.4.x).
+
+Selection is currently a simple `platform.machine() == "aarch64"` check. Both produce the same image name (`psilia/runtime:latest`).
+
+
 ## Docker Container Layout
 
 The container mounts a few directories from the host:
