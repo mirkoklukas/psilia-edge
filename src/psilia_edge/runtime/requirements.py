@@ -68,35 +68,19 @@ class RequirementResult:
             value = value[key]
         return value
 
-    def to_dict(self, flat: bool = False) -> dict:
-        """Build a display dict from the result tree.
+    def to_dict(self) -> dict:
+        """Build a flat display dict with dotted keys (e.g. "camera.calibration")."""
+        result = {}
 
-        flat=False (default): nested dict where children are inline keys.
-        flat=True: flat dict with dotted keys (e.g. "camera.calibration").
-        """
-        if flat:
-            result = {}
-
-            def _walk_flat(children, prefix=""):
-                for name, node in children.items():
-                    key = f"{prefix}.{name}" if prefix else name
-                    result[key] = {"ok": node.ok, "detail": node.detail}
-                    if node.children:
-                        _walk_flat(node.children, key)
-
-            _walk_flat(self.children)
-            return result
-
-        def _walk(children):
-            result = {}
+        def _walk(children, prefix=""):
             for name, node in children.items():
-                entry = {"ok": node.ok, "detail": node.detail}
+                key = f"{prefix}.{name}" if prefix else name
+                result[key] = {"ok": node.ok, "detail": node.detail}
                 if node.children:
-                    entry.update(_walk(node.children))
-                result[name] = entry
-            return result
+                    _walk(node.children, key)
 
-        return _walk(self.children)
+        _walk(self.children)
+        return result
 
 
 def run_requirements(specs: list[RequirementSpec]) -> RequirementResult:

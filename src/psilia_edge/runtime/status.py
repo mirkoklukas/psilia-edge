@@ -193,7 +193,7 @@ def _spatial_requirements_section() -> dict:
     from psilia_edge.runtime.core import check_spatial_requirements
 
     ctx = check_spatial_requirements()
-    return ctx.to_dict(flat=True)
+    return ctx.to_dict()
 
 
 @_register("storage")

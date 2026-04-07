@@ -146,7 +146,7 @@ async def api_spatial_start(force: bool = False) -> JSONResponse:
     try:
         return JSONResponse(await asyncio.to_thread(start_spatial_layer, force))
     except SpatialRequirementsError as e:
-        checks = e.result.to_dict(flat=True)
+        checks = e.result.to_dict()
         return JSONResponse({"status": "error", "checks": checks}, status_code=412)
 
 
