@@ -68,6 +68,20 @@ class RequirementResult:
             value = value[key]
         return value
 
+    def to_dict(self) -> dict:
+        """Build a nested display dict from the result tree (ok, detail, children)."""
+
+        def _walk(children):
+            result = {}
+            for name, node in children.items():
+                entry = {"ok": node.ok, "detail": node.detail}
+                if node.children:
+                    entry.update(_walk(node.children))
+                result[name] = entry
+            return result
+
+        return _walk(self.children)
+
 
 def run_requirements(specs: list[RequirementSpec]) -> RequirementResult:
     """Walk the spec tree and resolve each node.

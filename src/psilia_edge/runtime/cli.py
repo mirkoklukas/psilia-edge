@@ -201,18 +201,8 @@ def update() -> None:
     run_update()
 
 
-_SPATIAL_CHECK_KEYS = (
-    "container",
-    "container.cuda",
-    "camera",
-    "camera.calibration",
-    "hotspot",
-)
-
-
 def _checks_dict(ctx) -> dict:
-    """Extract a flat {key: {ok, detail}} dict from a RequirementResult."""
-    return {k: {"ok": ctx[k].ok, "detail": ctx[k].detail} for k in _SPATIAL_CHECK_KEYS}
+    return ctx.to_dict()
 
 
 @app.command()
