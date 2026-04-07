@@ -25,7 +25,7 @@ from psilia_runtime.better_ros import better_node, ROSValue
 class DepthPreviewNode(Node):
     target_height: ROSValue = 100
     fps: ROSValue = 5
-    max_depth: ROSValue = 10.0
+    max_depth: ROSValue = 3.0
 
     def __node_init__(self):
         self._last_publish = 0.0
