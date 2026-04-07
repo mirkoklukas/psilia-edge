@@ -86,13 +86,17 @@ def docker_exec(cmd: str) -> tuple[int, str, str]:
 
 
 def has_cuda() -> bool:
-    """Return True if the container has a CUDA-capable OpenCV build."""
-    rc, out, _ = docker_exec(
+    """Return True if the container has a CUDA-capable OpenCV build.
+
+    Note: the dustynv OpenCV build may segfault on CUDA context teardown
+    when Python exits, so we check stdout regardless of exit code.
+    """
+    _, out, _ = docker_exec(
         'python3 -c "import cv2; print(cv2.cuda.getCudaEnabledDeviceCount())"'
     )
     try:
-        return rc == 0 and int(out.strip()) > 0
-    except ValueError:
+        return int(out.strip().splitlines()[0]) > 0
+    except (ValueError, IndexError):
         return False
 
 
