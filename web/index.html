@@ -146,7 +146,7 @@
         : 'btn btn--start btn--gradient';
       btn.disabled = false;
 
-      // Preflight checks
+      // Preflight checks (flat dict with dotted keys)
       for (const [key, val] of Object.entries(reqs)) {
         setCheck(key, !!val?.ok);
       }

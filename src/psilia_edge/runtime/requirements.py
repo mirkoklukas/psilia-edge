@@ -68,8 +68,24 @@ class RequirementResult:
             value = value[key]
         return value
 
-    def to_dict(self) -> dict:
-        """Build a nested display dict from the result tree (ok, detail, children)."""
+    def to_dict(self, flat: bool = False) -> dict:
+        """Build a display dict from the result tree.
+
+        flat=False (default): nested dict where children are inline keys.
+        flat=True: flat dict with dotted keys (e.g. "camera.calibration").
+        """
+        if flat:
+            result = {}
+
+            def _walk_flat(children, prefix=""):
+                for name, node in children.items():
+                    key = f"{prefix}.{name}" if prefix else name
+                    result[key] = {"ok": node.ok, "detail": node.detail}
+                    if node.children:
+                        _walk_flat(node.children, key)
+
+            _walk_flat(self.children)
+            return result
 
         def _walk(children):
             result = {}
