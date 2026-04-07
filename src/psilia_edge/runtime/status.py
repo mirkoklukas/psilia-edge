@@ -194,7 +194,13 @@ def _spatial_requirements_section() -> dict:
 
     ctx = check_spatial_requirements()
     result = {}
-    for key in ("container", "camera", "camera.calibration", "hotspot"):
+    for key in (
+        "container",
+        "container.cuda",
+        "camera",
+        "camera.calibration",
+        "hotspot",
+    ):
         node = ctx[key]
         result[key] = {"ok": node.ok, "detail": node.detail}
     return result

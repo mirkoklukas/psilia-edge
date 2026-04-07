@@ -85,6 +85,17 @@ def docker_exec(cmd: str) -> tuple[int, str, str]:
     return rc, out, err
 
 
+def has_cuda() -> bool:
+    """Return True if the container has a CUDA-capable OpenCV build."""
+    rc, out, _ = docker_exec(
+        'python3 -c "import cv2; print(cv2.cuda.getCudaEnabledDeviceCount())"'
+    )
+    try:
+        return rc == 0 and int(out.strip()) > 0
+    except ValueError:
+        return False
+
+
 def is_container_running() -> bool:
     rc, out, _ = run(f"docker inspect -f {{{{.State.Running}}}} {CONTAINER_NAME}")
     return rc == 0 and out.strip() == "true"

@@ -111,6 +111,16 @@ def resolve_resolution(camera, calibration) -> ResolverResult:
     )
 
 
+def resolve_cuda() -> ResolverResult:
+    from psilia_edge.runtime.docker import has_cuda
+
+    ok = has_cuda()
+    return ResolverResult(
+        ok=ok,
+        detail="available" if ok else "not available",
+    )
+
+
 def resolve_hotspot() -> ResolverResult:
     from psilia_edge.network.hotspot import get_ap_ssid
     from psilia_edge.network.probe import list_interfaces
@@ -136,7 +146,12 @@ def resolve_hotspot() -> ResolverResult:
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 SPATIAL_REQUIREMENTS = [
-    RequirementSpec("container", resolve_container),
+    RequirementSpec(
+        "container",
+        resolve_container,
+        (),
+        [RequirementSpec("cuda", resolve_cuda)],
+    ),
     RequirementSpec(
         "camera",
         resolve_camera,
@@ -307,21 +322,15 @@ def _build_launch_params(ctx) -> dict:
     if calibration and calibration.ok:
         container_path = calibration.data["container_path"]
         logger.info("Calibration resolved: %s", container_path)
-        params["rectify_node"] = {
-            "ros__parameters": {"calibration_file": container_path}
-        }
-        params["depth_node"] = {"ros__parameters": {"calibration_file": container_path}}
-        params["depth_cuda_node"] = {
-            "ros__parameters": {"calibration_file": container_path}
-        }
-        nodes.extend(
-            [
-                "rectify_node",
-                "depth_node",
-                "depth_cuda_node",
-                "depth_preview_node",
-            ]
-        )
+        cal_params = {"ros__parameters": {"calibration_file": container_path}}
+        params["rectify_node"] = cal_params
+        params["depth_node"] = cal_params
+        nodes.extend(["rectify_node", "depth_node", "depth_preview_node"])
+
+        cuda = ctx["container.cuda"]
+        if cuda.ok:
+            params["depth_cuda_node"] = cal_params
+            nodes.append("depth_cuda_node")
     elif camera.ok:
         logger.warning(
             "No calibration found for camera (UID: %s). "
