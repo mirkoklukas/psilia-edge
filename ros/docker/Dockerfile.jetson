@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y \
 # Install Python dependencies
 # Note: OpenCV with CUDA comes from the base image (system install).
 # Do NOT install opencv-python-headless — it would shadow the system OpenCV.
-RUN pip3 install scipy
+RUN pip3 install --index-url https://pypi.org/simple scipy
 
 # Make ROS available to all login shells (e.g. docker exec bash -l)
 RUN echo "source /opt/ros/humble/setup.bash" > /etc/profile.d/ros_setup.sh
