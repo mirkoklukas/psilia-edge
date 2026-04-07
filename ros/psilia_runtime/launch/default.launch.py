@@ -68,12 +68,13 @@ def generate_launch_description():
     # --- Spatial nodes (only if listed in launch_params.nodes) ---
     spatial_nodes = []
     for name in launch_params.get("nodes", []):
+        node_params = launch_params.get(name, {}).get("ros__parameters", {})
         spatial_nodes.append(Node(
             package="psilia_runtime",
             executable=name,
             name=name,
             output="screen",
-            parameters=[_LAUNCH_PARAMS],
+            parameters=[node_params] if node_params else [],
         ))
 
     # --- Foxglove (config-driven) ---
