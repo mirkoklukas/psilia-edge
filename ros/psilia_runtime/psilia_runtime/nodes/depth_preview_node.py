@@ -41,20 +41,19 @@ class DepthPreviewNode(Node):
 
         depth = np.frombuffer(msg.data, dtype=np.float32).reshape(msg.height, msg.width)
 
-        # Normalize to 0–255 and apply colormap.
+        # Normalize to 0–255 grayscale.
         clamped = np.clip(depth, 0, self.max_depth)
         normalized = (clamped * 255.0 / self.max_depth).astype(np.uint8)
-        colored = cv2.applyColorMap(normalized, cv2.COLORMAP_TURBO)
 
         # Downsample.
         d = max(1, msg.height // self.target_height)
-        preview = colored[::d, ::d]
+        preview = normalized[::d, ::d]
 
         out = Image()
         out.header = msg.header
         out.height, out.width = preview.shape[:2]
-        out.encoding = "bgr8"
-        out.step = out.width * 3
+        out.encoding = "mono8"
+        out.step = out.width
         out.data = array.array('B', preview.tobytes())
         self.pub.publish(out)
 
