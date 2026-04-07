@@ -92,7 +92,7 @@ def has_cuda() -> bool:
     when Python exits, so we check stdout regardless of exit code.
     """
     _, out, _ = docker_exec(
-        'python3 -c "import cv2; print(cv2.cuda.getCudaEnabledDeviceCount())"'
+        "python3 -c 'import cv2; print(cv2.cuda.getCudaEnabledDeviceCount())'"
     )
     try:
         return int(out.strip().splitlines()[0]) > 0
