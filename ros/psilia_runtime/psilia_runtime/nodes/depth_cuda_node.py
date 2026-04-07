@@ -99,12 +99,8 @@ class DepthCudaNode(Node):
             uniquenessRatio=10,
         )
 
-        # Pre-allocated GPU mats for intermediate results.
+        # Pre-allocated GPU mat for frame upload.
         self._gpu_frame = cv2.cuda.GpuMat()
-        self._gpu_gray_l = cv2.cuda.GpuMat()
-        self._gpu_gray_r = cv2.cuda.GpuMat()
-        self._gpu_rect_l = cv2.cuda.GpuMat()
-        self._gpu_rect_r = cv2.cuda.GpuMat()
 
         # Build CameraInfo for the rectified left camera (depth viewpoint).
         info = CameraInfo()
@@ -142,19 +138,21 @@ class DepthCudaNode(Node):
         self._gpu_frame.upload(frame)
 
         # Split left/right and convert to grayscale on GPU.
+        # Note: cv2.cuda.cvtColor dst= kwarg is broken in OpenCV 4.8.x —
+        # must use return value.
         gpu_left = cv2.cuda.GpuMat(self._gpu_frame, (0, 0, self.width, self.height))
         gpu_right = cv2.cuda.GpuMat(self._gpu_frame, (self.width, 0, self.width, self.height))
-        cv2.cuda.cvtColor(gpu_left, cv2.COLOR_BGR2GRAY, dst=self._gpu_gray_l)
-        cv2.cuda.cvtColor(gpu_right, cv2.COLOR_BGR2GRAY, dst=self._gpu_gray_r)
+        self._gpu_gray_l = cv2.cuda.cvtColor(gpu_left, cv2.COLOR_BGR2GRAY)
+        self._gpu_gray_r = cv2.cuda.cvtColor(gpu_right, cv2.COLOR_BGR2GRAY)
 
         # Rectify on GPU (separate xmap/ymap, both CV_32FC1).
-        cv2.cuda.remap(
+        self._gpu_rect_l = cv2.cuda.remap(
             self._gpu_gray_l, self._gpu_map1_l, self._gpu_map2_l,
-            cv2.INTER_LINEAR, dst=self._gpu_rect_l,
+            cv2.INTER_LINEAR,
         )
-        cv2.cuda.remap(
+        self._gpu_rect_r = cv2.cuda.remap(
             self._gpu_gray_r, self._gpu_map1_r, self._gpu_map2_r,
-            cv2.INTER_LINEAR, dst=self._gpu_rect_r,
+            cv2.INTER_LINEAR,
         )
 
         # Stereo matching on GPU.
