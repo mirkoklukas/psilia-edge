@@ -19,6 +19,7 @@ setup(
             "ping_node = psilia_runtime.nodes.ping_node:main",
             "recording_node = psilia_runtime.nodes.recording_node:main",
             "depth_node = psilia_runtime.nodes.depth_node:main",
+            "depth_cuda_node = psilia_runtime.nodes.depth_cuda_node:main",
             "depth_preview_node = psilia_runtime.nodes.depth_preview_node:main",
             "preview_node = psilia_runtime.nodes.preview_node:main",
             "rectify_node = psilia_runtime.nodes.rectify_node:main",

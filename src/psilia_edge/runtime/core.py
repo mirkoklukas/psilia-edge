@@ -264,6 +264,11 @@ def check_spatial_requirements():
     return run_requirements(SPATIAL_REQUIREMENTS)
 
 
+DEFAULT_NODE_CONFIG = {
+    "depth_cuda_node": False,
+}
+
+
 def _build_launch_params(ctx) -> dict:
     """Build node list and per-node parameters from resolved requirements.
 
@@ -271,11 +276,11 @@ def _build_launch_params(ctx) -> dict:
         nodes: [list of conditional node names to launch]
         <node_name>: {ros__parameters: {...}}
 
-    After building the requirement-derived node list, applies user overrides
-    from runtime.yaml ``ros.nodes`` — a dict of ``{node_name: true/false}``.
-    Nodes set to ``false`` are removed from the list. Unlisted nodes default
-    to enabled. A ``true`` entry or a missing entry both mean "launch if
-    requirements allow".
+    After building the requirement-derived node list, applies node config:
+    first ``DEFAULT_NODE_CONFIG`` (code-level defaults), then user overrides
+    from runtime.yaml ``ros.nodes`` on top. The merged config is a dict of
+    ``{node_name: true/false}``. Nodes set to ``false`` are removed from the
+    list. Unlisted nodes default to enabled.
     """
     from psilia_edge.runtime.config import read_runtime_config
 
@@ -306,7 +311,17 @@ def _build_launch_params(ctx) -> dict:
             "ros__parameters": {"calibration_file": container_path}
         }
         params["depth_node"] = {"ros__parameters": {"calibration_file": container_path}}
-        nodes.extend(["rectify_node", "depth_node", "depth_preview_node"])
+        params["depth_cuda_node"] = {
+            "ros__parameters": {"calibration_file": container_path}
+        }
+        nodes.extend(
+            [
+                "rectify_node",
+                "depth_node",
+                "depth_cuda_node",
+                "depth_preview_node",
+            ]
+        )
     elif camera.ok:
         logger.warning(
             "No calibration found for camera (UID: %s). "
@@ -316,14 +331,15 @@ def _build_launch_params(ctx) -> dict:
     else:
         logger.info("No camera detected and no camera configured.")
 
-    # Apply user overrides from runtime.yaml ros.nodes
+    # Apply node config: defaults, then user overrides from runtime.yaml ros.nodes
     rt_config = read_runtime_config(missing_ok=True)
-    node_overrides = rt_config.get("ros", {}).get("nodes", {})
-    if node_overrides:
-        disabled = [name for name, enabled in node_overrides.items() if not enabled]
+    user_overrides = rt_config.get("ros", {}).get("nodes", {})
+    node_config = {**DEFAULT_NODE_CONFIG, **user_overrides}
+    if node_config:
+        disabled = [name for name, enabled in node_config.items() if not enabled]
         if disabled:
-            logger.info("User disabled nodes: %s", disabled)
-        nodes = [n for n in nodes if node_overrides.get(n, True)]
+            logger.info("Disabled nodes: %s", disabled)
+        nodes = [n for n in nodes if node_config.get(n, True)]
 
     return {"nodes": nodes, **params}
 

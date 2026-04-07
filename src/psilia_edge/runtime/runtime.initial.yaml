@@ -6,6 +6,7 @@ ros:
     # preview_node: true
     # rectify_node: true
     # depth_node: true
+    # depth_cuda_node: false
     # depth_preview_node: true
   recording:
     topics:
