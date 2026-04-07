@@ -20,10 +20,13 @@ def _load_yaml(path):
 
 @better_launch
 def generate_launch_description():
+    launch_params = _load_yaml(_LAUNCH_PARAMS)
+
+    # --- Infrastructure (always launched) ---
     core_node = Node(
         package="psilia_runtime",
-        executable="core",
-        name="psilia_core",
+        executable="core_node",
+        name="core_node",
         output="screen",
         parameters=[{
             "psilia_version": "0.1.0",
@@ -33,57 +36,16 @@ def generate_launch_description():
 
     ping_node = Node(
         package="psilia_runtime",
-        executable="ping",
-        name="psilia_ping",
+        executable="ping_node",
+        name="ping_node",
         output="screen",
     )
 
-    # enables recording through the web UI
     recording_node = Node(
-            package='psilia_runtime',
-            executable='recording',
-            name='psilia_recording',
-            output='screen',
-    )
-
-    camera_node = Node(
-        package="psilia_runtime",
-        executable="camera",
-        name="camera_node",
-        output="screen",
-        parameters=[_LAUNCH_PARAMS],
-    )
-
-    preview_node = Node(
-        package="psilia_runtime",
-        executable="preview",
-        name="preview_node",
-        output="screen",
-    )
-
-    # Calibration file path is resolved by start_spatial_layer() and written to
-    # launch_params.yaml. These nodes only launch when a calibration is available.
-    rectify_node = Node(
-        package="psilia_runtime",
-        executable="rectify",
-        name="rectify_node",
-        output="screen",
-        parameters=[_LAUNCH_PARAMS],
-    )
-
-    depth_node = Node(
-        package="psilia_runtime",
-        executable="depth",
-        name="depth_node",
-        output="screen",
-        parameters=[_LAUNCH_PARAMS],
-    )
-
-    depth_preview_node = Node(
-        package="psilia_runtime",
-        executable="depth_preview",
-        name="depth_preview_node",
-        output="screen",
+        package='psilia_runtime',
+        executable='recording_node',
+        name='recording_node',
+        output='screen',
     )
 
     rosbridge = Node(
@@ -101,24 +63,20 @@ def generate_launch_description():
         output="screen",
     )
 
-    nodes = [
-        core_node,
-        ping_node,
-        recording_node,
-        camera_node,
-        preview_node,
-        rosbridge,
-        rosapi,
-    ]
+    nodes = [core_node, ping_node, recording_node, rosbridge, rosapi]
 
-    # Only launch depth pipeline nodes if a calibration file was resolved.
-    launch_params = _load_yaml(_LAUNCH_PARAMS)
-    rectify_params = launch_params.get("rectify_node", {}).get("ros__parameters", {})
-    if rectify_params.get("calibration_file"):
-        nodes.append(rectify_node)
-        nodes.append(depth_node)
-        nodes.append(depth_preview_node)
+    # --- Spatial nodes (only if listed in launch_params.nodes) ---
+    spatial_nodes = []
+    for name in launch_params.get("nodes", []):
+        spatial_nodes.append(Node(
+            package="psilia_runtime",
+            executable=name,
+            name=name,
+            output="screen",
+            parameters=[_LAUNCH_PARAMS],
+        ))
 
+    # --- Foxglove (config-driven) ---
     psilia_cfg = _load_yaml(_PSILIA_CONFIG)
     runtime_cfg = _load_yaml(_RUNTIME_CONFIG)
     foxglove_cfg = runtime_cfg.get("ros", {}).get("foxglove", {})
@@ -126,15 +84,14 @@ def generate_launch_description():
     if foxglove_cfg.get("enabled", False):
         port = psilia_cfg.get("runtime", {}).get("foxglove_port", 8765)
         topics = foxglove_cfg.get("topics", [".*"])
-        foxglove_bridge = Node(
+        nodes.append(Node(
             package="foxglove_bridge",
             executable="foxglove_bridge",
             name="foxglove_bridge",
             output="screen",
             parameters=[{"port": port, "topic_whitelist": topics}],
-        )
-        nodes.append(foxglove_bridge)
+        ))
         print(f"\n[psilia] Foxglove bridge on ws://localhost:{port}")
         print(f"[psilia] Open https://app.foxglove.dev and connect to ws://<device-ip>:{port}\n")
 
-    return LaunchDescription(nodes)
+    return LaunchDescription(nodes + spatial_nodes)

@@ -168,14 +168,14 @@ SPATIAL_REQUIREMENTS = [
 def start_runtime(
     host: str = "0.0.0.0", port: int | None = None, force: bool = False
 ) -> dict:
-    """Start base and spatial layer. Returns a combined result dict."""
+    """Start base and spatial layer. Returns a summary dict for display."""
     base = start_base_layer(host=host, port=port)
     spatial = start_spatial_layer(force=force)
     return {"base": base, "spatial": spatial}
 
 
 def stop_runtime() -> dict:
-    """Stop spatial layer then base layer. Returns a combined result dict."""
+    """Stop spatial layer then base layer. Returns a summary dict for display."""
     spatial = stop_spatial_layer()
     base = stop_base_layer()
     return {"base": base, "spatial": spatial}
@@ -187,7 +187,7 @@ def stop_runtime() -> dict:
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
-    """Start the FastAPI daemon and the runtime container. Returns a result dict."""
+    """Start the FastAPI daemon and the runtime container. Returns a summary dict for display."""
     from psilia_edge.runtime.daemon import LOG_FILE, start_daemon
     from psilia_edge.runtime.docker import (
         is_docker_daemon_running,
@@ -231,7 +231,7 @@ def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
 
 
 def stop_base_layer() -> dict:
-    """Stop the runtime container then the FastAPI daemon. Returns a result dict."""
+    """Stop the runtime container then the FastAPI daemon. Returns a summary dict for display."""
     from psilia_edge.runtime.daemon import stop_daemon
     from psilia_edge.runtime.docker import is_container_running, stop_runtime_container
 
@@ -264,19 +264,23 @@ def check_spatial_requirements():
     return run_requirements(SPATIAL_REQUIREMENTS)
 
 
-def start_spatial_layer(force: bool = False) -> dict:
-    """Launch ros2 inside the running container. Returns a result dict."""
-    from psilia_edge.runtime.config import RUN_DIR, get_launch_script
-    from psilia_edge.runtime.docker import start_ros_launch
-    from psilia_edge.utils import write_yaml
+def _build_launch_params(ctx) -> dict:
+    """Build node list and per-node parameters from resolved requirements.
 
-    ctx = run_requirements(SPATIAL_REQUIREMENTS)
+    Returns a dict ready to be written to launch_params.yaml:
+        nodes: [list of conditional node names to launch]
+        <node_name>: {ros__parameters: {...}}
 
-    if not force and not ctx.ok:
-        raise SpatialRequirementsError(ctx)
+    After building the requirement-derived node list, applies user overrides
+    from runtime.yaml ``ros.nodes`` — a dict of ``{node_name: true/false}``.
+    Nodes set to ``false`` are removed from the list. Unlisted nodes default
+    to enabled. A ``true`` entry or a missing entry both mean "launch if
+    requirements allow".
+    """
+    from psilia_edge.runtime.config import read_runtime_config
 
-    # Build launch params from resolved context.
-    launch_params = {}
+    nodes = []
+    params = {}
 
     camera = ctx["camera"]
     if camera.ok:
@@ -286,24 +290,23 @@ def start_spatial_layer(force: bool = False) -> dict:
             for k in ("device", "pixel_format", "width", "height", "fps")
             if k in camera_info
         }
-        # Override resolution if resolved.
-        resolution = ctx["camera.calibration.resolution"] if camera.ok else None
+        resolution = ctx["camera.calibration.resolution"]
         if resolution and resolution.ok:
             camera_params["width"] = resolution.data["width"]
             camera_params["height"] = resolution.data["height"]
 
-        launch_params["camera_node"] = {"ros__parameters": camera_params}
+        params["camera_node"] = {"ros__parameters": camera_params}
+        nodes.extend(["camera_node", "preview_node"])
 
     calibration = ctx["camera.calibration"] if camera.ok else None
     if calibration and calibration.ok:
         container_path = calibration.data["container_path"]
         logger.info("Calibration resolved: %s", container_path)
-        launch_params["rectify_node"] = {
+        params["rectify_node"] = {
             "ros__parameters": {"calibration_file": container_path}
         }
-        launch_params["depth_node"] = {
-            "ros__parameters": {"calibration_file": container_path}
-        }
+        params["depth_node"] = {"ros__parameters": {"calibration_file": container_path}}
+        nodes.extend(["rectify_node", "depth_node", "depth_preview_node"])
     elif camera.ok:
         logger.warning(
             "No calibration found for camera (UID: %s). "
@@ -313,18 +316,52 @@ def start_spatial_layer(force: bool = False) -> dict:
     else:
         logger.info("No camera detected and no camera configured.")
 
-    if launch_params:
-        RUN_DIR.mkdir(parents=True, exist_ok=True)
-        write_yaml(RUN_DIR / "launch_params.yaml", launch_params)
+    # Apply user overrides from runtime.yaml ros.nodes
+    rt_config = read_runtime_config(missing_ok=True)
+    node_overrides = rt_config.get("ros", {}).get("nodes", {})
+    if node_overrides:
+        disabled = [name for name, enabled in node_overrides.items() if not enabled]
+        if disabled:
+            logger.info("User disabled nodes: %s", disabled)
+        nodes = [n for n in nodes if node_overrides.get(n, True)]
+
+    return {"nodes": nodes, **params}
+
+
+def start_spatial_layer(force: bool = False) -> dict:
+    """Launch ros2 inside the running container.
+
+    Returns a summary dict for display (CLI tree, API JSON). No caller
+    depends on specific keys — treat as informational.
+    """
+    from psilia_edge.runtime.config import RUN_DIR, get_launch_script
+    from psilia_edge.runtime.docker import start_ros_launch
+    from psilia_edge.utils import write_yaml
+
+    ctx = check_spatial_requirements()
+
+    if not ctx["container"].ok:
+        raise SpatialRequirementsError(ctx)
+
+    if not force and not ctx.ok:
+        raise SpatialRequirementsError(ctx)
+
+    launch_params = _build_launch_params(ctx)
+
+    RUN_DIR.mkdir(parents=True, exist_ok=True)
+    write_yaml(RUN_DIR / "launch_params.yaml", launch_params)
 
     launch_script = get_launch_script()
     rc, _, err = start_ros_launch(launch_script)
     if rc != 0:
         return {"status": "error", "error": err}
 
+    camera = ctx["camera"]
+    calibration = ctx["camera.calibration"] if camera.ok else None
     return {
         "status": "started",
         "launch": launch_script,
+        "nodes": launch_params["nodes"],
         "camera": camera.data.get("info") if camera.ok else None,
         "calibration": calibration.data.get("container_path")
         if calibration and calibration.ok
@@ -333,7 +370,7 @@ def start_spatial_layer(force: bool = False) -> dict:
 
 
 def stop_spatial_layer() -> dict:
-    """Stop ros2 launch inside the container. Returns a result dict."""
+    """Stop ros2 launch inside the container. Returns a summary dict for display."""
     from psilia_edge.runtime.docker import is_ros_launch_running, stop_ros_launch
 
     if not is_ros_launch_running():

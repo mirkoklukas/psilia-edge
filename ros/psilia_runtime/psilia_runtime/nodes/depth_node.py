@@ -1,6 +1,7 @@
 """
 Depth node — subscribes to /psilia/image/rectified (side-by-side stereo),
-computes disparity via StereoSGBM, converts to depth, and publishes on /psilia/depth.
+computes disparity via StereoSGBM, converts to depth, and publishes on
+/psilia/depth/image (32FC1) and /psilia/depth/camera_info (rectified left camera).
 
 Parameters (set via launch file or command line):
   calibration_file  — path to a Kalibr calibration-camchain YAML file
@@ -20,7 +21,7 @@ import numpy as np
 
 import rclpy  # type: ignore
 from rclpy.node import Node  # type: ignore
-from sensor_msgs.msg import Image  # type: ignore
+from sensor_msgs.msg import CameraInfo, Image  # type: ignore
 
 from psilia_runtime.better_ros import better_node, ROSValue
 from psilia_runtime.camera_calibration import CameraCalibration
@@ -43,7 +44,9 @@ class DepthNode(Node):
         self._cal1 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_right)
         self._ready = False
 
-        self.pub = self.create_publisher(Image, "/psilia/depth", 1)
+        self.pub = self.create_publisher(Image, "/psilia/depth/image", 1)
+        self.pub_info = self.create_publisher(CameraInfo, "/psilia/depth/camera_info", 1)
+        self._camera_info = None
         self.create_subscription(Image, "/psilia/image/rectified", self.on_image, 1)
 
     def _setup_depth(self, frame_width: int, frame_height: int):
@@ -69,6 +72,18 @@ class DepthNode(Node):
         self.width = cal0.width
         self.height = cal0.height
         self._ready = True
+
+        # Build CameraInfo for the rectified left camera (depth viewpoint).
+        info = CameraInfo()
+        info.header.frame_id = "camera"
+        info.width = cal0.width
+        info.height = cal0.height
+        info.distortion_model = "plumb_bob"
+        info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
+        info.k = rect.P0[:3, :3].flatten().tolist()
+        info.r = rect.R0.flatten().tolist()
+        info.p = rect.P0.flatten().tolist()
+        self._camera_info = info
 
         self._stereo = cv2.StereoSGBM_create(
             minDisparity=0,
@@ -124,6 +139,9 @@ class DepthNode(Node):
         out.step = self.width * 4
         out.data = self._buf
         self.pub.publish(out)
+
+        self._camera_info.header = msg.header
+        self.pub_info.publish(self._camera_info)
 
 
 def main():

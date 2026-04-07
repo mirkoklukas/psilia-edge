@@ -88,6 +88,10 @@ What remains:
 ### Config & Validation
 - Add validation for config files (`psilia.yaml`, `runtime.yaml`) — schema check on read, clear error messages for missing or malformed fields.
 - `runtime.yaml` should eventually have a `launch_args:` section — a user-friendly place to configure ROS node parameters (camera type, resolution, etc.). Before launch, `start_spatial_layer()` reads this section and writes a properly formatted ROS params yaml to `~/.psilia/run/` which gets passed to the nodes via `parameters=[...]`.
+- Add user-facing node control in `runtime.yaml` — either a positive `ros.nodes` list
+  (explicit "run these") or a negative `ros.disabled_nodes` list ("skip these").
+  `start_spatial_layer()` would apply this before writing `launch_params.yaml`.
+  Decide which route to take when implementing.
 
 ### Hotplug
 - Implement `hotplug` in the daemon: use `pyudev` to watch for USB device events (cameras, network dongles) and react — update `psilia.yaml`, notify the UI. Replaces the current "written once, may go stale" camera/hotspot detection.
