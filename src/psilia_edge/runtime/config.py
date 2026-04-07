@@ -207,6 +207,20 @@ def get_docker_dir() -> Path:
     return get_repo_dir() / "ros" / "docker"
 
 
+def get_dockerfile() -> Path:
+    """Return the Dockerfile path for the current platform.
+
+    TODO: Improve platform detection — currently uses a simple arch check.
+    Could use /etc/nv_tegra_release, a config option, or both.
+    """
+    import platform
+
+    docker_dir = get_docker_dir()
+    if platform.machine() == "aarch64":
+        return docker_dir / "Dockerfile.jetson"
+    return docker_dir / "Dockerfile.laptop"
+
+
 def get_docker_image() -> str:
     """Return the name of the Docker image to use for the runtime container."""
     return read_runtime_config().get("docker", {}).get("image", DEFAULT_DOCKER_IMAGE)

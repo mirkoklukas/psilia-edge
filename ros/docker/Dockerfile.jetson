@@ -1,0 +1,42 @@
+# psilia/runtime:latest (Jetson)
+# Builds the Spatial Runtime Docker image for Jetson (ROS 2 Humble + CUDA).
+#
+# Based on dustynv/ros:humble-ros-base-l4t-r36.4.0 which provides:
+#   - L4T R36.4 (JetPack 6.x) with CUDA
+#   - ROS 2 Humble (ros-base)
+#   - OpenCV with CUDA support (system install)
+#
+# Requires: JetPack 6.x (L4T R36.4.x) on the host.
+# For laptop/dev use the standard Dockerfile instead.
+FROM dustynv/ros:humble-ros-base-l4t-r36.4.0
+
+# Install ROS packages not in the base image
+RUN apt-get update && apt-get install -y \
+    ros-humble-rosbridge-server \
+    ros-humble-rosbag2-storage-mcap \
+    ros-humble-foxglove-bridge \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+# Note: OpenCV with CUDA comes from the base image (system install).
+# Do NOT install opencv-python-headless — it would shadow the system OpenCV.
+RUN pip3 install scipy
+
+# Make ROS available to all login shells (e.g. docker exec bash -l)
+RUN echo "source /opt/ros/humble/setup.bash" > /etc/profile.d/ros_setup.sh
+
+# Source PSILIA ROS workspace in all shells if not already present
+RUN mkdir -p /psilia/ros/src/install
+COPY <<'EOF' /etc/profile.d/psilia_setup.sh
+if [ -f /psilia/ros/install/setup.bash ]; then
+  source /psilia/ros/install/setup.bash
+fi
+EOF
+
+# Entrypoint: build workspace, source, and launch
+COPY scripts/ /scripts/
+RUN for f in /scripts/*.sh; do \
+        cp "$f" / && chmod +x "/$(basename "$f")"; \
+    done && rm -rf /scripts
+
+ENTRYPOINT ["/prep_ros.sh"]

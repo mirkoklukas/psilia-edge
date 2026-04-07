@@ -25,6 +25,7 @@ from psilia_edge.runtime.config import (
     RUNTIME_DIRS,
     get_repo_dir,
     get_docker_dir,
+    get_dockerfile,
     get_ros_dir,
     get_docker_image,
     initial_config,
@@ -53,7 +54,7 @@ def run_runtime_init(runtime_home: Path, mkdir: bool = False) -> None:
 
     _step_init_configs(runtime_home)
     _step_create_dirs(runtime_home, mkdir=mkdir)
-    _step_build_image(get_docker_image(), get_docker_dir())
+    _step_build_image(get_docker_image(), get_docker_dir(), get_dockerfile())
     _step_copy_ros()
 
     ui.print_tree(read_config(), label=f"'{CONFIG_PATH.name}'")
@@ -358,7 +359,7 @@ def run_update() -> None:
     ui.ok("ROS package updated")
     ui.info("Re-Building Docker image…")
     with ui.status("This may take a while…"):
-        _step_build_image(get_docker_image(), get_docker_dir())
+        _step_build_image(get_docker_image(), get_docker_dir(), get_dockerfile())
         ui.ok("Docker image re-built")
 
     ui.done("Runtime updated.", "Next: [bold]psilia runtime start[/bold]")
@@ -403,9 +404,11 @@ def _step_copy_ros() -> None:
 
 
 # TODO: we might want to copy the dockerfile to the ros directory so users can modify it.
-def _step_build_image(image_name: str, docker_dir: Path) -> None:
-    ui.info("Building Docker image (this may take a while)…")
-    rc = run_streamed(f"docker build --network=host -t {image_name} {docker_dir}")
+def _step_build_image(image_name: str, docker_dir: Path, dockerfile: Path) -> None:
+    ui.info(f"Building Docker image ({dockerfile.name})…")
+    rc = run_streamed(
+        f"docker build --network=host -f {dockerfile} -t {image_name} {docker_dir}"
+    )
     if rc != 0:
         raise RuntimeError(f"Docker build failed with code {rc}")
     ui.ok(f"Docker image built: {image_name}")
