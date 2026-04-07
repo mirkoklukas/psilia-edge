@@ -339,7 +339,10 @@ def status(
         help="Include full spatial layer state (running, heartbeat, ros).",
     ),
     spatial_requirements: bool = typer.Option(
-        False, "--spatial-requirements", help="Include spatial requirements check."
+        False,
+        "--checks",
+        "--spatial-requirements",
+        help="Include spatial requirements check.",
     ),
     server: bool = typer.Option(
         False, "--server", help="Include server details (url, pid, log)."
