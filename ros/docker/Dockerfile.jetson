@@ -10,6 +10,10 @@
 # For laptop/dev use the standard Dockerfile instead.
 FROM dustynv/ros:humble-ros-base-l4t-r36.3.0
 
+# Refresh expired ROS apt key
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+    -o /usr/share/keyrings/ros-archive-keyring.gpg
+
 # Install ROS packages not in the base image
 RUN apt-get update && apt-get install -y \
     ros-humble-rosbridge-server \
