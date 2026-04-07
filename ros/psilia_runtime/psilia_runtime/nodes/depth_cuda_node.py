@@ -72,23 +72,24 @@ class DepthCudaNode(Node):
         self.width = cal0.width
         self.height = cal0.height
 
-        # Build GPU remap tables (CV_32FC1 required by cv2.cuda.remap).
+        # Build GPU remap tables. Use CV_32FC2 (x,y in one 2-channel mat)
+        # which avoids the texture object issues with CV_32FC1 on some
+        # OpenCV CUDA builds.
         K0 = cal0.K.astype(np.float64)
         K1 = cal1.K.astype(np.float64)
         D0 = np.array(cal0.d).astype(np.float64)
         D1 = np.array(cal1.d).astype(np.float64)
 
         map1_l, map2_l = cv2.initUndistortRectifyMap(
-            K0, D0, rect.R0, rect.P0, cal0.res, cv2.CV_32FC1
+            K0, D0, rect.R0, rect.P0, cal0.res, cv2.CV_32FC2
         )
         map1_r, map2_r = cv2.initUndistortRectifyMap(
-            K1, D1, rect.R1, rect.P1, cal1.res, cv2.CV_32FC1
+            K1, D1, rect.R1, rect.P1, cal1.res, cv2.CV_32FC2
         )
 
-        self._gpu_map1_l = cv2.cuda.GpuMat(map1_l)
-        self._gpu_map2_l = cv2.cuda.GpuMat(map2_l)
-        self._gpu_map1_r = cv2.cuda.GpuMat(map1_r)
-        self._gpu_map2_r = cv2.cuda.GpuMat(map2_r)
+        # With CV_32FC2, map1 holds both x,y coords; map2 is unused.
+        self._gpu_map_l = cv2.cuda.GpuMat(map1_l)
+        self._gpu_map_r = cv2.cuda.GpuMat(map1_r)
 
         # CUDA stereo matcher.
         self._stereo = cv2.cuda.createStereoSGM(
@@ -147,14 +148,12 @@ class DepthCudaNode(Node):
         cv2.cuda.cvtColor(gpu_left, cv2.COLOR_BGR2GRAY, dst=self._gpu_gray_l)
         cv2.cuda.cvtColor(gpu_right, cv2.COLOR_BGR2GRAY, dst=self._gpu_gray_r)
 
-        # Rectify on GPU.
+        # Rectify on GPU (CV_32FC2 map: single map with x,y coords).
         cv2.cuda.remap(
-            self._gpu_gray_l, self._gpu_map1_l, self._gpu_map2_l,
-            cv2.INTER_LINEAR, dst=self._gpu_rect_l,
+            self._gpu_gray_l, self._gpu_map_l, cv2.INTER_LINEAR, dst=self._gpu_rect_l,
         )
         cv2.cuda.remap(
-            self._gpu_gray_r, self._gpu_map1_r, self._gpu_map2_r,
-            cv2.INTER_LINEAR, dst=self._gpu_rect_r,
+            self._gpu_gray_r, self._gpu_map_r, cv2.INTER_LINEAR, dst=self._gpu_rect_r,
         )
 
         # Stereo matching on GPU.
