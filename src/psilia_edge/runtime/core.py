@@ -279,11 +279,6 @@ def check_spatial_requirements():
     return run_requirements(SPATIAL_REQUIREMENTS)
 
 
-DEFAULT_NODE_CONFIG = {
-    "depth_cuda_node": False,
-}
-
-
 def _build_launch_params(ctx) -> dict:
     """Build node list and per-node parameters from resolved requirements.
 
@@ -291,11 +286,10 @@ def _build_launch_params(ctx) -> dict:
         nodes: [list of conditional node names to launch]
         <node_name>: {ros__parameters: {...}}
 
-    After building the requirement-derived node list, applies node config:
-    first ``DEFAULT_NODE_CONFIG`` (code-level defaults), then user overrides
-    from runtime.yaml ``ros.nodes`` on top. The merged config is a dict of
-    ``{node_name: true/false}``. Nodes set to ``false`` are removed from the
-    list. Unlisted nodes default to enabled.
+    After building the requirement-derived node list, applies user overrides
+    from runtime.yaml ``ros.nodes``. Each entry can be a bool (enable/disable)
+    or a dict with ``enable`` and ``parameters`` keys. Nodes set to disabled
+    are removed. User parameters are merged on top of requirement-derived ones.
     """
     from psilia_edge.runtime.config import read_runtime_config
 
@@ -340,15 +334,29 @@ def _build_launch_params(ctx) -> dict:
     else:
         logger.info("No camera detected and no camera configured.")
 
-    # Apply node config: defaults, then user overrides from runtime.yaml ros.nodes
+    # Apply node config: defaults, then user overrides from runtime.yaml ros.nodes.
+    # Each entry can be:
+    #   bool              — enable/disable (backward compat)
+    #   dict              — {enable: bool, parameters: {key: val}}
     rt_config = read_runtime_config(missing_ok=True)
-    user_overrides = rt_config.get("ros", {}).get("nodes", {})
-    node_config = {**DEFAULT_NODE_CONFIG, **user_overrides}
-    if node_config:
-        disabled = [name for name, enabled in node_config.items() if not enabled]
-        if disabled:
-            logger.info("Disabled nodes: %s", disabled)
-        nodes = [n for n in nodes if node_config.get(n, True)]
+    user_nodes = rt_config.get("ros", {}).get("nodes", {})
+
+    for name, entry in user_nodes.items():
+        if isinstance(entry, bool):
+            enabled = entry
+            user_params = {}
+        elif isinstance(entry, dict):
+            enabled = entry.get("enable", True)
+            user_params = entry.get("parameters", {})
+        else:
+            continue
+
+        if not enabled and name in nodes:
+            logger.info("Disabled node: %s", name)
+            nodes.remove(name)
+        elif user_params and name in nodes:
+            existing = params.get(name, {}).get("ros__parameters", {})
+            params[name] = {"ros__parameters": {**existing, **user_params}}
 
     return {"nodes": nodes, **params}
 

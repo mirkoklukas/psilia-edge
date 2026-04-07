@@ -2,12 +2,17 @@ name: My Runtime Config
 ros:
   launch: default.launch.py
   nodes:
+    rectify_node:
+      enable: false
+    depth_node:
+      enable: false
     # camera_node: true
     # preview_node: true
-    # rectify_node: true
-    # depth_node: true
-    # depth_cuda_node: false
-    # depth_preview_node: true
+    # depth_cuda_node: true
+    # depth_preview_node:
+    #   parameters:
+    #     max_depth: 3.0
+    #     fps: 5
   recording:
     topics:
       - /psilia/interface

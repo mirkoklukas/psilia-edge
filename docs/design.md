@@ -168,17 +168,24 @@ ros:
   launch: default.launch.py
   nodes:                               # optional — override which spatial nodes launch
     # camera_node: true
-    # preview_node: true
     # rectify_node: true
     # depth_node: true
-    # depth_preview_node: true
+    # depth_cuda_node: false
+    # depth_preview_node:
+    #   parameters:
+    #     max_depth: 3.0
+    #     fps: 5
   recording:
     topics:
       - /psilia/interface
       - /psilia/heartbeat
 ```
 
-`ros.nodes` is a dict of `{node_name: true/false}`. It acts as a user override layer on top of the requirement-derived node list — it can only disable nodes that requirements would otherwise enable, never add nodes that aren't eligible. Nodes not listed default to enabled. Set a node to `false` to skip it even when its requirements are satisfied.
+`ros.nodes` is a user override layer on top of the requirement-derived node list — it can disable nodes that requirements would otherwise enable, or pass ROS parameters to nodes. It never adds nodes that aren't eligible. Each entry can be:
+- `true/false` — enable/disable the node
+- A dict with `enable` (optional, default `true`) and `parameters` (dict of ROS parameter overrides)
+
+Nodes not listed default to enabled. User parameters are merged on top of requirement-derived parameters (e.g. calibration file).
 
 
 ### Environment Vars
