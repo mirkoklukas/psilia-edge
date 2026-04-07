@@ -201,7 +201,13 @@ def update() -> None:
     run_update()
 
 
-_SPATIAL_CHECK_KEYS = ("container", "camera", "camera.calibration", "hotspot")
+_SPATIAL_CHECK_KEYS = (
+    "container",
+    "container.cuda",
+    "camera",
+    "camera.calibration",
+    "hotspot",
+)
 
 
 def _checks_dict(ctx) -> dict:
@@ -243,6 +249,11 @@ def start(
         with ui.status("Starting base layer…"):
             result = start_base_layer(host=host, port=port)
         ui.print_tree(result, label="base")
+        with ui.status("Checking spatial requirements…"):
+            from psilia_edge.runtime.core import check_spatial_requirements
+
+            ctx = check_spatial_requirements()
+        ui.print_tree(_checks_dict(ctx), label="spatial requirements")
         return
 
     if spatial_only:
