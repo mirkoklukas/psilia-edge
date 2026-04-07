@@ -8,7 +8,7 @@
 #
 # Requires: JetPack 6.x (L4T R36.4.x) on the host.
 # For laptop/dev use the standard Dockerfile instead.
-FROM dustynv/ros:humble-ros-base-l4t-r36.4.0
+FROM dustynv/ros:humble-ros-base-l4t-r36.3.0
 
 # Install ROS packages not in the base image
 RUN apt-get update && apt-get install -y \
