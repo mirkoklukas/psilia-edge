@@ -23,6 +23,7 @@ setup(
             "depth_preview_node = psilia_runtime.nodes.depth_preview_node:main",
             "preview_node = psilia_runtime.nodes.preview_node:main",
             "rectify_node = psilia_runtime.nodes.rectify_node:main",
+            "pointcloud_preview_node = psilia_runtime.nodes.pointcloud_preview_node:main",
         ],
     },
     packages=[package_name, f"{package_name}.nodes"],

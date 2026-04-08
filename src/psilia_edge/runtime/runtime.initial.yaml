@@ -6,13 +6,28 @@ ros:
       enable: false
     depth_node:
       enable: false
-    # camera_node: true
-    # preview_node: true
-    # depth_cuda_node: true
-    # depth_preview_node:
+    # camera_node:
     #   parameters:
-    #     max_depth: 3.0
-    #     fps: 5
+    #     device: /dev/video0
+    #     pixel_format: MJPG
+    #     width: 2560
+    #     height: 720
+    #     fps: 30
+    preview_node:
+      parameters:
+        target_height: 50
+        fps: 5
+    # depth_cuda_node:
+    #   parameters:
+    #     num_disparities: 128
+    depth_preview_node:
+      parameters:
+        max_depth: 3.0
+        fps: 5
+    pointcloud_preview_node:
+      parameters:
+        fps: 2
+        num_samples: 10000
   recording:
     topics:
       - /psilia/interface
@@ -22,3 +37,4 @@ ros:
     topics:
       - /psilia/preview/image/compressed
       - /psilia/preview/depth/compressed
+      - /psilia/preview/pointcloud

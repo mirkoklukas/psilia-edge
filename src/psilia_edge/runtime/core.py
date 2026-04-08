@@ -324,7 +324,14 @@ def _build_launch_params(ctx) -> dict:
             )
         params["rectify_node"] = cal_params
         params["depth_node"] = cal_params
-        nodes.extend(["rectify_node", "depth_node", "depth_preview_node"])
+        nodes.extend(
+            [
+                "rectify_node",
+                "depth_node",
+                "depth_preview_node",
+                "pointcloud_preview_node",
+            ]
+        )
 
         cuda = ctx["container.cuda"]
         if cuda.ok:
