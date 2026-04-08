@@ -1,6 +1,6 @@
 """
-Rectify node — subscribes to /psilia/image/raw (side-by-side stereo),
-applies stereo rectification, and publishes on /psilia/image/rectified.
+Rectify node — subscribes to /psilia/stereo/image_raw (side-by-side stereo),
+applies stereo rectification, and publishes on /psilia/stereo/image_rect.
 
 Parameters (set via launch file or command line):
   calibration_file  — path to a Kalibr calibration-camchain YAML file
@@ -39,8 +39,8 @@ class RectifyNode(Node):
         self._cal1 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_right)
         self._ready = False
 
-        self.pub = self.create_publisher(Image, "/psilia/image/rectified", 1)
-        self.create_subscription(Image, "/psilia/image/raw", self.on_image, 1)
+        self.pub = self.create_publisher(Image, "/psilia/stereo/image_rect", 1)
+        self.create_subscription(Image, "/psilia/stereo/image_raw", self.on_image, 1)
 
     def _setup_rectification(self, frame_width: int, frame_height: int):
         """Initialize rectification maps, rescaling calibration if needed."""

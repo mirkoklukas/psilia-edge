@@ -1,12 +1,18 @@
 """
-Camera node — reads from a UVC camera and publishes on /psilia/image/raw.
+Camera node — reads from a UVC camera and publishes on /psilia/stereo/image_raw.
+
+Optionally publishes CameraInfo on /psilia/stereo/left/camera_info and
+/psilia/stereo/right/camera_info if a calibration file is provided.
 
 Parameters (set via launch_params.yaml):
-  device        — /dev/video path (e.g. /dev/video0)
-  pixel_format  — capture format: MJPG or YUYV
-  width         — capture width in pixels
-  height        — capture height in pixels
-  fps           — capture frame rate
+  device           — /dev/video path (e.g. /dev/video0)
+  pixel_format     — capture format: MJPG or YUYV
+  width            — capture width in pixels
+  height           — capture height in pixels
+  fps              — capture frame rate
+  calibration_file — path to a Kalibr calibration YAML (optional)
+  camera_left      — camera name for the left image (default: cam0)
+  camera_right     — camera name for the right image (default: cam1)
 
 If the device cannot be opened, the node logs a warning and retries every second.
 """
@@ -18,10 +24,11 @@ import numpy as np
 import rclpy # type: ignore
 from builtin_interfaces.msg import Time # type: ignore
 from rclpy.node import Node # type: ignore
-from sensor_msgs.msg import Image # type: ignore
+from sensor_msgs.msg import CameraInfo, Image # type: ignore
 from std_msgs.msg import Header # type: ignore
 from psilia_runtime.better_ros import better_node, ROSValue, every_seconds
 from psilia_runtime.camera_stream import CameraStream
+from psilia_runtime.camera_calibration import CameraCalibration
 
 
 @better_node
@@ -31,13 +38,17 @@ class CameraNode(Node):
     width: ROSValue = 640
     height: ROSValue = 480
     fps: ROSValue = 30
+    calibration_file: ROSValue = ""
+    camera_left: ROSValue = "cam0"
+    camera_right: ROSValue = "cam1"
 
     def __node_init__(self):
         self.get_logger().info(
             f"CameraNode init: device={self.device} format={self.pixel_format} "
             f"{self.width}x{self.height} fps={self.fps}"
         )
-        self.pub = self.create_publisher(Image, "/psilia/image/raw", 10)
+        self.pub = self.create_publisher(Image, "/psilia/stereo/image_raw", 10)
+        self._setup_camera_info()
         self._stream = CameraStream(
             self.device, self.pixel_format, self.width, self.height, self.fps,
             logger=self.get_logger(),
@@ -51,6 +62,57 @@ class CameraNode(Node):
         self._buf = array.array('B', bytes(self.width * self.height * 3))
         self._np_buf = np.frombuffer(self._buf, dtype=np.uint8)
         self.create_timer(1.0 / self.fps, self.publish_frame)
+
+    def _setup_camera_info(self):
+        """Load calibration and build CameraInfo messages for left and right cameras.
+
+        Each CameraInfo carries the full set: K + D (raw intrinsics), R (rectification
+        rotation), and P (rectified projection matrix). A single message serves both
+        raw and rectified consumers.
+        """
+        self._pub_info_left = None
+        self._pub_info_right = None
+        self._camera_info_left = None
+        self._camera_info_right = None
+
+        if not self.calibration_file:
+            self.get_logger().info("No calibration_file — CameraInfo will not be published.")
+            return
+
+        cal0 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_left)
+        cal1 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_right)
+
+        # Rescale calibration if the capture resolution doesn't match.
+        eye_w = self.width // 2
+        if eye_w != cal0.width or self.height != cal0.height:
+            factor = eye_w / cal0.width
+            self.get_logger().info(
+                f"Rescaling calibration: {cal0.width}x{cal0.height} → {eye_w}x{self.height} "
+                f"(factor={factor:.3f})"
+            )
+            cal0 = cal0.rescale(factor)
+            cal1 = cal1.rescale(factor)
+
+        rect = CameraCalibration.stereo_rectification(cal0, cal1)
+
+        self._camera_info_left = self._build_camera_info(cal0, rect.R0, rect.P0)
+        self._camera_info_right = self._build_camera_info(cal1, rect.R1, rect.P1)
+        self._pub_info_left = self.create_publisher(CameraInfo, "/psilia/stereo/left/camera_info", 10)
+        self._pub_info_right = self.create_publisher(CameraInfo, "/psilia/stereo/right/camera_info", 10)
+
+        self.get_logger().info("CameraInfo ready (left + right).")
+
+    def _build_camera_info(self, cal: CameraCalibration, R, P) -> CameraInfo:
+        info = CameraInfo()
+        info.header.frame_id = "camera"
+        info.width = cal.width
+        info.height = cal.height
+        info.distortion_model = "plumb_bob"
+        info.d = cal.distortion_coeffs.flatten().tolist()
+        info.k = cal.K.flatten().tolist()
+        info.r = R.flatten().tolist()
+        info.p = P.flatten().tolist()
+        return info
 
     def publish_frame(self):
         if not self._stream.is_open:
@@ -94,6 +156,13 @@ class CameraNode(Node):
         np.copyto(self._np_buf, frame.ravel())  # writes into _buf via shared memory
         msg.data = self._buf
         self.pub.publish(msg)
+
+        if self._pub_info_left is not None:
+            self._camera_info_left.header = msg.header
+            self._camera_info_right.header = msg.header
+            self._pub_info_left.publish(self._camera_info_left)
+            self._pub_info_right.publish(self._camera_info_right)
+
         self.frame_count += 1
         if self.frame_count % 100 == 0:
             self.get_logger().info(f"Frame {self.frame_count}: {msg.width}x{msg.height} ({msg.encoding})")

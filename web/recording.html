@@ -79,8 +79,8 @@
 
     <!-- Image preview -->
     <div class="cc" id="preview-card">
-      <div class="cc__title">/psilia/image/preview</div>
-      <div id="preview-placeholder">waiting for /psilia/image/preview/compressed…</div>
+      <div class="cc__title">/psilia/preview/image</div>
+      <div id="preview-placeholder">waiting for /psilia/preview/image/compressed…</div>
       <img id="preview-img" style="display:none;" />
     </div>
 
@@ -174,7 +174,7 @@
       });
 
     // ── Image preview ─────────────────────────────────────────
-    new ROSLIB.Topic({ ros, name: '/psilia/image/preview/compressed', messageType: 'sensor_msgs/CompressedImage' })
+    new ROSLIB.Topic({ ros, name: '/psilia/preview/image/compressed', messageType: 'sensor_msgs/CompressedImage' })
       .subscribe(msg => {
         const img = document.getElementById('preview-img');
         img.src = 'data:image/jpeg;base64,' + msg.data;

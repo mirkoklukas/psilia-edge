@@ -1,7 +1,7 @@
 """
-Preview node — subscribes to /psilia/image/raw, downsamples, and republishes on
-/psilia/image/preview          (raw, sensor_msgs/Image)
-/psilia/image/preview/compressed  (JPEG, sensor_msgs/CompressedImage)
+Preview node — subscribes to /psilia/stereo/image_raw, downsamples, and republishes on
+/psilia/preview/image          (raw, sensor_msgs/Image)
+/psilia/preview/image/compressed  (JPEG, sensor_msgs/CompressedImage)
 at a low frame rate for live monitoring (web UI, recording view).
 
 Parameters (set via launch_params.yaml):
@@ -33,9 +33,9 @@ class PreviewNode(Node):
 
     def __node_init__(self):
         self._last_publish = 0.0
-        self.create_subscription(Image, "/psilia/image/raw", self._on_image, 10)
-        self.pub = self.create_publisher(Image, "/psilia/image/preview", 10)
-        self.pub_compressed = self.create_publisher(CompressedImage, "/psilia/image/preview/compressed", 10)
+        self.create_subscription(Image, "/psilia/stereo/image_raw", self._on_image, 10)
+        self.pub = self.create_publisher(Image, "/psilia/preview/image", 10)
+        self.pub_compressed = self.create_publisher(CompressedImage, "/psilia/preview/image/compressed", 10)
 
     def _on_image(self, msg: Image):
         now = time.monotonic()

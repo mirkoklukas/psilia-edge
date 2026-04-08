@@ -1,7 +1,7 @@
 """
-CUDA depth node — subscribes to /psilia/image/raw (side-by-side stereo),
+CUDA depth node — subscribes to /psilia/stereo/image_raw (side-by-side stereo),
 rectifies and computes depth entirely on GPU, and publishes on
-/psilia/depth/image (32FC1) and /psilia/depth/camera_info (rectified left camera).
+/psilia/stereo/depth (32FC1) and /psilia/stereo/depth/camera_info (rectified left camera).
 
 Replaces rectify_node + depth_node when CUDA is available. Disable those two
 and enable this one via ros.nodes in runtime.yaml.
@@ -45,10 +45,10 @@ class DepthCudaNode(Node):
         self._cal1 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_right)
         self._ready = False
 
-        self.pub = self.create_publisher(Image, "/psilia/depth/image", 1)
-        self.pub_info = self.create_publisher(CameraInfo, "/psilia/depth/camera_info", 1)
+        self.pub = self.create_publisher(Image, "/psilia/stereo/depth", 1)
+        self.pub_info = self.create_publisher(CameraInfo, "/psilia/stereo/depth/camera_info", 1)
         self._camera_info = None
-        self.create_subscription(Image, "/psilia/image/raw", self.on_image, 1)
+        self.create_subscription(Image, "/psilia/stereo/image_raw", self.on_image, 1)
 
     def _setup_depth(self, frame_width: int, frame_height: int):
         """Initialize GPU rectification maps, stereo matcher, and buffers."""
@@ -137,21 +137,17 @@ class DepthCudaNode(Node):
         frame = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, 3)
         self._gpu_frame.upload(frame)
 
-        # Split left/right and convert to grayscale on GPU.
-        # Note: cv2.cuda.cvtColor dst= kwarg is broken in OpenCV 4.8.x —
-        # must use return value.
+        # Split left/right on GPU.
         gpu_left = cv2.cuda.GpuMat(self._gpu_frame, (0, 0, self.width, self.height))
         gpu_right = cv2.cuda.GpuMat(self._gpu_frame, (self.width, 0, self.width, self.height))
-        self._gpu_gray_l = cv2.cuda.cvtColor(gpu_left, cv2.COLOR_BGR2GRAY)
-        self._gpu_gray_r = cv2.cuda.cvtColor(gpu_right, cv2.COLOR_BGR2GRAY)
 
         # Rectify on GPU (separate xmap/ymap, both CV_32FC1).
         self._gpu_rect_l = cv2.cuda.remap(
-            self._gpu_gray_l, self._gpu_map1_l, self._gpu_map2_l,
+            gpu_left, self._gpu_map1_l, self._gpu_map2_l,
             cv2.INTER_LINEAR,
         )
         self._gpu_rect_r = cv2.cuda.remap(
-            self._gpu_gray_r, self._gpu_map1_r, self._gpu_map2_r,
+            gpu_right, self._gpu_map1_r, self._gpu_map2_r,
             cv2.INTER_LINEAR,
         )
 

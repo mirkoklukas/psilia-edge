@@ -20,5 +20,5 @@ ros:
   foxglove:
     enabled: true
     topics:
-      - /psilia/image/preview/compressed
-      - /psilia/depth/preview/compressed
+      - /psilia/preview/image/compressed
+      - /psilia/preview/depth/compressed

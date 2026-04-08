@@ -317,6 +317,11 @@ def _build_launch_params(ctx) -> dict:
         container_path = calibration.data["container_path"]
         logger.info("Calibration resolved: %s", container_path)
         cal_params = {"ros__parameters": {"calibration_file": container_path}}
+        # Pass calibration to camera node for CameraInfo publishing.
+        if "camera_node" in params:
+            params["camera_node"]["ros__parameters"]["calibration_file"] = (
+                container_path
+            )
         params["rectify_node"] = cal_params
         params["depth_node"] = cal_params
         nodes.extend(["rectify_node", "depth_node", "depth_preview_node"])
