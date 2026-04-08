@@ -94,8 +94,8 @@ class DepthCudaNode(Node):
         self._stereo = cv2.cuda.createStereoSGM(
             minDisparity=0,
             numDisparities=self.num_disparities,
-            P1=8 * 3 * 5 ** 2,
-            P2=32 * 3 * 5 ** 2,
+            P1=8 * 1 * 5 ** 2,
+            P2=32 * 1 * 5 ** 2,
             uniquenessRatio=10,
         )
 
@@ -141,7 +141,7 @@ class DepthCudaNode(Node):
         gpu_left = cv2.cuda.GpuMat(self._gpu_frame, (0, 0, self.width, self.height))
         gpu_right = cv2.cuda.GpuMat(self._gpu_frame, (self.width, 0, self.width, self.height))
 
-        # Rectify on GPU (separate xmap/ymap, both CV_32FC1).
+        # Rectify on GPU in color (separate xmap/ymap, both CV_32FC1).
         self._gpu_rect_l = cv2.cuda.remap(
             gpu_left, self._gpu_map1_l, self._gpu_map2_l,
             cv2.INTER_LINEAR,
@@ -151,8 +151,12 @@ class DepthCudaNode(Node):
             cv2.INTER_LINEAR,
         )
 
+        # Convert to grayscale for stereo matching (StereoSGM requires CV_8UC1).
+        gpu_gray_l = cv2.cuda.cvtColor(self._gpu_rect_l, cv2.COLOR_BGR2GRAY)
+        gpu_gray_r = cv2.cuda.cvtColor(self._gpu_rect_r, cv2.COLOR_BGR2GRAY)
+
         # Stereo matching on GPU.
-        gpu_disparity = self._stereo.compute(self._gpu_rect_l, self._gpu_rect_r)
+        gpu_disparity = self._stereo.compute(gpu_gray_l, gpu_gray_r)
 
         # Download disparity and compute depth on CPU.
         disparity = gpu_disparity.download().astype(np.float32) / 16.0
