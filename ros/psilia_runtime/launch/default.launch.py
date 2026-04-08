@@ -94,5 +94,6 @@ def generate_launch_description():
         ))
         print(f"\n[psilia] Foxglove bridge on ws://localhost:{port}")
         print(f"[psilia] Open https://app.foxglove.dev and connect to ws://<device-ip>:{port}\n")
+        print(f"[psilia] TOPICS: {topics}\n")
 
     return LaunchDescription(nodes + spatial_nodes)
