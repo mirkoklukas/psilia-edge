@@ -6,7 +6,7 @@ import numpy as np
 import yaml
 from scipy.spatial.transform import Rotation as Rot
 
-from .utils import load_yaml, save_yaml
+from psilia_runtime.utils import load_yaml, save_yaml
 
 Array: TypeAlias = Any
 

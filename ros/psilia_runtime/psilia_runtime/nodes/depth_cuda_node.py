@@ -11,6 +11,7 @@ Parameters (set via launch file or command line):
   camera_left       — camera name for the left image (default: cam0)
   camera_right      — camera name for the right image (default: cam1)
   num_disparities   — max disparity range, 64 or 128 (default: 128)
+  publish_rectified — publish rectified side-by-side image for debugging (default: false)
 """
 import array
 
@@ -31,6 +32,7 @@ class DepthCudaNode(Node):
     camera_left: ROSValue = "cam0"
     camera_right: ROSValue = "cam1"
     num_disparities: ROSValue = 128
+    publish_rectified: ROSValue = False
 
     def __node_init__(self):
         if not self.calibration_file:
@@ -48,6 +50,9 @@ class DepthCudaNode(Node):
         self.pub = self.create_publisher(Image, "/psilia/stereo/depth", 1)
         self.pub_info = self.create_publisher(CameraInfo, "/psilia/stereo/depth/camera_info", 1)
         self._camera_info = None
+        self.pub_rect = None
+        if self.publish_rectified:
+            self.pub_rect = self.create_publisher(Image, "/psilia/stereo/image_rect", 1)
         self.create_subscription(Image, "/psilia/stereo/image_raw", self.on_image, 1)
 
     def _setup_depth(self, frame_width: int, frame_height: int):
@@ -176,6 +181,19 @@ class DepthCudaNode(Node):
 
         self._camera_info.header = msg.header
         self.pub_info.publish(self._camera_info)
+
+        if self.pub_rect is not None:
+            rect_l = self._gpu_rect_l.download()
+            rect_r = self._gpu_rect_r.download()
+            rect_sbs = np.hstack((rect_l, rect_r))
+            rect_msg = Image()
+            rect_msg.header = msg.header
+            rect_msg.height = rect_sbs.shape[0]
+            rect_msg.width = rect_sbs.shape[1]
+            rect_msg.encoding = "bgr8"
+            rect_msg.step = rect_sbs.shape[1] * 3
+            rect_msg.data = rect_sbs.tobytes()
+            self.pub_rect.publish(rect_msg)
 
 
 def main():
