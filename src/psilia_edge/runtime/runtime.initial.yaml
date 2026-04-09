@@ -22,10 +22,14 @@ ros:
       enable: true
       parameters:
         num_disparities: 128
+        p1: 200
+        p2: 800
+        uniqueness_ratio: 10
         publish_rectified: true
     depth_preview_node:
       enable: true
       parameters:
+        target_height: 1000
         max_depth: 3.0
         fps: 5
     pointcloud_preview_node:
