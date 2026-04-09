@@ -275,6 +275,11 @@ def check_spatial_requirements():
     and used by `start_spatial_layer()` to gate launch when `force=False`.
 
     Returns a RequirementResult root node.
+
+    TODO: This takes ~1-2s due to subprocess calls (docker inspect, CUDA check,
+    USB enumeration). Consider caching results with a short TTL, running checks
+    in parallel at the top level, or replacing subprocess calls with lighter
+    probes (e.g. Docker SDK, cached container state).
     """
     return run_requirements(SPATIAL_REQUIREMENTS)
 
