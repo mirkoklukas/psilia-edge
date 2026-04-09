@@ -44,19 +44,24 @@ class DepthPreviewNode(Node):
 
         depth = np.frombuffer(msg.data, dtype=np.float32).reshape(msg.height, msg.width)
 
-        # Normalize to 0–255 grayscale.
-        clamped = np.clip(depth, 0, self.max_depth)
-        normalized = (clamped * 255.0 / self.max_depth).astype(np.uint8)
-
-        # Downsample.
+        # Downsample first (cheaper to colormap fewer pixels).
         d = max(1, msg.height // self.target_height)
-        preview = normalized[::d, ::d]
+        depth_small = depth[::d, ::d]
+
+        # Mask invalid pixels (depth <= 0), normalize valid range to 0–255.
+        valid = depth_small > 0
+        normalized = np.zeros_like(depth_small, dtype=np.uint8)
+        normalized[valid] = (np.clip(depth_small[valid], 0, self.max_depth) * 255.0 / self.max_depth).astype(np.uint8)
+
+        # Apply plasma colormap, set invalid pixels to white.
+        preview = cv2.applyColorMap(normalized, cv2.COLORMAP_PLASMA)
+        preview[~valid] = (255, 255, 255)
 
         out = Image()
         out.header = msg.header
         out.height, out.width = preview.shape[:2]
-        out.encoding = "mono8"
-        out.step = out.width
+        out.encoding = "bgr8"
+        out.step = out.width * 3
         out.data = array.array('B', preview.tobytes())
         self.pub.publish(out)
 
