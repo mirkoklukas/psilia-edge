@@ -24,6 +24,7 @@ setup(
             "preview_node = psilia_runtime.nodes.preview_node:main",
             "rectify_node = psilia_runtime.nodes.rectify_node:main",
             "pointcloud_preview_node = psilia_runtime.nodes.pointcloud_preview_node:main",
+            "diagnostics_node = psilia_runtime.nodes.diagnostics_node:main",
         ],
     },
     packages=[package_name, f"{package_name}.nodes"],

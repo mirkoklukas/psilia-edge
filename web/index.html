@@ -247,44 +247,34 @@
         diDot.classList.add('beat');
       });
 
-    // ── Topic Hz ──────────────────────────────────────────────
-    const HZ_TOPICS = [
-      { topic: '/psilia/stereo/image_raw',  type: 'sensor_msgs/Image' },
-      { topic: '/psilia/stereo/image_rect', type: 'sensor_msgs/Image' },
-      { topic: '/psilia/stereo/depth',      type: 'sensor_msgs/Image' },
-    ];
-    const hzCounters = {};
-
-    HZ_TOPICS.forEach(({ topic, type }) => {
-      hzCounters[topic] = 0;
-      const row = document.createElement('div');
-      row.className = 'cc__row';
-      const label = document.createElement('span');
-      label.className = 'cc__label';
-      label.textContent = topic;
-      label.style.fontSize = '0.68rem';
-      const value = document.createElement('span');
-      value.className = 'cc__value';
-      value.id = 'hz-val-' + topic;
-      value.textContent = '—';
-      row.appendChild(label);
-      row.appendChild(value);
-      document.getElementById('hz-rows').appendChild(row);
-      new ROSLIB.Topic({ ros, name: topic, messageType: type })
-        .subscribe(() => { hzCounters[topic]++; });
-    });
-
-    setInterval(() => {
-      for (const topic of Object.keys(hzCounters)) {
-        const el = document.getElementById('hz-val-' + topic);
-        if (el) {
-          const hz = hzCounters[topic];
-          el.textContent = hz > 0 ? hz + ' Hz' : '—';
-          el.style.color = hz > 0 ? 'var(--color-live)' : 'var(--color-idle)';
+    // ── Topic Hz (from hz_node) ─────────────────────────────
+    new ROSLIB.Topic({ ros, name: '/psilia/diagnostics/hz', messageType: 'std_msgs/String' })
+      .subscribe(msg => {
+        let data;
+        try { data = JSON.parse(msg.data); } catch { return; }
+        const container = document.getElementById('hz-rows');
+        for (const [topic, info] of Object.entries(data)) {
+          let row = document.getElementById('hz-' + topic);
+          if (!row) {
+            row = document.createElement('div');
+            row.className = 'cc__row';
+            row.id = 'hz-' + topic;
+            const label = document.createElement('span');
+            label.className = 'cc__label';
+            label.textContent = topic;
+            label.style.fontSize = '0.68rem';
+            const value = document.createElement('span');
+            value.className = 'cc__value';
+            value.id = 'hz-val-' + topic;
+            row.appendChild(label);
+            row.appendChild(value);
+            container.appendChild(row);
+          }
+          const el = document.getElementById('hz-val-' + topic);
+          el.textContent = info.hz > 0 ? info.hz + ' Hz' : '—';
+          el.style.color = info.hz > 0 ? 'var(--color-live)' : 'var(--color-idle)';
         }
-        hzCounters[topic] = 0;
-      }
-    }, 1000);
+      });
 
     // ── SSE ───────────────────────────────────────────────────
     const es = new EventSource('/api/events');
