@@ -165,6 +165,7 @@ class DepthCudaNode(Node):
 
         # Download disparity and compute depth on CPU.
         disparity = gpu_disparity.download().astype(np.float32) / 16.0
+        self.get_logger().info(f"disp min={disparity.min():.2f} max={disparity.max():.2f} valid={np.count_nonzero(disparity > 0)}/{disparity.size}")
 
         valid = disparity > 0
         self._np_buf[:] = 0.0
