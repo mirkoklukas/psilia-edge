@@ -22,7 +22,7 @@ ros:
       enable: true
       parameters:
         num_disparities: 128
-        publish_rectified: false
+        publish_rectified: true
     depth_preview_node:
       enable: true
       parameters:
@@ -41,4 +41,5 @@ ros:
     topics:
       - /psilia/preview/image/compressed
       - /psilia/preview/depth/compressed
+      - /psilia/preview/rectified/compressed
       - /psilia/preview/pointcloud
