@@ -35,9 +35,9 @@ class DepthCudaNode(Node):
     camera_left: ROSValue = "cam0"
     camera_right: ROSValue = "cam1"
     num_disparities: ROSValue = 128
-    p1: ROSValue = 200
-    p2: ROSValue = 800
-    uniqueness_ratio: ROSValue = 10
+    p1: ROSValue = 10
+    p2: ROSValue = 120
+    uniqueness_ratio: ROSValue = 5
     publish_rectified: ROSValue = False
 
     def __node_init__(self):
