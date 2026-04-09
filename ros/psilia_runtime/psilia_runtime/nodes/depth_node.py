@@ -9,6 +9,12 @@ Parameters (set via launch file or command line):
   camera_right      — camera name for the right image (default: cam1)
   num_disparities   — max disparity range, must be divisible by 16 (default: 128)
   block_size        — matched block size, must be odd (default: 5)
+  p1                — StereoSGBM penalty for small disparity changes (default: 200)
+  p2                — StereoSGBM penalty for large disparity changes (default: 800)
+  uniqueness_ratio  — margin (%) for best match uniqueness, 0 to disable (default: 10)
+  disp12_max_diff   — max left-right disparity difference, -1 to disable (default: 1)
+  speckle_window_size — max size of smooth disparity regions for speckle filter, 0 to disable (default: 100)
+  speckle_range     — max disparity variation within a speckle region (default: 32)
 
 TODO: Replace Kalibr camchain format with our own calibration format.
 TODO: Compute and publish a confidence map alongside depth.
@@ -34,6 +40,12 @@ class DepthNode(Node):
     camera_right: ROSValue = "cam1"
     num_disparities: ROSValue = 128
     block_size: ROSValue = 5
+    p1: ROSValue = 200
+    p2: ROSValue = 800
+    uniqueness_ratio: ROSValue = 10
+    disp12_max_diff: ROSValue = 1
+    speckle_window_size: ROSValue = 100
+    speckle_range: ROSValue = 32
 
     def __node_init__(self):
         if not self.calibration_file:
@@ -89,12 +101,12 @@ class DepthNode(Node):
             minDisparity=0,
             numDisparities=self.num_disparities,
             blockSize=self.block_size,
-            P1=8 * 3 * self.block_size ** 2,
-            P2=32 * 3 * self.block_size ** 2,
-            disp12MaxDiff=1,
-            uniquenessRatio=10,
-            speckleWindowSize=100,
-            speckleRange=32,
+            P1=self.p1,
+            P2=self.p2,
+            disp12MaxDiff=self.disp12_max_diff,
+            uniquenessRatio=self.uniqueness_ratio,
+            speckleWindowSize=self.speckle_window_size,
+            speckleRange=self.speckle_range,
         )
 
         # Pre-allocated publish buffer for depth (32FC1 = 4 bytes per pixel).
