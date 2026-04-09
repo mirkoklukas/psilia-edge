@@ -141,7 +141,7 @@
             container.appendChild(row);
           }
           const el = document.getElementById('hz-val-' + topic);
-          el.textContent = info.hz > 0 ? info.hz + ' Hz' : '—';
+          el.textContent = info.hz > 0 ? info.hz.toFixed(2) + ' Hz' : '—';
           el.style.color = info.hz > 0 ? 'var(--color-live)' : 'var(--color-idle)';
         }
       });
