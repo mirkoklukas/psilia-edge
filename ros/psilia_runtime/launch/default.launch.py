@@ -63,7 +63,14 @@ def generate_launch_description():
         output="screen",
     )
 
-    nodes = [core_node, ping_node, recording_node, rosbridge, rosapi]
+    diagnostics_node = Node(
+        package="psilia_runtime",
+        executable="diagnostics_node",
+        name="diagnostics_node",
+        output="screen",
+    )
+
+    nodes = [core_node, ping_node, recording_node, diagnostics_node, rosbridge, rosapi]
 
     # --- Spatial nodes (only if listed in launch_params.nodes) ---
     spatial_nodes = []
