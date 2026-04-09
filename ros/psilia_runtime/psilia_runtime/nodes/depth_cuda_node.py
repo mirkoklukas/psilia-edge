@@ -11,6 +11,9 @@ Parameters (set via launch file or command line):
   camera_left       — camera name for the left image (default: cam0)
   camera_right      — camera name for the right image (default: cam1)
   num_disparities   — max disparity range, 64 or 128 (default: 128)
+  p1                — StereoSGM penalty for small disparity changes (default: 200)
+  p2                — StereoSGM penalty for large disparity changes (default: 800)
+  uniqueness_ratio  — margin (%) for best match uniqueness, 0 to disable (default: 10)
   publish_rectified — publish rectified side-by-side image for debugging (default: false)
 """
 import array
@@ -32,6 +35,9 @@ class DepthCudaNode(Node):
     camera_left: ROSValue = "cam0"
     camera_right: ROSValue = "cam1"
     num_disparities: ROSValue = 128
+    p1: ROSValue = 200
+    p2: ROSValue = 800
+    uniqueness_ratio: ROSValue = 10
     publish_rectified: ROSValue = False
 
     def __node_init__(self):
@@ -99,9 +105,9 @@ class DepthCudaNode(Node):
         self._stereo = cv2.cuda.createStereoSGM(
             minDisparity=0,
             numDisparities=self.num_disparities,
-            P1=8 * 1 * 5 ** 2,
-            P2=32 * 1 * 5 ** 2,
-            uniquenessRatio=10,
+            P1=self.p1,
+            P2=self.p2,
+            uniquenessRatio=self.uniqueness_ratio,
         )
 
         # Pre-allocated GPU mat for frame upload.
@@ -165,7 +171,10 @@ class DepthCudaNode(Node):
 
         # Download disparity and compute depth on CPU.
         disparity = gpu_disparity.download().astype(np.float32) / 16.0
-        self.get_logger().info(f"disp min={disparity.min():.2f} max={disparity.max():.2f} valid={np.count_nonzero(disparity > 0)}/{disparity.size}")
+        self.get_logger().info(
+            f"disp min={disparity.min():.2f} "
+            f"max={disparity.max():.2f} "
+            f"valid={np.count_nonzero(disparity > 0)}/{disparity.size}")
 
         valid = disparity > 0
         self._np_buf[:] = 0.0
