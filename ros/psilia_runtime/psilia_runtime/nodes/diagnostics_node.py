@@ -27,9 +27,9 @@ MONITORED_TOPICS = [
     ("/psilia/stereo/image_raw",                Image),
     ("/psilia/stereo/image_rect",               Image),
     ("/psilia/stereo/depth",                    Image),
-    # ("/psilia/preview/image/compressed",        CompressedImage),
-    # ("/psilia/preview/depth/compressed",        CompressedImage),
-    # ("/psilia/preview/rectified/compressed",    CompressedImage),
+    ("/psilia/preview/image/compressed",        CompressedImage),
+    ("/psilia/preview/depth/compressed",        CompressedImage),
+    ("/psilia/preview/rectified/compressed",    CompressedImage),
     # ("/psilia/preview/pointcloud",              PointCloud2),
 ]
 

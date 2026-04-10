@@ -17,7 +17,7 @@ ros:
         preview_node:
             enable: true
             parameters:
-                target_height: 50
+                target_height: 1000
                 fps: 5
         depth_cuda_node:
             enable: true
@@ -34,6 +34,7 @@ ros:
                 max_depth: 3.0
                 fps: 5
         pointcloud_preview_node:
+            enable: false
             parameters:
                 fps: 2
                 num_samples: 10000
@@ -42,7 +43,7 @@ ros:
             - /psilia/interface
             - /psilia/heartbeat
     foxglove:
-        enabled: true
+        enabled: false
         topics:
             - /psilia/preview/image/compressed
             - /psilia/preview/depth/compressed
