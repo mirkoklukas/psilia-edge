@@ -18,6 +18,7 @@ tests/_tmp/
 # and testing directory for the runtime host
 .envrc
 _dev/
+demo/
 
 .venv/
 .vscode/

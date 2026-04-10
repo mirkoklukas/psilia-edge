@@ -23,10 +23,10 @@ ros:
             enable: true
             parameters:
                 num_disparities: 128
-                p1: 200
-                p2: 800
+                p1: 20
+                p2: 120
                 uniqueness_ratio: 10
-                publish_rectified: true
+                publish_rectified: false
         depth_preview_node:
             enable: true
             parameters:
