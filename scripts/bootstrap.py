@@ -118,10 +118,8 @@ def main(install_dir: Path) -> None:
     step_install_or_existing(install_dir)
     runtime_home = install_dir / "psilia-runtime-home"
 
-    info("Handing off to `psilia runtime init` …")
-    rc = subprocess.run(
-        [sys.executable, "-m", "psilia_edge.cli", "runtime", "init", str(runtime_home), "--mkdir"]
-    ).returncode
+    ok("Core bootstrap done — handing off to `psilia runtime init`…")
+    rc = subprocess.run(["psilia", "runtime", "init", str(runtime_home), "--mkdir"]).returncode
     sys.exit(rc)
 
 if __name__ == "__main__":
