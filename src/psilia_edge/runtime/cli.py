@@ -95,14 +95,63 @@ def pair():
 
 @app.command()
 def bootstrap(
-    device: str = typer.Argument(
-        None, help="Registered device name (runs command over SSH)"
+    device: str = typer.Argument(..., help="Registered device name"),
+    install_dir: str = typer.Option(
+        None,
+        "--install-dir",
+        "-i",
+        help="Install directory on the device (e.g. /ssd)",
     ),
 ) -> None:
-    """Run this once on a fresh Jetson (or laptop for dev)."""
-    raise NotImplementedError(
-        "Bootstrap command not implemented yet."
-        "For now please clone the repo, pip-install, and run 'psilia runtime init' to set up the runtime on the device."
+    """Bootstrap a fresh Jetson: clone repo, install CLI, set up runtime.
+
+    The device must already be paired (psilia pair). This copies the bootstrap
+    script to the device over SSH and runs it there.
+    """
+    import subprocess
+
+    from psilia_edge.runtime.config import get_repo_dir
+
+    ui.header(["Runtime", "Bootstrap"])
+
+    if install_dir is None:
+        ui.info("The install directory is where the repo will be cloned")
+        ui.info("and the runtime home will be created.")
+        install_dir = ui.ask("Install directory on the device", default="/ssd")
+
+    script = get_repo_dir() / "scripts" / "bootstrap.py"
+    if not script.exists():
+        ui.fail(f"bootstrap.py not found at {script}")
+        raise typer.Exit(1)
+
+    ui.info(f"Copying bootstrap script to {device}…")
+    rc = subprocess.run(
+        ["scp", "-q", str(script), f"{device}:/tmp/psilia_bootstrap.py"]
+    ).returncode
+    if rc != 0:
+        ui.fail("Failed to copy bootstrap script to device")
+        raise typer.Exit(1)
+    ui.ok("Script copied")
+
+    ui.info(f"Running bootstrap on {device}…")
+    rc = subprocess.run(
+        [
+            "ssh",
+            "-t",
+            "-o",
+            "LogLevel=ERROR",
+            device,
+            "bash",
+            "-lc",
+            f"'python3 /tmp/psilia_bootstrap.py {install_dir}'",
+        ]
+    ).returncode
+    if rc != 0:
+        ui.fail("Bootstrap failed")
+        raise typer.Exit(1)
+    ui.done(
+        f"{device} bootstrapped.",
+        f"Next: [bold]psilia runtime start --base -d {device}[/bold]",
     )
 
 
@@ -221,6 +270,8 @@ def start(
     port: int = typer.Option(None, help="HTTP port", hidden=True),
 ) -> None:
     """Start base layer then spatial layer."""
+    import logging
+
     from psilia_edge.runtime.core import (
         SpatialRequirementsError,
         is_base_layer_running,
@@ -231,18 +282,17 @@ def start(
     )
 
     ui.header(["Runtime", "Start"])
+    logging.getLogger("psilia_edge.runtime.core").setLevel(logging.INFO)
 
     if base_only:
         if is_base_layer_running():
             ui.warn("Base layer already running.")
             raise typer.Exit(1)
-        with ui.status("Starting base layer…"):
-            result = start_base_layer(host=host, port=port)
+        result = start_base_layer(host=host, port=port)
         ui.print_tree(result, label="base")
-        with ui.status("Checking spatial requirements…"):
-            from psilia_edge.runtime.core import check_spatial_requirements
+        from psilia_edge.runtime.core import check_spatial_requirements
 
-            ctx = check_spatial_requirements()
+        ctx = check_spatial_requirements()
         ui.print_tree(_checks_dict(ctx), label="spatial requirements")
         return
 
@@ -251,8 +301,7 @@ def start(
             ui.warn("Spatial layer already running.")
             raise typer.Exit(1)
         try:
-            with ui.status("Starting spatial layer…"):
-                result = start_spatial_layer(force=force)
+            result = start_spatial_layer(force=force)
         except SpatialRequirementsError as e:
             ui.print_tree(_checks_dict(e.result), label="requirements")
             ui.fail(
@@ -264,8 +313,7 @@ def start(
 
     # default: start both layers
     try:
-        with ui.status("Starting runtime…"):
-            result = start_runtime(host=host, port=port, force=force)
+        result = start_runtime(host=host, port=port, force=force)
     except SpatialRequirementsError as e:
         ui.print_tree(_checks_dict(e.result), label="requirements")
         ui.fail(
@@ -290,6 +338,8 @@ def stop(
     ),
 ) -> None:
     """Stop spatial layer then base layer."""
+    import logging
+
     from psilia_edge.runtime.core import (
         is_base_layer_running,
         is_spatial_layer_running,
@@ -299,13 +349,13 @@ def stop(
     )
 
     ui.header(["Runtime", "Stop"])
+    logging.getLogger("psilia_edge.runtime.core").setLevel(logging.INFO)
 
     if base_only:
         if not is_base_layer_running():
             ui.warn("Base layer is not running.")
             raise typer.Exit(1)
-        with ui.status("Stopping base layer…"):
-            result = stop_base_layer()
+        result = stop_base_layer()
         ui.print_tree(result, label="base")
         return
 
@@ -313,14 +363,12 @@ def stop(
         if not is_spatial_layer_running():
             ui.warn("Spatial layer is not running.")
             raise typer.Exit(1)
-        with ui.status("Stopping spatial layer…"):
-            result = stop_spatial_layer()
+        result = stop_spatial_layer()
         ui.print_tree(result, label="spatial")
         return
 
     # default: stop both layers
-    with ui.status("Stopping runtime…"):
-        result = stop_runtime()
+    result = stop_runtime()
     ui.print_tree(result, label="runtime")
 
 

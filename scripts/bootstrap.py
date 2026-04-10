@@ -38,7 +38,7 @@ DEFAULT_INSTALL_DIR = Path("/ssd")
 
 def ok(msg: str)    -> None: print(f"  ✓ {msg}")
 def info(msg: str)  -> None: print(f"    {msg}")
-def title(msg: str) -> None: print(f"\n→ {msg}")
+def title(msg: str) -> None: print(f"\n  ⏵⏵ {msg}")
 
 
 def fail(msg: str) -> None:
@@ -47,12 +47,8 @@ def fail(msg: str) -> None:
 
 
 def header(install_dir: Path) -> None:
-    print(f"""
-
-  Ψ Psilia Edge → Bootstrap
-    Install directory: {install_dir}
-
-""")
+    print(f"\n  Ψ Psilia Edge → Bootstrap")
+    print(f"    Install directory: {install_dir}\n")
 
 # ── steps ─────────────────────────────────────────────────────────────────────
 
@@ -122,10 +118,11 @@ def main(install_dir: Path) -> None:
     step_install_or_existing(install_dir)
     runtime_home = install_dir / "psilia-runtime-home"
 
-    print("Handing off to `psilia runtime init` …\n")
-    os.execvp("psilia", ["psilia", "runtime", "init", str(runtime_home), "--mkdir"])
-
-    print("\nBootstrap complete.\n")
+    info("Handing off to `psilia runtime init` …")
+    rc = subprocess.run(
+        [sys.executable, "-m", "psilia_edge.cli", "runtime", "init", str(runtime_home), "--mkdir"]
+    ).returncode
+    sys.exit(rc)
 
 if __name__ == "__main__":
     import argparse

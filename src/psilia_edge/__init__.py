@@ -3,9 +3,20 @@ __version__ = "0.1.0"
 import logging
 from rich.logging import RichHandler
 
+# Match ui.PADDING_LEFT (can't import from ui.py due to circular import)
+_LOG_PADDING = 2
+
 logging.basicConfig(
     level=logging.WARNING,
-    handlers=[RichHandler(show_path=True)],
+    format=f"{' ' * _LOG_PADDING}%(message)s",
+    handlers=[
+        RichHandler(
+            show_time=False,
+            show_level=False,
+            show_path=False,
+            markup=True,
+        )
+    ],
 )
 # 0.1.0 — pre-1.0 (in development)
 # 1.0.0a1 — alpha

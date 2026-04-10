@@ -1,5 +1,5 @@
 runtime:
-  home_path: null
-  api_port: 8080
-  rosbridge_port: 9090
-  foxglove_port: 8765
+    home_path: null
+    api_port: 8080
+    rosbridge_port: 9090
+    foxglove_port: 8765

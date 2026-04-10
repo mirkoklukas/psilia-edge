@@ -211,8 +211,11 @@ def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
 
     if port is None:
         port = get_api_port()
+
+    logger.info("Starting web server…")
     pid = start_daemon(host=host, port=port)
     time.sleep(1.5)  # give uvicorn a moment to bind
+    logger.info("Web server started (PID %s)", pid)
 
     hostname = socket.gethostname().split(".")[0]
     _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -233,13 +236,17 @@ def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
     }
 
     if not is_docker_daemon_running():
+        logger.info("Docker daemon is not running — skipping container")
         result["container"] = "error: Docker daemon is not running"
         return result
 
+    logger.info("Starting Docker container…")
     rc, _, err = start_runtime_container()
     if rc != 0:
+        logger.info("Container failed: %s", err)
         result["container"] = f"error: {err}"
     else:
+        logger.info("Container started")
         result["container"] = "started"
 
     return result
@@ -251,12 +258,17 @@ def stop_base_layer() -> dict:
     from psilia_edge.runtime.docker import is_container_running, stop_runtime_container
 
     if is_container_running():
+        logger.info("Stopping Docker container…")
         rc, _, err = stop_runtime_container()
         container = "stopped" if rc == 0 else f"error: {err}"
+        logger.info("Container %s", container)
     else:
+        logger.info("Container not running — skipping")
         container = "not_running"
 
+    logger.info("Stopping web server…")
     stopped = stop_daemon()
+    logger.info("Web server %s", "stopped" if stopped else "was not running")
     return {
         "status": "stopped" if stopped else "not_running",
         "container": container,
@@ -388,6 +400,7 @@ def start_spatial_layer(force: bool = False) -> dict:
     from psilia_edge.runtime.docker import start_ros_launch
     from psilia_edge.utils import write_yaml
 
+    logger.info("Checking spatial requirements…")
     ctx = check_spatial_requirements()
 
     if not ctx["container"].ok:
@@ -396,15 +409,20 @@ def start_spatial_layer(force: bool = False) -> dict:
     if not force and not ctx.ok:
         raise SpatialRequirementsError(ctx)
 
+    logger.info("Building launch parameters…")
     launch_params = _build_launch_params(ctx)
 
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     write_yaml(RUN_DIR / "launch_params.yaml", launch_params)
 
     launch_script = get_launch_script()
+    logger.info("Launching ROS nodes…")
     rc, _, err = start_ros_launch(launch_script)
     if rc != 0:
+        logger.info("ROS launch failed: %s", err)
         return {"status": "error", "error": err}
+
+    logger.info("Spatial layer started (%d nodes)", len(launch_params["nodes"]))
 
     camera = ctx["camera"]
     calibration = ctx["camera.calibration"] if camera.ok else None
@@ -424,11 +442,15 @@ def stop_spatial_layer() -> dict:
     from psilia_edge.runtime.docker import is_ros_launch_running, stop_ros_launch
 
     if not is_ros_launch_running():
+        logger.info("ROS nodes not running — skipping")
         return {"status": "not_running"}
 
+    logger.info("Stopping ROS nodes…")
     rc, _, err = stop_ros_launch()
     if rc != 0:
+        logger.info("Failed to stop ROS nodes: %s", err)
         return {"status": "error", "error": err}
+    logger.info("ROS nodes stopped")
     return {"status": "stopped"}
 
 
