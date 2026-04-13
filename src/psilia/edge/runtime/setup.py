@@ -14,6 +14,7 @@ from rich.prompt import Prompt
 from psilia.edge.utils import (
     run,
     run_streamed,
+    run_with_spinner,
     sudo_streamed,
     sudo,
     prompt_sudo_password,
@@ -41,7 +42,9 @@ _PSILIA_REPO_URL = "https://github.com/mirkoklukas/psilia-edge.git"
 _PSILIA_REPO_BRANCH = "dev"
 
 
-def run_runtime_init(runtime_home: Path, mkdir: bool = False) -> None:
+def run_runtime_init(
+    runtime_home: Path, mkdir: bool = False, quiet: bool = False
+) -> None:
     """Wizard: initialize a runtime home directory.
 
     Steps:
@@ -54,14 +57,17 @@ def run_runtime_init(runtime_home: Path, mkdir: bool = False) -> None:
 
     _step_init_configs(runtime_home)
     _step_create_dirs(runtime_home, mkdir=mkdir)
-    _step_build_image(get_docker_image(), get_docker_dir(), get_dockerfile())
+    _step_build_image(
+        get_docker_image(), get_docker_dir(), get_dockerfile(), quiet=quiet
+    )
     _step_copy_ros()
 
-    ui.print_tree(read_config(), label=f"'{CONFIG_PATH.name}'")
-    ui.done(
-        "Runtime initialized.",
-        "Next: [bold]psilia runtime start[/bold]",
-    )
+    if not quiet:
+        ui.print_tree(read_config(), label=f"'{CONFIG_PATH.name}'")
+        ui.done(
+            "Runtime initialized.",
+            "Next: [bold]psilia runtime start[/bold]",
+        )
 
 
 def run_hotspot_setup() -> None:
@@ -404,11 +410,15 @@ def _step_copy_ros() -> None:
 
 
 # TODO: we might want to copy the dockerfile to the ros directory so users can modify it.
-def _step_build_image(image_name: str, docker_dir: Path, dockerfile: Path) -> None:
-    ui.info(f"Building Docker image ({dockerfile.name})…")
-    rc = run_streamed(
-        f"docker build --network=host -f {dockerfile} -t {image_name} {docker_dir}"
-    )
+def _step_build_image(
+    image_name: str, docker_dir: Path, dockerfile: Path, quiet: bool = False
+) -> None:
+    cmd = f"docker build --network=host -f {dockerfile} -t {image_name} {docker_dir}"
+    if quiet:
+        rc = run_with_spinner(cmd, f"Building Docker image ({dockerfile.name})…")
+    else:
+        ui.info(f"Building Docker image ({dockerfile.name})…")
+        rc = run_streamed(cmd)
     if rc != 0:
         raise RuntimeError(f"Docker build failed with code {rc}")
     ui.ok(f"Docker image built: {image_name}")

@@ -9,6 +9,11 @@ Parameters (set via launch file or command line):
   target_height  — target height in pixels after downsampling (default 50)
   fps            — publish rate in Hz (default 5)
   max_depth      — clamp depth to this value in meters for colormap scaling (default 10.0)
+
+TODO: Higher-resolution previews in the web UI. Currently limited by rosbridge's
+  JSON+base64 serialization overhead — large images choke the websocket. Options:
+  switch the web UI to foxglove bridge (binary protocol), or serve preview images
+  via a direct HTTP endpoint instead of rosbridge.
 """
 import array
 import time

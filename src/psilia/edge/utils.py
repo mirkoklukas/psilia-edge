@@ -116,6 +116,51 @@ def _run_subprocess(
     return result.returncode, result.stdout, result.stderr
 
 
+def run_with_spinner(cmd: str, msg: str, tail: int = 3) -> int:
+    """Run a command with a spinner, showing the last `tail` lines of output.
+
+    On failure, prints the full captured output for debugging. Returns the exit code.
+    """
+    from collections import deque
+    from rich.live import Live
+    from rich.padding import Padding
+    from rich.spinner import Spinner
+    from rich.console import Group
+
+    lines: list[str] = []
+    recent: deque[str] = deque(maxlen=tail)
+
+    process = subprocess.Popen(
+        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+
+    def _renderable():
+        tail_text = "\n".join(f"[dim]{ln}[/dim]" for ln in recent)
+        spinner = Spinner("dots", text=msg, style="bright_magenta")
+        parts = [spinner]
+        if tail_text:
+            parts.append(ui.Text(tail_text))
+        return Padding(Group(*parts), (0, ui.PADDING_LEFT), expand=False)
+
+    with Live(
+        _renderable(), console=ui.console, transient=True, refresh_per_second=8
+    ) as live:
+        for line in process.stdout:
+            line = line.rstrip()
+            lines.append(line)
+            recent.append(line)
+            live.update(_renderable())
+
+    process.wait()
+
+    if process.returncode != 0:
+        ui.warn("Command output:")
+        for line in lines:
+            ui.print_line(f"[dim]{line}[/dim]", highlight=False)
+
+    return process.returncode
+
+
 def run_streamed(cmd: str, prefix: str = "") -> int:
     """Run a command and stream output live to the terminal via Rich.
 

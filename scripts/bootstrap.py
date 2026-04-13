@@ -48,7 +48,7 @@ def fail(msg: str) -> None:
 
 def header(install_dir: Path) -> None:
     print(f"\n  Ψ Psilia Edge → Bootstrap")
-    print(f"    Install directory: {install_dir}\n")
+    print(f"    Install directory: {install_dir}")
 
 # ── steps ─────────────────────────────────────────────────────────────────────
 
@@ -119,7 +119,7 @@ def main(install_dir: Path) -> None:
     runtime_home = install_dir / "psilia-runtime-home"
 
     ok("Core bootstrap done — handing off to `psilia runtime init`…")
-    rc = subprocess.run(["psilia", "runtime", "init", str(runtime_home), "--mkdir"]).returncode
+    rc = subprocess.run(["psilia", "runtime", "init", str(runtime_home), "--mkdir", "--quiet"]).returncode
     sys.exit(rc)
 
 if __name__ == "__main__":

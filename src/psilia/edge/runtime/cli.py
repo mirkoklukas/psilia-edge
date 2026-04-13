@@ -187,13 +187,20 @@ def init(
         bool,
         typer.Option("--mkdir", "-m", help="Create the directory if it doesn't exist."),
     ] = False,
+    quiet: Annotated[
+        bool,
+        typer.Option(
+            "--quiet", "-q", help="Suppress the final summary and done message."
+        ),
+    ] = False,
 ) -> None:
     """Minimal runtime setup: create directory structure, build Docker image, copy ROS package."""
     from psilia.edge.runtime.setup import run_runtime_init
 
-    ui.header(["Runtime", "Init"], "Setting up a bare-bones runtime home…")
+    if not quiet:
+        ui.header(["Runtime", "Init"], "Setting up a bare-bones runtime home…")
     try:
-        run_runtime_init(runtime_home, mkdir=mkdir)
+        run_runtime_init(runtime_home, mkdir=mkdir, quiet=quiet)
     except RuntimeError as e:
         ui.fail(str(e))
         raise typer.Exit(1)
