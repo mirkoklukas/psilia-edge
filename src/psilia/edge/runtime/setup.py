@@ -11,16 +11,16 @@ from pathlib import Path
 
 from rich.prompt import Prompt
 
-from psilia_edge.utils import (
+from psilia.edge.utils import (
     run,
     run_streamed,
     sudo_streamed,
     sudo,
     prompt_sudo_password,
 )
-from psilia_edge import ui
-from psilia_edge.ui import console
-from psilia_edge.runtime.config import (
+from psilia.edge import ui
+from psilia.edge.ui import console
+from psilia.edge.runtime.config import (
     CONFIG_PATH,
     RUNTIME_DIRS,
     get_repo_dir,
@@ -76,8 +76,8 @@ def run_hotspot_setup() -> None:
 
     TODO: client mode — connect to a phone hotspot instead of acting as AP.
     """
-    from psilia_edge.network.hotspot import create_hotspot, find_active_hotspot
-    from psilia_edge.network.probe import list_interfaces
+    from psilia.edge.network.hotspot import create_hotspot, find_active_hotspot
+    from psilia.edge.network.probe import list_interfaces
 
     _, name, _ = run("hostname")
     name = name.strip()
@@ -203,9 +203,9 @@ def run_wifi_setup() -> None:
     - Otherwise scan for visible networks and connect to a new one
     - Prompt for autoconnect and priority
     """
-    from psilia_edge.network.hotspot import find_active_hotspot
-    from psilia_edge.network.probe import list_interfaces
-    from psilia_edge.network.wifi import (
+    from psilia.edge.network.hotspot import find_active_hotspot
+    from psilia.edge.network.probe import list_interfaces
+    from psilia.edge.network.wifi import (
         CLIENT_AUTOCONNECT_PRIORITY,
         activate_connection,
         connect_to_network,

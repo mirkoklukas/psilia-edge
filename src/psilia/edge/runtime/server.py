@@ -13,10 +13,10 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from psilia_edge.runtime.config import get_api_port
+from psilia.edge.runtime.config import get_api_port
 
 
-# Assumes editable install: .../psilia-edge/src/psilia_edge/runtime/server.py
+# Assumes editable install: .../psilia-edge/src/psilia.edge/runtime/server.py
 WEB_DIR = Path(__file__).resolve().parent.parent.parent.parent / "web"
 
 # ── SSE broadcast ─────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ def _strip_volatile(status: dict) -> dict:
 
 
 def _get_status() -> dict:
-    from psilia_edge.runtime.status import runtime_status
+    from psilia.edge.runtime.status import runtime_status
 
     return runtime_status(uptime=True, spatial_running=True, spatial_requirements=True)
 
@@ -103,7 +103,7 @@ async def api_events() -> StreamingResponse:
 
 @app.get("/api/config")
 async def api_config() -> JSONResponse:
-    from psilia_edge.runtime.config import read_config
+    from psilia.edge.runtime.config import read_config
 
     return JSONResponse(dict(read_config()))
 
@@ -121,7 +121,7 @@ async def api_status(
     storage: bool = True,
     hotspot: bool = True,
 ) -> JSONResponse:
-    from psilia_edge.runtime.status import runtime_status
+    from psilia.edge.runtime.status import runtime_status
 
     status = await asyncio.to_thread(
         runtime_status,
@@ -141,7 +141,7 @@ async def api_status(
 
 @app.post("/api/spatial/start")
 async def api_spatial_start(force: bool = False) -> JSONResponse:
-    from psilia_edge.runtime.core import SpatialRequirementsError, start_spatial_layer
+    from psilia.edge.runtime.core import SpatialRequirementsError, start_spatial_layer
 
     try:
         return JSONResponse(await asyncio.to_thread(start_spatial_layer, force))
@@ -152,14 +152,14 @@ async def api_spatial_start(force: bool = False) -> JSONResponse:
 
 @app.post("/api/spatial/stop")
 async def api_spatial_stop() -> JSONResponse:
-    from psilia_edge.runtime.core import stop_spatial_layer
+    from psilia.edge.runtime.core import stop_spatial_layer
 
     return JSONResponse(await asyncio.to_thread(stop_spatial_layer))
 
 
 @app.get("/api/js/config.js", response_class=PlainTextResponse)
 async def api_js_config() -> str:
-    from psilia_edge.runtime.config import get_api_port, get_rosbridge_port
+    from psilia.edge.runtime.config import get_api_port, get_rosbridge_port
 
     return (
         f"window.PSILIA = {{"
@@ -171,7 +171,7 @@ async def api_js_config() -> str:
 
 @app.get("/api/recordings")
 async def api_recordings() -> JSONResponse:
-    from psilia_edge.runtime.config import get_data_dir
+    from psilia.edge.runtime.config import get_data_dir
 
     data_dir = get_data_dir()
     files = []

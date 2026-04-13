@@ -22,7 +22,7 @@ import os
 from pathlib import Path
 
 
-from psilia_edge.utils import NestedDict, read_yaml, write_yaml
+from psilia.edge.utils import NestedDict, read_yaml, write_yaml
 
 
 class ConfigurationError(Exception):
@@ -40,7 +40,7 @@ RUN_DIR = CONFIG_DIR / "run"
 LOG_DIR = CONFIG_DIR / "log"
 CALIBRATIONS_DIR = CONFIG_DIR / "calibrations"
 INITIAL_CONFIG_PATH = (
-    importlib.resources.files("psilia_edge.runtime") / "psilia.initial.yaml"
+    importlib.resources.files("psilia.edge.runtime") / "psilia.initial.yaml"
 )
 
 #
@@ -56,7 +56,7 @@ RUNTIME_DIRS = ["ros", "data", "log", "conf"]
 DEFAULT_RUNTIME_CONFIG_NAME = "runtime.yaml"
 # Default runtime config shipped with the package.
 INITIAL_RUNTIME_CONFIG_PATH = (
-    importlib.resources.files("psilia_edge.runtime") / "runtime.initial.yaml"
+    importlib.resources.files("psilia.edge.runtime") / "runtime.initial.yaml"
 )
 
 #
@@ -231,7 +231,7 @@ def _check_paths(path_dict) -> None:
 
     Raises FileNotFoundError if any path is missing or not a directory.
     """
-    import psilia_edge.ui as ui
+    import psilia.edge.ui as ui
 
     for name, path in path_dict.items():
         if callable(path):
@@ -248,7 +248,7 @@ def _check_paths(path_dict) -> None:
 
 
 def _check_config() -> None:
-    import psilia_edge.ui as ui
+    import psilia.edge.ui as ui
 
     _check_paths(
         {

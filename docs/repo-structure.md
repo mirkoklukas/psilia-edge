@@ -4,7 +4,7 @@
 
 ```
 psilia-edge/
-  src/psilia_edge/      Python package, CLI, and service layer
+  src/psilia/           Python packages (psilia.edge, psilia.core)
   ros/                  ROS 2 package and Docker setup
   web/                  Browser UI (served by base layer)
   scripts/              Bootstrap scripts for Jetson setup
@@ -12,19 +12,24 @@ psilia-edge/
   assets/               Logo files, ASCII art
 ```
 
-## `src/psilia_edge/` — Python Package
+## `src/psilia/` — Python Packages
 
-The installable Python package. Provides the `psilia` CLI entry point.
+The `psilia` namespace contains two subpackages:
+
+- **`psilia.edge`** — CLI, runtime lifecycle, device management. Provides the `psilia` CLI entry point.
+- **`psilia.core`** — Inference engine (WIP).
 
 ```
-psilia_edge/
-  cli.py                Top-level CLI (typer) — runtime, sensor, data sub-apps
-  ui.py                 Rich-based terminal output helpers
-  runtime/              Runtime lifecycle (the core product)
-    sensor.py           Sensor registration and calibration management
-  device_manager/       Laptop-side device and data management
-  network/              Network/connectivity helpers
-  mcap/                 MCAP recording utilities (WIP)
+psilia/
+  edge/
+    cli.py                Top-level CLI (typer) — runtime, sensor, data sub-apps
+    ui.py                 Rich-based terminal output helpers
+    runtime/              Runtime lifecycle (the core product)
+      sensor.py           Sensor registration and calibration management
+    device_manager/       Laptop-side device and data management
+    network/              Network/connectivity helpers
+    mcap/                 MCAP recording utilities (WIP)
+  core/                   Inference engine (WIP)
 ```
 
 

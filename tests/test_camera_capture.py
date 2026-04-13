@@ -39,7 +39,7 @@ def parse_args():
 def auto_detect():
     """Try to auto-detect a camera via hotplug (Linux only)."""
     try:
-        from psilia_edge.runtime.hotplug import pick_camera_device
+        from psilia.edge.runtime.hotplug import pick_camera_device
         cam = pick_camera_device()
         if cam:
             print(f"[auto-detect] found: {cam}")

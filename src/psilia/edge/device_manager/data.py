@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from psilia_edge.runtime.config import ConfigurationError, read_config
+from psilia.edge.runtime.config import ConfigurationError, read_config
 
 
 def get_pull_to() -> Path:
@@ -25,7 +25,7 @@ def get_remote_data_dir(device: str) -> str:
 
     Raises RuntimeError if the query fails.
     """
-    from psilia_edge.utils import run_on_device_capture
+    from psilia.edge.utils import run_on_device_capture
 
     rc, stdout, _ = run_on_device_capture(device, "psilia runtime config data-dir")
     if rc != 0:
@@ -40,7 +40,7 @@ def get_active_recording(device: str) -> str | None:
     """
     import json
 
-    from psilia_edge.utils import run_on_device_capture
+    from psilia.edge.utils import run_on_device_capture
 
     rc, stdout, _ = run_on_device_capture(
         device, "psilia runtime status --recording --json"

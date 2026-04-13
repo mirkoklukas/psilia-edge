@@ -17,13 +17,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable
 
-from psilia_edge.runtime.config import (
+from psilia.edge.runtime.config import (
     CONTAINER_NAME,
     RUN_DIR,
     get_api_port,
     get_rosbridge_port,
 )
-from psilia_edge.runtime.daemon import LOG_FILE, get_pid
+from psilia.edge.runtime.daemon import LOG_FILE, get_pid
 
 
 _SECTIONS: dict[str, Callable[[], dict]] = {}
@@ -76,14 +76,14 @@ def _base_section() -> dict:
 
 @_register("spatial_running")
 def _spatial_running_section() -> dict:
-    from psilia_edge.runtime.docker import is_ros_launch_running
+    from psilia.edge.runtime.docker import is_ros_launch_running
 
     return {"running": is_ros_launch_running()}
 
 
 @_register("spatial")
 def _spatial_section() -> dict:
-    from psilia_edge.runtime.docker import is_ros_launch_running
+    from psilia.edge.runtime.docker import is_ros_launch_running
 
     running = is_ros_launch_running()
     section: dict = {"running": running}
@@ -92,8 +92,8 @@ def _spatial_section() -> dict:
         section["ros"] = _SECTIONS["ros"]()
 
         # Show calibration and foxglove status from launch_params / config.
-        from psilia_edge.utils import read_yaml
-        from psilia_edge.runtime.config import read_runtime_config
+        from psilia.edge.utils import read_yaml
+        from psilia.edge.runtime.config import read_runtime_config
 
         launch_params = read_yaml(RUN_DIR / "launch_params.yaml") or {}
         rectify_params = launch_params.get("rectify_node", {}).get(
@@ -105,7 +105,7 @@ def _spatial_section() -> dict:
         rt_config = read_runtime_config()
         foxglove_cfg = rt_config.get("ros", {}).get("foxglove", {})
         if foxglove_cfg.get("enabled", False):
-            from psilia_edge.runtime.config import read_config
+            from psilia.edge.runtime.config import read_config
 
             port = read_config().get("runtime", {}).get("foxglove_port", 8765)
             hostname = socket.gethostname().split(".")[0]
@@ -139,7 +139,7 @@ def _server_section() -> dict:
 
 @_register("docker")
 def _docker_section() -> dict:
-    from psilia_edge.runtime.docker import (
+    from psilia.edge.runtime.docker import (
         check_container_status,
         is_docker_daemon_running,
     )
@@ -155,7 +155,7 @@ def _docker_section() -> dict:
 
 @_register("ros")
 def _ros_section() -> dict:
-    from psilia_edge.runtime.docker import is_port_open, list_ros_nodes, list_ros_topics
+    from psilia.edge.runtime.docker import is_port_open, list_ros_nodes, list_ros_topics
 
     rosbridge_port = get_rosbridge_port()
     return {
@@ -170,7 +170,7 @@ def _ros_section() -> dict:
 
 @_register("recording")
 def _recording_section() -> dict:
-    from psilia_edge.runtime.docker import get_recording_process
+    from psilia.edge.runtime.docker import get_recording_process
 
     cmdline = get_recording_process()
     if cmdline is None:
@@ -190,7 +190,7 @@ def _recording_section() -> dict:
 
 @_register("spatial_requirements")
 def _spatial_requirements_section() -> dict:
-    from psilia_edge.runtime.core import check_spatial_requirements
+    from psilia.edge.runtime.core import check_spatial_requirements
 
     ctx = check_spatial_requirements()
     return ctx.to_dict()
@@ -200,8 +200,8 @@ def _spatial_requirements_section() -> dict:
 def _storage_section() -> dict:
     import shutil
 
-    from psilia_edge.runtime.config import get_data_dir
-    from psilia_edge.utils import run
+    from psilia.edge.runtime.config import get_data_dir
+    from psilia.edge.utils import run
 
     data_dir = get_data_dir()
     section: dict = {"data_dir": str(data_dir)}
@@ -228,9 +228,9 @@ def _storage_section() -> dict:
 
 @_register("hotspot")
 def _hotspot_section() -> dict:
-    from psilia_edge.network.hotspot import get_ap_ssid
-    from psilia_edge.network.probe import list_interfaces
-    from psilia_edge.runtime.config import read_config
+    from psilia.edge.network.hotspot import get_ap_ssid
+    from psilia.edge.network.probe import list_interfaces
+    from psilia.edge.runtime.config import read_config
 
     expected_ssid = read_config().get("network", {}).get("ap", {}).get("ssid")
     active_ssid = None

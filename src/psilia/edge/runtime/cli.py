@@ -29,8 +29,8 @@ from pathlib import Path
 
 import typer
 
-from psilia_edge import ui
-from psilia_edge.runtime.config import _check_config
+from psilia.edge import ui
+from psilia.edge.runtime.config import _check_config
 
 
 def device_decorator(func):
@@ -62,7 +62,7 @@ def device_decorator(func):
 
     @functools.wraps(func)
     def wrapper(*args, device=None, **kwargs):
-        from psilia_edge.utils import run_on_device
+        from psilia.edge.utils import run_on_device
 
         if device is not None:
             run_on_device(device, f"psilia runtime {func.__name__}")
@@ -88,7 +88,7 @@ app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devi
 @app.command()
 def pair():
     """Pair a Jetson: connect, generate SSH keypair, register device on this laptop."""
-    from psilia_edge.device_manager.pair import run_pair_wizard
+    from psilia.edge.device_manager.pair import run_pair_wizard
 
     run_pair_wizard()
 
@@ -110,7 +110,7 @@ def bootstrap(
     """
     import subprocess
 
-    from psilia_edge.runtime.config import get_repo_dir
+    from psilia.edge.runtime.config import get_repo_dir
 
     ui.header(["Runtime", "Bootstrap"])
 
@@ -158,7 +158,7 @@ def bootstrap(
 @app.command()
 def devices():
     """List all registered Jetson devices."""
-    from psilia_edge.runtime.config import read_config
+    from psilia.edge.runtime.config import read_config
 
     config = read_config()
     devs = config.get("registered_devices", {})
@@ -189,7 +189,7 @@ def init(
     ] = False,
 ) -> None:
     """Minimal runtime setup: create directory structure, build Docker image, copy ROS package."""
-    from psilia_edge.runtime.setup import run_runtime_init
+    from psilia.edge.runtime.setup import run_runtime_init
 
     ui.header(["Runtime", "Init"], "Setting up a bare-bones runtime home…")
     try:
@@ -219,8 +219,8 @@ def setup(
     ),
 ) -> None:
     """Configure the runtime: init home directory, network hotspot, and WiFi."""
-    from psilia_edge.runtime.config import get_runtime_home
-    from psilia_edge.runtime.setup import (
+    from psilia.edge.runtime.config import get_runtime_home
+    from psilia.edge.runtime.setup import (
         run_runtime_init,
         run_hotspot_setup,
         run_wifi_setup,
@@ -244,7 +244,7 @@ def setup(
 @device_decorator
 def update() -> None:
     """Update ROS package and rebuilt docker container."""
-    from psilia_edge.runtime.setup import run_update
+    from psilia.edge.runtime.setup import run_update
 
     ui.header(["Runtime", "Update"], "Updating the runtime working directory…")
     run_update()
@@ -272,7 +272,7 @@ def start(
     """Start base layer then spatial layer."""
     import logging
 
-    from psilia_edge.runtime.core import (
+    from psilia.edge.runtime.core import (
         SpatialRequirementsError,
         is_base_layer_running,
         is_spatial_layer_running,
@@ -282,7 +282,7 @@ def start(
     )
 
     ui.header(["Runtime", "Start"])
-    logging.getLogger("psilia_edge.runtime.core").setLevel(logging.INFO)
+    logging.getLogger("psilia.edge.runtime.core").setLevel(logging.INFO)
 
     if base_only:
         if is_base_layer_running():
@@ -290,7 +290,7 @@ def start(
             raise typer.Exit(1)
         result = start_base_layer(host=host, port=port)
         ui.print_tree(result, label="base")
-        from psilia_edge.runtime.core import check_spatial_requirements
+        from psilia.edge.runtime.core import check_spatial_requirements
 
         ctx = check_spatial_requirements()
         ui.print_tree(_checks_dict(ctx), label="spatial requirements")
@@ -340,7 +340,7 @@ def stop(
     """Stop spatial layer then base layer."""
     import logging
 
-    from psilia_edge.runtime.core import (
+    from psilia.edge.runtime.core import (
         is_base_layer_running,
         is_spatial_layer_running,
         stop_base_layer,
@@ -349,7 +349,7 @@ def stop(
     )
 
     ui.header(["Runtime", "Stop"])
-    logging.getLogger("psilia_edge.runtime.core").setLevel(logging.INFO)
+    logging.getLogger("psilia.edge.runtime.core").setLevel(logging.INFO)
 
     if base_only:
         if not is_base_layer_running():
@@ -415,7 +415,7 @@ def status(
 ) -> None:
     import json as _json
 
-    from psilia_edge.runtime.status import runtime_status
+    from psilia.edge.runtime.status import runtime_status
 
     if json:
         ui.silence()
@@ -452,9 +452,9 @@ def status(
 #     from rich.live import Live
 #     from rich.panel import Panel
 #     from rich.text import Text
-#     from psilia_edge import ui
-#     from psilia_edge.runtime.status import live_status
-#     from psilia_edge.runtime.daemon import read_log_tail
+#     from psilia.edge import ui
+#     from psilia.edge.runtime.status import live_status
+#     from psilia.edge.runtime.daemon import read_log_tail
 
 #     ui.header(["Runtime", "Live View"], "Ctrl-C to detach…")
 #     try:
@@ -480,7 +480,7 @@ def logs(
 ) -> None:
     """Show ROS launch log output."""
     import subprocess
-    from psilia_edge.runtime.docker import get_ros_log_path
+    from psilia.edge.runtime.docker import get_ros_log_path
 
     log_path = get_ros_log_path()
     if not log_path.exists():
@@ -496,7 +496,7 @@ def logs(
 @app.command(hidden=True)
 def cam() -> None:
     """Detect connected camera and show what would be written to launch_params.yaml."""
-    from psilia_edge.runtime.hotplug import pick_camera_device
+    from psilia.edge.runtime.hotplug import pick_camera_device
 
     ui.header(["Runtime", "Camera"], "Detecting camera…")
     camera = pick_camera_device()
@@ -511,7 +511,7 @@ def cam() -> None:
 @app.command(hidden=True)
 def home() -> Path:
     """Print the runtime home directory path."""
-    from psilia_edge.runtime.config import get_runtime_home
+    from psilia.edge.runtime.config import get_runtime_home
 
     print(get_runtime_home())
 
@@ -519,7 +519,7 @@ def home() -> Path:
 @app.command(hidden=True)
 def repo() -> Path:
     """Print the runtime home directory path."""
-    from psilia_edge.runtime.config import get_repo_dir
+    from psilia.edge.runtime.config import get_repo_dir
 
     print(get_repo_dir())
 
@@ -558,7 +558,7 @@ def config(
     """
     import json as _json
 
-    from psilia_edge.runtime import config as _config
+    from psilia.edge.runtime import config as _config
 
     _KEYS: dict[str, Any] = {
         "home-dir": _config.get_runtime_home,

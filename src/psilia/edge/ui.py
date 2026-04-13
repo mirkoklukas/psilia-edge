@@ -10,7 +10,7 @@ from rich.text import Text
 from rich.pretty import pprint
 import yaml as _yaml_mod
 
-from psilia_edge import __version__
+from psilia.edge import __version__
 
 
 console = Console()

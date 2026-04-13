@@ -1,16 +1,16 @@
 """Minimal debug script: start container, run launch script, list ROS nodes."""
 
 import time
-import psilia_edge.ui as ui
-from psilia_edge.ui import console
-from psilia_edge.runtime.config import (
+import psilia.edge.ui as ui
+from psilia.edge.ui import console
+from psilia.edge.runtime.config import (
     DEFAULT_DOCKER_IMAGE,
     CONTAINER_NAME,
     get_ros_dir,
     get_log_dir,
     get_data_dir,
 )
-from psilia_edge.utils import run, run_streamed
+from psilia.edge.utils import run, run_streamed
 
 LAUNCH_SCRIPT = "default.launch.py"
 SETTLE_TIME = 5  # seconds to wait for nodes to come up after launch
