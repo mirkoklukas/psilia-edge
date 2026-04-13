@@ -7,8 +7,8 @@ import signal
 import subprocess
 import sys
 
-from psilia.edge import ui
-from psilia.edge.runtime.config import LOG_DIR, RUN_DIR
+from psilia_edge import ui
+from psilia_edge.runtime.config import LOG_DIR, RUN_DIR
 
 PID_FILE = RUN_DIR / "psilia-edge.pid"
 LOG_FILE = LOG_DIR / "psilia-edge.log"
@@ -49,7 +49,7 @@ def start_daemon(host: str = "0.0.0.0", port: int | None = None) -> int:
         raise RuntimeError(f"psilia base layer is already running (PID {get_pid()})")
 
     if port is None:
-        from psilia.edge.runtime.config import get_api_port
+        from psilia_edge.runtime.config import get_api_port
 
         port = get_api_port()
 
@@ -61,7 +61,7 @@ def start_daemon(host: str = "0.0.0.0", port: int | None = None) -> int:
         [
             sys.executable,
             "-c",
-            f"from psilia.edge.runtime.server import serve; serve('{host}', {port})",
+            f"from psilia_edge.runtime.server import serve; serve('{host}', {port})",
         ],
         stdout=log_fh,
         stderr=subprocess.STDOUT,

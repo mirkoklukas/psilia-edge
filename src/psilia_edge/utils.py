@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 import paramiko
-import psilia.edge.ui as ui
+import psilia_edge.ui as ui
 import yaml
 
 
@@ -89,7 +89,7 @@ def prompt_sudo_password() -> str | None:
     """
     check = subprocess.run("sudo -n true", shell=True, capture_output=True)
     if check.returncode != 0:
-        from psilia.edge.ui import ask
+        from psilia_edge.ui import ask
 
         return ask("sudo password", password=True)
     return None

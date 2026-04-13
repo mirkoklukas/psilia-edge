@@ -6,7 +6,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from psilia.edge.utils import run
+from psilia_edge.utils import run
 
 Runner = Callable[[list[str]], tuple[int, str, str]]
 

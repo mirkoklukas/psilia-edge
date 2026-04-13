@@ -11,15 +11,15 @@ from pathlib import Path
 
 import paramiko
 
-from psilia.edge import ui
-from psilia.edge.device_manager.config import (
+from psilia_edge import ui
+from psilia_edge.device_manager.config import (
     KEYS_DIR,
     _SSH_CONFIG_PATH,
     add_device_entry,
     sync_ssh_config,
     write_pull_to,
 )
-from psilia.edge.utils import SSHError, connect, ssh_run
+from psilia_edge.utils import SSHError, connect, ssh_run
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -99,7 +99,7 @@ def _step_ssh_keypair(client: paramiko.SSHClient, name: str) -> Path:
 
 def _step_add_device_entry(name: str, user: str, key_path: Path) -> None:
     ui.title("Register Device")
-    from psilia.edge.runtime.config import CONFIG_PATH
+    from psilia_edge.runtime.config import CONFIG_PATH
 
     add_device_entry(name=name, host=f"{name}.local", user=user, key_path=key_path)
     ui.ok(f"Device registered in {CONFIG_PATH}")

@@ -10,7 +10,7 @@ import subprocess
 
 from rich.prompt import Prompt
 
-from psilia.edge.ui import console
+from psilia_edge.ui import console
 
 # arp -a output line:  hostname (ip) at mac [ether] on iface
 # Only match entries with a resolved MAC (exclude '(incomplete)' entries).

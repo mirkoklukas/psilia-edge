@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from psilia.edge.runtime.config import CONFIG_DIR, read_config, write_config
+from psilia_edge.runtime.config import CONFIG_DIR, read_config, write_config
 
 KEYS_DIR = CONFIG_DIR / "keys"
 DATA_DIR = Path.home() / "psilia-data"

@@ -4,7 +4,7 @@ import sys
 
 logger = logging.getLogger(__name__)
 
-from psilia.edge.runtime.config import (  # noqa: E402
+from psilia_edge.runtime.config import (  # noqa: E402
     CALIBRATIONS_DIR,
     CONFIG_PATH,
     CONTAINER_NAME,
@@ -16,7 +16,7 @@ from psilia.edge.runtime.config import (  # noqa: E402
     get_rosbridge_port,
     get_runtime_config_path,
 )
-from psilia.edge.utils import run  # noqa: E402
+from psilia_edge.utils import run  # noqa: E402
 
 
 def start_runtime_container() -> tuple[int, str, str]:

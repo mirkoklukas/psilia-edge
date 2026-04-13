@@ -192,7 +192,7 @@ SSH wrapper for `psilia setup` on the Jetson. Bootstraps the device, then automa
 
 **On the Jetson, `psilia setup` runs:**
 
-> Note: keep step order in sync with `src/psilia.edge/setup/__init__.py`.
+> Note: keep step order in sync with `src/psilia_edge/setup/__init__.py`.
 
 1. **Install path** — prompt for the base installation directory (default: `/ssd/psilia`). All paths are derived from this.
 2. **Create directory structure** — `/etc/psilia/` on eMMC (config only), `/ssd/psilia/ros/src/`, `/ssd/psilia/data/recordings/` on the SSD.
@@ -639,7 +639,7 @@ Everything needed to run, manage, and interact with the Psilia runtime on a Jets
 ```
 psilia-edge/
   src/
-    psilia.edge/
+    psilia_edge/
       cli/                # psilia init, start, stop, pull, push, sync, ...
       runtime/            # base layer — FastAPI process managing Docker lifecycle
       mcap/               # MCAP reader, Dev API

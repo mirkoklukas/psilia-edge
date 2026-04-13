@@ -1,10 +1,10 @@
-from psilia.edge.network.hotspot import (
+from psilia_edge.network.hotspot import (
     create_hotspot,
     find_active_hotspot,
     hotspot_exists,
 )
-from psilia.edge.network.probe import Interface, list_interfaces
-from psilia.edge.network.wifi import (
+from psilia_edge.network.probe import Interface, list_interfaces
+from psilia_edge.network.wifi import (
     WifiConnection,
     WifiNetwork,
     activate_connection,

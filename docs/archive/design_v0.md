@@ -132,7 +132,7 @@ The role distinction is intentional and usually distinct for a given machine —
 ### Main Config: `~/.psilia/psilia.yaml`
 
 `~/.psilia/psilia.yaml` is the single unified config file for the psilia tooling on any machine.
-Its path is `psilia.edge.runtime.config.CONFIG_DIR/"psilia.yaml"`, also available as `psilia.edge.runtime.config.CONFIG_PATH`.
+Its path is `psilia_edge.runtime.config.CONFIG_DIR/"psilia.yaml"`, also available as `psilia_edge.runtime.config.CONFIG_PATH`.
 
 It can be split into two main parts associated with the two roles above (potentially more in the future) — either or both may be present depending on what the machine does:
 - (Spatial) Runtime specific: where the runtimes home folder is, and where to find the runtime configuration file, but also edge device information (e.g. how to access the hotspot)
@@ -252,7 +252,7 @@ For long-running steps (e.g. `docker build`), raw process output scrolls by via 
 
 - **`ui.*`** — user-facing formatted output. CLI and wizards only.
 - **process output** (`run_streamed`) — raw subprocess stdout piped to terminal. Long-running transparent operations only (e.g. `docker build`, `colcon build`). CLI and wizards only.
-- **`logging`** — developer-facing traces. Anywhere via `logger = logging.getLogger(__name__)`. Configured once in `psilia.edge/__init__.py` via `RichHandler`.
+- **`logging`** — developer-facing traces. Anywhere via `logger = logging.getLogger(__name__)`. Configured once in `psilia_edge/__init__.py` via `RichHandler`.
 
 
 ### `runtime/` module layout
@@ -636,7 +636,7 @@ When both a dongle and built-in WiFi are present, the Jetson can act as its own 
 - Structure logging across the stack and document a clear map of what writes where: daemon PID and log (`~/.psilia/run/`, `~/.psilia/log/`), ROS node logs (`{runtime_home}/log/` via `ROS_LOG_DIR`), colcon build logs (`{runtime_home}/ros/log/`), FastAPI/uvicorn logs, and `heartbeat.json`/`status.json` in `~/.psilia/run/`. Should answer: where do I look when something goes wrong at each layer?
 - Design how the spatial runtime ros node configuration and so on can be configured.
 - Add validation for config files (`psilia.yaml`, `runtime.yaml`) — schema check on read, clear error messages for missing or malformed fields.
-- Set up structured logging across `psilia.edge` (currently using `logging.getLogger(__name__)` in places but no root config). Warnings like rosbridge publish failures currently go nowhere.
+- Set up structured logging across `psilia_edge` (currently using `logging.getLogger(__name__)` in places but no root config). Warnings like rosbridge publish failures currently go nowhere.
 - Check Runtime status reliability: `status.json` and `heartbeat.json` are ephemeral (cleared on container start), and `_read_heartbeat()` now checks file mtime to detect stale data. But `_read_ros_status()` still depends on the rosbridge WebSocket publish succeeding — if that fails, `status.json` won't be refreshed and the ros section will be missing. Needs a reliable trigger mechanism (WebSocket, ROS topic, or direct container exec).
 - Add a `psilia runtime status --reliable` (or `--slow`) mode that fetches ROS nodes and topics directly via `docker exec ros2 node list` / `ros2 topic list` — slower but ground-truth, doesn't depend on rosbridge or status.json.
 - `psilia runtime status` should never show stale state from a previous session. Any data sourced from files (`heartbeat.json`, `status.json`) must either pass a freshness check or be shown as unavailable.

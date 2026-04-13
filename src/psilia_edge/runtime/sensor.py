@@ -12,7 +12,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from psilia.edge.runtime.config import CALIBRATIONS_DIR, read_config, write_config
+from psilia_edge.runtime.config import CALIBRATIONS_DIR, read_config, write_config
 
 
 def build_sensor_id(usb_info: dict) -> str:
@@ -124,7 +124,7 @@ def push_sensors(device: str, keys: list[str] | None = None) -> list[str]:
     Raises:
         KeyError: If a requested key is not found locally.
     """
-    from psilia.edge.utils import run_on_device_capture, run_streamed
+    from psilia_edge.utils import run_on_device_capture, run_streamed
 
     sensors = list_sensors()
     if keys is None:

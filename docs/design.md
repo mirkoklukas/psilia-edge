@@ -85,7 +85,7 @@ We could make `pull_to` a field on each paired device in `psilia.yaml` (per-devi
 ### Main Config: `~/.psilia/psilia.yaml`
 
 `~/.psilia/psilia.yaml` is the single unified config file for the psilia tooling on any machine.
-Its path is `psilia.edge.runtime.config.CONFIG_DIR/"psilia.yaml"`, also available as `psilia.edge.runtime.config.CONFIG_PATH`.
+Its path is `psilia_edge.runtime.config.CONFIG_DIR/"psilia.yaml"`, also available as `psilia_edge.runtime.config.CONFIG_PATH`.
 
 It can be split into two main parts associated with the two roles above (potentially more in the future) — either or both may be present depending on what the machine does:
 - (Spatial) Runtime specific: where the runtimes home folder is, and where to find the runtime configuration file, but also edge device information (e.g. how to access the hotspot)
@@ -324,7 +324,7 @@ For long-running steps (e.g. `docker build`), raw process output scrolls by via 
 
 - **`ui.*`** — user-facing formatted output. CLI and wizards only.
 - **process output** (`run_streamed`) — raw subprocess stdout piped to terminal. Long-running transparent operations only (e.g. `docker build`, `colcon build`). CLI and wizards only.
-- **`logging`** — developer-facing traces. Anywhere via `logger = logging.getLogger(__name__)`. Configured once in `psilia/edge/__init__.py` via `RichHandler`.
+- **`logging`** — developer-facing traces. Anywhere via `logger = logging.getLogger(__name__)`. Configured once in `psilia_edge/__init__.py` via `RichHandler`.
 
 
 ### `runtime/` module layout

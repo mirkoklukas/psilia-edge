@@ -11,8 +11,8 @@ from typing import Annotated, Optional
 
 import typer
 
-from psilia.edge import ui
-from psilia.edge.runtime.cli import app as runtime_app
+from psilia_edge import ui
+from psilia_edge.runtime.cli import app as runtime_app
 
 app = typer.Typer(help="Psilia Edge — spatial perception runtime for edge devices")
 
@@ -59,7 +59,7 @@ def sensor_add(
     ] = None,
 ) -> None:
     """Register a sensor and associate a calibration file."""
-    from psilia.edge.runtime.sensor import (
+    from psilia_edge.runtime.sensor import (
         list_sensors,
         register_sensor,
     )
@@ -94,8 +94,8 @@ def sensor_add(
 
     # -- Interactive mode --
     import sys
-    from psilia.edge.runtime.hotplug import scan_cameras
-    from psilia.edge.runtime.sensor import build_sensor_id
+    from psilia_edge.runtime.hotplug import scan_cameras
+    from psilia_edge.runtime.sensor import build_sensor_id
 
     ui.header(["Sensor", "Add"])
 
@@ -191,7 +191,7 @@ def sensor_add(
 @sensor_app.command("list")
 def sensor_list() -> None:
     """Show registered sensors."""
-    from psilia.edge.runtime.sensor import list_sensors
+    from psilia_edge.runtime.sensor import list_sensors
 
     sensors = list_sensors()
     if not sensors:
@@ -212,7 +212,7 @@ def sensor_remove(
     ),
 ) -> None:
     """Unregister a sensor."""
-    from psilia.edge.runtime.sensor import remove_sensor
+    from psilia_edge.runtime.sensor import remove_sensor
 
     try:
         remove_sensor(key, delete_calibration=delete_calibration)
@@ -230,7 +230,7 @@ def sensor_push(
     ),
 ) -> None:
     """Push sensor entries and calibration files to a remote device."""
-    from psilia.edge.runtime.sensor import push_sensors
+    from psilia_edge.runtime.sensor import push_sensors
 
     ui.header(["Sensor", "Push"])
 
@@ -252,7 +252,7 @@ def sensor_push(
 @sensor_app.command("scan")
 def sensor_scan() -> None:
     """Scan for connected cameras and USB devices."""
-    from psilia.edge.runtime.hotplug import scan_cameras, usb_list_devices
+    from psilia_edge.runtime.hotplug import scan_cameras, usb_list_devices
 
     ui.header(["Sensor", "Scan"], "Scanning for connected cameras…")
     groups = scan_cameras()
@@ -282,15 +282,15 @@ def pull(
     ),
 ) -> None:
     """Pull recorded MCAP data from a device to the local machine."""
-    from psilia.edge.device_manager.config import write_pull_to
-    from psilia.edge.device_manager.data import (
+    from psilia_edge.device_manager.config import write_pull_to
+    from psilia_edge.device_manager.data import (
         build_rsync_cmd,
         get_active_recording,
         get_pull_to,
         get_remote_data_dir,
     )
-    from psilia.edge.runtime.config import ConfigurationError, read_config
-    from psilia.edge.utils import run_streamed
+    from psilia_edge.runtime.config import ConfigurationError, read_config
+    from psilia_edge.utils import run_streamed
 
     # Resolve pull_to: flag > config > prompt
     if to is not None:
@@ -353,7 +353,7 @@ def _print_file(fname: str | Path) -> None:
 @app.command(hidden=True)
 def debug():
     """Show internal state, adapts to role (runtime host vs device manager)."""
-    from psilia.edge.runtime.core import is_runtime_host
+    from psilia_edge.runtime.core import is_runtime_host
 
     if is_runtime_host():
         _debug_runtime_host()
@@ -362,14 +362,14 @@ def debug():
 
 
 def _debug_runtime_host() -> None:
-    from psilia.edge.runtime.config import CONFIG_PATH
+    from psilia_edge.runtime.config import CONFIG_PATH
 
     _print_file(CONFIG_PATH)
 
 
 def _debug_device_manager() -> None:
-    from psilia.edge.runtime.config import CONFIG_PATH
-    from psilia.edge.device_manager.config import (
+    from psilia_edge.runtime.config import CONFIG_PATH
+    from psilia_edge.device_manager.config import (
         _SSH_CONFIG_PATH,
         _SSH_SECTION_END,
         _SSH_SECTION_START,

@@ -6,8 +6,8 @@ import logging
 import socket
 import time
 
-from psilia.edge.runtime.config import get_api_port, read_config
-from psilia.edge.runtime.requirements import (
+from psilia_edge.runtime.config import get_api_port, read_config
+from psilia_edge.runtime.requirements import (
     RequirementSpec,
     ResolverResult,
     run_requirements,
@@ -30,7 +30,7 @@ class SpatialRequirementsError(Exception):
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 def resolve_container() -> ResolverResult:
-    from psilia.edge.runtime.docker import is_container_running
+    from psilia_edge.runtime.docker import is_container_running
 
     ok = is_container_running()
     return ResolverResult(
@@ -40,13 +40,13 @@ def resolve_container() -> ResolverResult:
 
 
 def resolve_camera() -> ResolverResult:
-    from psilia.edge.runtime.hotplug import pick_camera_device
+    from psilia_edge.runtime.hotplug import pick_camera_device
 
     camera = pick_camera_device()
     if not camera:
         return ResolverResult(ok=False, detail="no camera detected")
 
-    from psilia.edge.runtime.sensor import build_sensor_id
+    from psilia_edge.runtime.sensor import build_sensor_id
 
     sensor_id = build_sensor_id(camera)
     return ResolverResult(
@@ -57,8 +57,8 @@ def resolve_camera() -> ResolverResult:
 
 
 def resolve_calibration(camera) -> ResolverResult:
-    from psilia.edge.runtime.config import read_runtime_config
-    from psilia.edge.runtime.sensor import get_calibration_file
+    from psilia_edge.runtime.config import read_runtime_config
+    from psilia_edge.runtime.sensor import get_calibration_file
 
     rt_config = read_runtime_config()
     camera_config = rt_config.get("camera", {})
@@ -77,7 +77,7 @@ def resolve_calibration(camera) -> ResolverResult:
 
 
 def resolve_resolution(camera, calibration) -> ResolverResult:
-    from psilia.edge.runtime.sensor import (
+    from psilia_edge.runtime.sensor import (
         get_calibration_resolution,
         is_calibration_compatible,
     )
@@ -112,7 +112,7 @@ def resolve_resolution(camera, calibration) -> ResolverResult:
 
 
 def resolve_cuda() -> ResolverResult:
-    from psilia.edge.runtime.docker import has_cuda
+    from psilia_edge.runtime.docker import has_cuda
 
     ok = has_cuda()
     return ResolverResult(
@@ -122,8 +122,8 @@ def resolve_cuda() -> ResolverResult:
 
 
 def resolve_hotspot() -> ResolverResult:
-    from psilia.edge.network.hotspot import get_ap_ssid
-    from psilia.edge.network.probe import list_interfaces
+    from psilia_edge.network.hotspot import get_ap_ssid
+    from psilia_edge.network.probe import list_interfaces
 
     expected_ssid = read_config().get("network", {}).get("ap", {}).get("ssid")
     active_ssid = None
@@ -203,8 +203,8 @@ def stop_runtime() -> dict:
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
     """Start the FastAPI daemon and the runtime container. Returns a summary dict for display."""
-    from psilia.edge.runtime.daemon import LOG_FILE, start_daemon
-    from psilia.edge.runtime.docker import (
+    from psilia_edge.runtime.daemon import LOG_FILE, start_daemon
+    from psilia_edge.runtime.docker import (
         is_docker_daemon_running,
         start_runtime_container,
     )
@@ -254,8 +254,8 @@ def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
 
 def stop_base_layer() -> dict:
     """Stop the runtime container then the FastAPI daemon. Returns a summary dict for display."""
-    from psilia.edge.runtime.daemon import stop_daemon
-    from psilia.edge.runtime.docker import is_container_running, stop_runtime_container
+    from psilia_edge.runtime.daemon import stop_daemon
+    from psilia_edge.runtime.docker import is_container_running, stop_runtime_container
 
     if is_container_running():
         logger.info("Stopping Docker container…")
@@ -308,7 +308,7 @@ def _build_launch_params(ctx) -> dict:
     or a dict with ``enable`` and ``parameters`` keys. Nodes set to disabled
     are removed. User parameters are merged on top of requirement-derived ones.
     """
-    from psilia.edge.runtime.config import read_runtime_config
+    from psilia_edge.runtime.config import read_runtime_config
 
     nodes = []
     params = {}
@@ -396,9 +396,9 @@ def start_spatial_layer(force: bool = False) -> dict:
     Returns a summary dict for display (CLI tree, API JSON). No caller
     depends on specific keys — treat as informational.
     """
-    from psilia.edge.runtime.config import RUN_DIR, get_launch_script
-    from psilia.edge.runtime.docker import start_ros_launch
-    from psilia.edge.utils import write_yaml
+    from psilia_edge.runtime.config import RUN_DIR, get_launch_script
+    from psilia_edge.runtime.docker import start_ros_launch
+    from psilia_edge.utils import write_yaml
 
     logger.info("Checking spatial requirements…")
     ctx = check_spatial_requirements()
@@ -439,7 +439,7 @@ def start_spatial_layer(force: bool = False) -> dict:
 
 def stop_spatial_layer() -> dict:
     """Stop ros2 launch inside the container. Returns a summary dict for display."""
-    from psilia.edge.runtime.docker import is_ros_launch_running, stop_ros_launch
+    from psilia_edge.runtime.docker import is_ros_launch_running, stop_ros_launch
 
     if not is_ros_launch_running():
         logger.info("ROS nodes not running — skipping")
@@ -460,13 +460,13 @@ def stop_spatial_layer() -> dict:
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 def is_base_layer_running() -> bool:
-    from psilia.edge.runtime.daemon import is_running
+    from psilia_edge.runtime.daemon import is_running
 
     return is_running()
 
 
 def is_spatial_layer_running() -> bool:
-    from psilia.edge.runtime.docker import is_ros_launch_running
+    from psilia_edge.runtime.docker import is_ros_launch_running
 
     return is_ros_launch_running()
 
@@ -484,7 +484,7 @@ def is_runtime_host() -> bool:
 def require_runtime_host(device_hint: str) -> None:
     """Exit with a clear message if not running on a runtime host (Jetson)."""
     import typer
-    from psilia.edge.ui import error
+    from psilia_edge.ui import error
 
     if not is_runtime_host():
         error(

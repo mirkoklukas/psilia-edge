@@ -17,7 +17,7 @@ console = Console()
 @pytest.fixture(autouse=True)
 def reload_config(runtime_env):
     """Reload runtime.config after env vars are set so module-level constants pick them up."""
-    import psilia.edge.runtime.config as cfg
+    import psilia_edge.runtime.config as cfg
 
     importlib.reload(cfg)
     yield cfg
