@@ -22,47 +22,31 @@ WEB_DIR = Path(__file__).resolve().parent.parent.parent.parent / "web"
 # ── SSE broadcast ─────────────────────────────────────────────────────────────
 
 _clients: list[asyncio.Queue] = []
+_last_status: dict = {}
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    asyncio.create_task(_status_broadcaster())
+    # Run initial status check once at startup, cache for SSE clients.
+    try:
+        status = await asyncio.to_thread(_get_status)
+        global _last_status
+        _last_status = status
+    except Exception:
+        pass
     yield
 
 
 app = FastAPI(title="Psilia Edge", docs_url=None, redoc_url=None, lifespan=_lifespan)
 
 
-async def _status_broadcaster() -> None:
-    """Poll runtime_status() every second and push to all SSE clients on change.
-
-    Diffs against a stripped version of the status (volatile fields like uptime
-    excluded) so we only push on meaningful state changes.
-    """
-    last_comparable: dict | None = None
-    while True:
-        await asyncio.sleep(1.0)
-        if not _clients:
-            continue
-        try:
-            current = await asyncio.to_thread(_get_status)
-            comparable = _strip_volatile(current)
-            if comparable != last_comparable:
-                last_comparable = comparable
-                payload = json.dumps(current)
-                for q in list(_clients):
-                    await q.put(payload)
-        except Exception:
-            pass
-
-
-def _strip_volatile(status: dict) -> dict:
-    """Return a copy of status with volatile fields removed for diffing."""
-    import copy
-
-    s = copy.deepcopy(status)
-    s.get("base", {}).pop("uptime", None)
-    return s
+async def _broadcast(status: dict) -> None:
+    """Update cached status and push to all connected SSE clients."""
+    global _last_status
+    _last_status = status
+    payload = json.dumps(status)
+    for q in list(_clients):
+        await q.put(payload)
 
 
 def _get_status() -> dict:
@@ -79,12 +63,9 @@ async def api_events() -> StreamingResponse:
     q: asyncio.Queue = asyncio.Queue()
     _clients.append(q)
 
-    # Push current state immediately on connect
-    try:
-        current = await asyncio.to_thread(_get_status)
-        await q.put(json.dumps(current))
-    except Exception:
-        pass
+    # Push cached state immediately on connect (no subprocess burst)
+    if _last_status:
+        await q.put(json.dumps(_last_status))
 
     async def stream() -> AsyncIterator[str]:
         try:
@@ -139,12 +120,23 @@ async def api_status(
     return JSONResponse(status)
 
 
+@app.post("/api/status/refresh")
+async def api_status_refresh() -> JSONResponse:
+    """Run full status checks and broadcast to all SSE clients."""
+    status = await asyncio.to_thread(_get_status)
+    await _broadcast(status)
+    return JSONResponse(status)
+
+
 @app.post("/api/spatial/start")
 async def api_spatial_start(force: bool = False) -> JSONResponse:
     from psilia_edge.runtime.core import SpatialRequirementsError, start_spatial_layer
 
     try:
-        return JSONResponse(await asyncio.to_thread(start_spatial_layer, force))
+        result = await asyncio.to_thread(start_spatial_layer, force)
+        _last_status["spatial_running"] = {"running": True}
+        await _broadcast(_last_status)
+        return JSONResponse(result)
     except SpatialRequirementsError as e:
         checks = e.result.to_dict()
         return JSONResponse({"status": "error", "checks": checks}, status_code=412)
@@ -154,7 +146,10 @@ async def api_spatial_start(force: bool = False) -> JSONResponse:
 async def api_spatial_stop() -> JSONResponse:
     from psilia_edge.runtime.core import stop_spatial_layer
 
-    return JSONResponse(await asyncio.to_thread(stop_spatial_layer))
+    result = await asyncio.to_thread(stop_spatial_layer)
+    _last_status["spatial_running"] = {"running": False}
+    await _broadcast(_last_status)
+    return JSONResponse(result)
 
 
 @app.get("/api/js/config.js", response_class=PlainTextResponse)

@@ -6,6 +6,7 @@
   <title>Psilia Edge</title>
   <script src="/vendor/roslib.min.js"></script>
   <script src="/api/js/config.js"></script>
+  <script src="/psilia-theme.js"></script>
   <link rel="stylesheet" href="/psilia.css">
   <style>
     /* ── Heartbeat circle ────────────────────────────────────── */
@@ -76,9 +77,12 @@
         <span class="brand__psilia">Psilia</span>
         <span class="brand__edge">Edge</span>
       </div>
-      <div class="di">
-        <div class="di__dot"></div>
-        <span id="di-hostname"></span>
+      <div style="display:flex;align-items:center;gap:0.6rem;">
+        <button class="theme-toggle" onclick="psiliaToggleTheme()">theme</button>
+        <div class="di">
+          <div class="di__dot"></div>
+          <span id="di-hostname"></span>
+        </div>
       </div>
     </div>
     <nav class="topbar__nav">
@@ -107,10 +111,13 @@
     <div class="cc" id="preflight">
       <div class="cc__header-row">
         <div class="cc__title">Preflight Checks</div>
-        <label class="tg" title="Bypass preflight checks">
-          <input type="checkbox" id="force-toggle" checked>
-          <span class="tg__track"></span>
-        </label>
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+          <button class="theme-toggle" id="btn-refresh" onclick="refreshPreflight()">refresh</button>
+          <label class="tg" title="Bypass preflight checks">
+            <input type="checkbox" id="force-toggle" checked>
+            <span class="tg__track"></span>
+          </label>
+        </div>
       </div>
       <div id="preflight-rows"></div>
     </div>
@@ -219,6 +226,19 @@
           }
         }
         document.getElementById('btn-toggle').disabled = false;
+      }
+    }
+
+    // ── Preflight refresh ──────────────────────────────────
+    async function refreshPreflight() {
+      const btn = document.getElementById('btn-refresh');
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        await fetch('/api/status/refresh', { method: 'POST' });
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'refresh';
       }
     }
 
