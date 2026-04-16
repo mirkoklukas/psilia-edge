@@ -14,6 +14,7 @@ Parameters:
 import collections
 import json
 import time
+from pathlib import Path
 
 import rclpy  # type: ignore
 from rclpy.node import Node  # type: ignore
@@ -22,8 +23,11 @@ from std_msgs.msg import String  # type: ignore
 
 from psilia_runtime.better_ros import better_node, ROSValue
 
+_HZ_FILE = Path("/psilia/run/hz.json")
+
 
 MONITORED_TOPICS = [
+    ("/psilia/heartbeat",                       String),
     ("/psilia/stereo/image_raw",                Image),
     ("/psilia/stereo/image_rect",               Image),
     ("/psilia/stereo/depth",                    Image),
@@ -77,9 +81,17 @@ class DiagnosticsNode(Node):
                 "max_dt": round(max(deltas), 3),
             }
 
+        payload = json.dumps(result)
+
         msg = String()
-        msg.data = json.dumps(result)
+        msg.data = payload
         self.pub.publish(msg)
+
+        try:
+            _HZ_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _HZ_FILE.write_text(payload)
+        except OSError:
+            pass
 
 
 def main():

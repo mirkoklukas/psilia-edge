@@ -450,33 +450,264 @@ def status(
         ui.print_tree(result, label="Runtime Status")
 
 
-# @app.command(hidden=True)
-# @device_decorator
-# def attach() -> None:
-#     """Live status display. Runs until Ctrl-C."""
-#     import time
-#     from rich.console import Group
-#     from rich.live import Live
-#     from rich.panel import Panel
-#     from rich.text import Text
-#     from psilia_edge import ui
-#     from psilia_edge.runtime.status import live_status
-#     from psilia_edge.runtime.daemon import read_log_tail
+@app.command()
+@device_decorator
+def attach() -> None:
+    """Live runtime view: heartbeat, topic Hz, ROS logs. [s]tart/[x] stop spatial."""
+    from psilia_edge.runtime.core import is_base_layer_running
 
-#     ui.header(["Runtime", "Live View"], "Ctrl-C to detach…")
-#     try:
-#         with Live(refresh_per_second=1, screen=False) as live:
-#             while True:
-#                 log = Text("\n".join(read_log_tail(5)), style="dim", overflow="fold")
-#                 live.update(
-#                     Group(
-#                         ui.build_tree(live_status(), label="status"),
-#                         Panel(log, title="log", border_style="dim"),
-#                     )
-#                 )
-#                 time.sleep(1.0)
-#     except KeyboardInterrupt:
-#         console.print("\n[dim]Detached.[/dim]")
+    if not is_base_layer_running():
+        ui.warn(
+            "Base layer is not running. Start it first: psilia runtime start --base"
+        )
+        raise typer.Exit(1)
+
+    _run_attach()
+
+
+def _run_attach() -> None:
+    import json
+    import select
+    import sys
+    import termios
+    import threading
+    import time
+    import tty
+
+    from rich.console import Group
+    from rich.live import Live
+    from rich.padding import Padding
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+
+    from psilia_edge.runtime.config import RUN_DIR
+    from psilia_edge.runtime.core import SpatialRequirementsError
+    from psilia_edge.runtime.docker import get_ros_log_path
+
+    hz_file = RUN_DIR / "hz.json"
+    hb_file = RUN_DIR / "heartbeat.json"
+    log_file = get_ros_log_path()
+
+    status_msg = ""
+    status_style = "dim"
+    force_mode = True
+    show_logs = False
+    checks: dict = {}  # flat dict: dotted key → {"ok": bool, "detail": str}
+
+    def read_json(path):
+        try:
+            return json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def read_log_tail(n=12):
+        try:
+            lines = log_file.read_text(errors="replace").splitlines()
+            return lines[-n:]
+        except OSError:
+            return []
+
+    def refresh_checks():
+        nonlocal checks
+        from psilia_edge.runtime.core import check_spatial_requirements
+
+        ctx = check_spatial_requirements()
+        checks = ctx.to_dict()
+
+    def build_display():
+        from psilia_edge.runtime.daemon import is_running as is_daemon_running
+
+        parts = []
+
+        # ── Shortcuts bar ────────────────────────────────────
+        bar = Text("  ")
+        bar.append("[s]", style="bold")
+        bar.append(" start  ", style="dim")
+        bar.append("[x]", style="bold")
+        bar.append(" stop  ", style="dim")
+        bar.append("[f]", style="bold")
+        force_label = "on" if force_mode else "off"
+        force_style = "green" if force_mode else "dim"
+        bar.append(" force: ", style="dim")
+        bar.append(force_label, style=force_style)
+        bar.append("  ", style="dim")
+        bar.append("[r]", style="bold")
+        bar.append(" checks  ", style="dim")
+        bar.append("[l]", style="bold")
+        bar.append(" logs  ", style="dim")
+        bar.append("[q]", style="bold")
+        bar.append(" quit", style="dim")
+        parts.append(bar)
+
+        # ── Status message ───────────────────────────────────
+        parts.append(Text(f"  {status_msg}" if status_msg else " ", style=status_style))
+
+        # ── Base layer ───────────────────────────────────────
+        base_running = is_daemon_running()
+        base_text = (
+            Text("running", style="green")
+            if base_running
+            else Text("stopped", style="red")
+        )
+        line = Text("  base layer: ")
+        line.append_text(base_text)
+        parts.append(line)
+
+        # ── Spatial layer ────────────────────────────────────
+        hb = read_json(hb_file)
+        if hb:
+            try:
+                age = time.time() - hb_file.stat().st_mtime
+            except OSError:
+                age = 999
+            if age < 5:
+                spatial_text = Text("running", style="green")
+                hb_detail = f"  heartbeat {age:.1f}s ago"
+            else:
+                spatial_text = Text("stale", style="yellow")
+                hb_detail = f"  heartbeat {age:.0f}s ago"
+        else:
+            spatial_text = Text("stopped", style="red")
+            hb_detail = ""
+
+        line = Text("  spatial layer: ")
+        line.append_text(spatial_text)
+        if hb_detail:
+            line.append(hb_detail, style="dim")
+        parts.append(line)
+        parts.append(Text(""))
+
+        # ── Spatial requirements ──────────────────────────────
+        if checks:
+            for key, info in checks.items():
+                ok = info["ok"]
+                detail = info.get("detail", "")
+                symbol = "✓" if ok else "✗"
+                symbol_style = "green" if ok else "red"
+                line = Text("  ")
+                line.append(f"  {symbol} ", style=symbol_style)
+                line.append(key, style="bold" if not ok else "")
+                if detail:
+                    line.append(f"  {detail}", style="dim")
+                parts.append(line)
+            parts.append(Text(""))
+
+        # ── Hz table ─────────────────────────────────────────
+        hz = read_json(hz_file)
+        if hz:
+            table = Table(show_header=False, box=None, padding=(0, 1))
+            table.add_column(style="dim", min_width=40)
+            table.add_column(justify="right")
+            for topic, info in hz.items():
+                rate_val = info.get("hz", 0)
+                if rate_val > 0:
+                    rate = Text(f"{rate_val:.1f} Hz", style="cyan")
+                else:
+                    rate = Text("—", style="dim")
+                table.add_row(topic, rate)
+            parts.append(Padding(table, (0, 2, 0, 2)))
+            parts.append(Text(""))
+
+        # ── Log tail ─────────────────────────────────────────
+        if show_logs:
+            log_lines = read_log_tail()
+            log_text = Text(
+                "\n".join(log_lines) if log_lines else "(no log)",
+                style="dim",
+                overflow="fold",
+            )
+            parts.append(Panel(log_text, title="log", border_style="dim", expand=True))
+
+        return Group(*parts)
+
+    def do_spatial_start():
+        nonlocal status_msg, status_style, checks
+        status_msg = "starting..."
+        status_style = "yellow"
+        try:
+            from psilia_edge.runtime.core import start_spatial_layer
+
+            start_spatial_layer(force=force_mode)
+            status_msg = "started"
+            status_style = "green"
+        except SpatialRequirementsError as e:
+            checks = e.result.to_dict()
+            failed = [k for k, v in checks.items() if not v["ok"]]
+            status_msg = f"failed: {', '.join(failed)}"
+            status_style = "red"
+        except Exception as e:
+            status_msg = f"error: {e}"
+            status_style = "red"
+
+    def do_spatial_stop():
+        nonlocal status_msg, status_style
+        status_msg = "stopping..."
+        status_style = "yellow"
+        try:
+            from psilia_edge.runtime.core import stop_spatial_layer
+
+            stop_spatial_layer()
+            status_msg = "stopped"
+            status_style = "green"
+        except Exception as e:
+            status_msg = f"error: {e}"
+            status_style = "red"
+
+    def do_refresh_checks():
+        nonlocal status_msg, status_style
+        status_msg = "checking..."
+        status_style = "yellow"
+        try:
+            refresh_checks()
+            status_msg = ""
+        except Exception as e:
+            status_msg = f"check error: {e}"
+            status_style = "red"
+
+    def read_key():
+        if select.select([sys.stdin], [], [], 0)[0]:
+            return sys.stdin.read(1)
+        return None
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+
+    ui.header(["Runtime", "Attach"])
+
+    # Initial checks run before entering the live display.
+    try:
+        refresh_checks()
+    except Exception:
+        pass
+
+    try:
+        tty.setcbreak(fd)
+        with Live(
+            build_display(), refresh_per_second=1, console=ui.console, transient=False
+        ) as live:
+            while True:
+                key = read_key()
+                if key in ("q", "\x03"):
+                    break
+                elif key == "s":
+                    threading.Thread(target=do_spatial_start, daemon=True).start()
+                elif key == "x":
+                    threading.Thread(target=do_spatial_stop, daemon=True).start()
+                elif key == "f":
+                    force_mode = not force_mode
+                elif key == "l":
+                    show_logs = not show_logs
+                elif key == "r":
+                    threading.Thread(target=do_refresh_checks, daemon=True).start()
+
+                live.update(build_display())
+                time.sleep(1.0)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        ui.print("[dim]Detached.[/dim]")
 
 
 @app.command()
