@@ -7,7 +7,6 @@ dependencies = [
     "typer",
     "rich",
     "numpy",
-    "mcap",
     "paramiko",
     "psutil",
     "pyyaml",
@@ -30,4 +29,6 @@ packages = ["src/psilia_edge", "src/psilia_core"]
 [dependency-groups]
 dev = [
     "pytest",
+    "mcap_ros2",
+    "pandas",
 ]

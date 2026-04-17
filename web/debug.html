@@ -6,6 +6,7 @@
   <title>Psilia Edge — Debug</title>
   <script src="/vendor/roslib.min.js"></script>
   <script src="/api/js/config.js"></script>
+  <script src="/psilia-theme.js"></script>
   <link rel="stylesheet" href="/psilia.css">
   <style>
     .preview img {
@@ -42,9 +43,12 @@
         <span class="brand__psilia">Psilia</span>
         <span class="brand__edge">Edge</span>
       </div>
-      <div class="di">
-        <div class="di__dot"></div>
-        <span id="di-hostname"></span>
+      <div style="display:flex;align-items:center;gap:0.6rem;">
+        <button class="theme-toggle" onclick="psiliaToggleTheme()">theme</button>
+        <div class="di">
+          <div class="di__dot"></div>
+          <span id="di-hostname"></span>
+        </div>
       </div>
     </div>
     <nav class="topbar__nav">
@@ -59,19 +63,19 @@
     <div id="ros-status">connecting to rosbridge...</div>
 
     <div class="cc preview">
-      <div class="cc__title">stereo raw</div>
+      <div class="cc__title">/psilia/preview/image/compressed</div>
       <div class="placeholder" id="ph-image">waiting for data</div>
       <img id="img-image" style="display:none;">
     </div>
 
     <div class="cc preview">
-      <div class="cc__title">rectified</div>
+      <div class="cc__title">/psilia/preview/rectified/compressed</div>
       <div class="placeholder" id="ph-rect">waiting for data</div>
       <img id="img-rect" style="display:none;">
     </div>
 
     <div class="cc preview">
-      <div class="cc__title">depth</div>
+      <div class="cc__title">/psilia/preview/depth/compressed</div>
       <div class="placeholder" id="ph-depth">waiting for data</div>
       <img id="img-depth" style="display:none;">
     </div>

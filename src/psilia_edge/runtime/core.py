@@ -6,7 +6,7 @@ import logging
 import socket
 import time
 
-from psilia_edge.runtime.config import get_api_port, read_config
+from psilia_edge.runtime.config import RUN_DIR, get_api_port, read_config
 from psilia_edge.runtime.requirements import (
     RequirementSpec,
     ResolverResult,
@@ -201,6 +201,14 @@ def stop_runtime() -> dict:
 #   Base layer
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+
+def _clear_run_state():
+    """Remove ephemeral status files from a previous session."""
+    for name in ("heartbeat.json", "hz.json"):
+        (RUN_DIR / name).unlink(missing_ok=True)
+
+
 def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
     """Start the FastAPI daemon and the runtime container. Returns a summary dict for display."""
     from psilia_edge.runtime.daemon import LOG_FILE, start_daemon
@@ -208,6 +216,8 @@ def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
         is_docker_daemon_running,
         start_runtime_container,
     )
+
+    _clear_run_state()
 
     if port is None:
         port = get_api_port()

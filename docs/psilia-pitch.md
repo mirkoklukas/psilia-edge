@@ -48,8 +48,7 @@ Spatial perception is a core requirement for most robotics applications. No one 
 The target is early-stage startups, small teams, and researchers -- the people feeling the pain today and building the robotics companies of tomorrow. Large companies have already built internal pipelines.
 Meeting early-stage teams now and growing with them is the strategy.
 
-Robotics hardware is getting cheaper. Entry barriers are falling. But that alone doesn't accelerate the field, the tooling and abstractions around them do. PyTorch didn't win because it had better algorithms.
-It made the iteration cycle fast, which unlocked an entire community.
+Robotics hardware is getting cheaper. Entry barriers are falling. But that alone doesn't accelerate the field, the tooling and abstractions around them do. PyTorch didn't win because it had better algorithms. It made the iteration cycle fast, which unlocked an entire community.
 
 ## Team
 

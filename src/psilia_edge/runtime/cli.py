@@ -276,7 +276,7 @@ def start(
     host: str = typer.Option("0.0.0.0", help="Bind address", hidden=True),
     port: int = typer.Option(None, help="HTTP port", hidden=True),
 ) -> None:
-    """Start base layer then spatial layer."""
+    """Start the base layer (default), or spatial layer with --spatial."""
     import logging
 
     from psilia_edge.runtime.core import (
@@ -285,23 +285,10 @@ def start(
         is_spatial_layer_running,
         start_base_layer,
         start_spatial_layer,
-        start_runtime,
     )
 
     ui.header(["Runtime", "Start"])
     logging.getLogger("psilia_edge.runtime.core").setLevel(logging.INFO)
-
-    if base_only:
-        if is_base_layer_running():
-            ui.warn("Base layer already running.")
-            raise typer.Exit(1)
-        result = start_base_layer(host=host, port=port)
-        ui.print_tree(result, label="base")
-        from psilia_edge.runtime.core import check_spatial_requirements
-
-        ctx = check_spatial_requirements()
-        ui.print_tree(_checks_dict(ctx), label="spatial requirements")
-        return
 
     if spatial_only:
         if is_spatial_layer_running():
@@ -318,20 +305,16 @@ def start(
         ui.print_tree(result, label="spatial")
         return
 
-    # default: start both layers
-    try:
-        result = start_runtime(host=host, port=port, force=force)
-    except SpatialRequirementsError as e:
-        ui.print_tree(_checks_dict(e.result), label="requirements")
-        ui.fail(
-            "Spatial requirements not met. Run: psilia runtime start --spatial --force"
-        )
+    # default (and --base): start base layer only
+    if is_base_layer_running():
+        ui.warn("Base layer already running.")
         raise typer.Exit(1)
+    result = start_base_layer(host=host, port=port)
+    ui.print_tree(result, label="base")
+    from psilia_edge.runtime.core import check_spatial_requirements
 
-    ui.detail("check runtime status", "psilia runtime status [device]")
-    ui.detail("live view", "psilia runtime attach [device]")
-    ui.detail("stop runtime", "psilia runtime stop [device]")
-    ui.print_tree(result, label="runtime")
+    ctx = check_spatial_requirements()
+    ui.print_tree(_checks_dict(ctx), label="spatial requirements")
 
 
 @app.command()
@@ -527,11 +510,7 @@ def _run_attach() -> None:
         bar.append("[x]", style="bold")
         bar.append(" stop  ", style="dim")
         bar.append("[f]", style="bold")
-        force_label = "on" if force_mode else "off"
-        force_style = "green" if force_mode else "dim"
-        bar.append(" force: ", style="dim")
-        bar.append(force_label, style=force_style)
-        bar.append("  ", style="dim")
+        bar.append(" force  ", style="dim")
         bar.append("[r]", style="bold")
         bar.append(" checks  ", style="dim")
         bar.append("[l]", style="bold")
@@ -578,8 +557,15 @@ def _run_attach() -> None:
         parts.append(line)
         parts.append(Text(""))
 
-        # ── Spatial requirements ──────────────────────────────
+        # ── Preflight checks ─────────────────────────────────
         if checks:
+            pf_line = Text("  preflight checks: ")
+            force_label = "on" if force_mode else "off"
+            force_style = "green" if force_mode else "dim"
+            pf_line.append("(force: ", style="dim")
+            pf_line.append(force_label, style=force_style)
+            pf_line.append(")", style="dim")
+            parts.append(pf_line)
             for key, info in checks.items():
                 ok = info["ok"]
                 detail = info.get("detail", "")
@@ -596,12 +582,25 @@ def _run_attach() -> None:
         # ── Hz table ─────────────────────────────────────────
         hz = read_json(hz_file)
         if hz:
+            try:
+                hz_age = time.time() - hz_file.stat().st_mtime
+            except OSError:
+                hz_age = 999
+            hz_live = hz_age < 3
+
+            diag_line = Text("  diagnostics: ")
+            if hz_live:
+                diag_line.append("running", style="green")
+            else:
+                diag_line.append("offline", style="red")
+            parts.append(diag_line)
+
             table = Table(show_header=False, box=None, padding=(0, 1))
             table.add_column(style="dim", min_width=40)
             table.add_column(justify="right")
             for topic, info in hz.items():
                 rate_val = info.get("hz", 0)
-                if rate_val > 0:
+                if hz_live and rate_val > 0:
                     rate = Text(f"{rate_val:.1f} Hz", style="cyan")
                 else:
                     rate = Text("—", style="dim")
