@@ -18,7 +18,6 @@ Matrix: TypeAlias = Array
 Matrix3x4: TypeAlias = Array
 
 
-
 class CameraCalibration:
     """
     Camera Calibration.
@@ -203,8 +202,10 @@ class CameraCalibration:
     def save(self, path: str):
         save_yaml(path, self.as_dict())
 
-    @classmethod
-    def stereo_rectification(cls, cal0: "CameraCalibration", cal1: "CameraCalibration") -> StereoRectification:
+    _SUPPORTED_DISTORTION_MODELS = {"RADTAN", "RATIONAL_POLYNOMIAL"}
+
+    @staticmethod
+    def stereo_rectification(cal0: "CameraCalibration", cal1: "CameraCalibration") -> StereoRectification:
         """Compute stereo rectification remap tables from two CameraCalibrations.
 
         Args:
@@ -215,6 +216,18 @@ class CameraCalibration:
             StereoRectification namedtuple with remap tables (CV_16SC2) and
             rectification matrices R0, R1, P0, P1, Q.
         """
+        supported = CameraCalibration._SUPPORTED_DISTORTION_MODELS
+        if cal0.distortion_model not in supported:
+            raise ValueError(
+                f"Unsupported distortion model '{cal0.distortion_model}' on {cal0.name}. "
+                f"Supported: {sorted(supported)}"
+            )
+        if cal0.distortion_model != cal1.distortion_model:
+            raise ValueError(
+                f"Distortion model mismatch: {cal0.name}={cal0.distortion_model}, "
+                f"{cal1.name}={cal1.distortion_model}"
+            )
+
         K0 = cal0.K.astype(np.float64)
         K1 = cal1.K.astype(np.float64)
         D0 = np.array(cal0.d).astype(np.float64)

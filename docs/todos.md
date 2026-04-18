@@ -19,6 +19,16 @@ Need: detect context (CLI vs daemon) and configure handlers accordingly:
 This also ties into the broader "structure logging across the stack" TODO under
 Status & Logging.
 
+### Calibration classes (`src/psilia_edge/camera.py`)
+
+- Test `CameraCalibration` and `StereoCalibration` for correctness:
+  round-trip save/load, `from_kalibr`, `from_camera_info`, `rescale`,
+  extrinsics inference from rectified projection, and stereo `rectify()`
+  (verify P_rect matches OpenCV's output, remap tables produce aligned rows).
+- Add an illustration/diagram showing the different maps and transforms:
+  K, [R|t], R_rect, P_rect, and how they compose (raw → undistorted →
+  rectified → projected). Clarify which properties return which matrix.
+
 ### Calibration — remaining items
 
 Sensor registration, calibration resolution, and depth pipeline wiring are done.
