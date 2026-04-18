@@ -4,6 +4,7 @@ from datetime import datetime
 from glob import glob
 from pathlib import Path
 from typing import Any, Callable
+from itertools import islice
 
 import numpy as np
 from mcap.reader import make_reader  # type: ignore
@@ -101,6 +102,25 @@ def list_mcaps(path: Path | str):
 #   Internal: read and parse messages
 #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+def read_nth_message(
+    mcap: Path | str,
+    topic: str,
+    n: int = 0,
+    # Enables to feed a dictionary with additional unused keys
+    **kwargs: Any,
+) -> McapROS2Message:
+    """
+    Reads the nth message from a MCAP file.
+
+    Args:
+        mcap: Path to the MCAP file.
+        topic: Topic to read the message from.
+        n: Index of the message to read.
+    """
+    it = read_ros2_messages(mcap, topics=[topic], log_time_order=False)
+    return next(islice(it, n, None))
+
+
 # NOTE: Do remapping of topics before and after the call,
 #   for schema_transforms before and for the returned dict afterwards.
 #
@@ -192,7 +212,7 @@ def _read_and_parse_messages(  # noqa: PLR0912
             parsed_msg = base_message_parser(msg, include_ros_msg=True)
             skipped.append({"topic": topic, "schema": schema})
 
-        # TODO: Not sure where to put this. This
+        # TODO: Not sure where to put this.
         parsed_msg["__mcap_start__"] = message_start
 
         # Apply transforms
@@ -308,14 +328,14 @@ class TakerResult(dict):
     def _raw_keys(self):
         return super().keys()
 
-    # TODO: __getitem__, The question is reall what data the result carries.
-    #   Does it only contain the keys it was querried with, or
-    #   the whole parsed message. I think I lean towards the whole message.
-    #   Or I could at least just allow keys of the form topix:address.
-    #   If the original querry key was just a topic then it would contain everything.
-    #   But then we had __node__, so dunno.
-    def __getitem__(self, key):
-        return self.values()[key]
+    # # TODO: __getitem__, The question is really what data the result carries.
+    # #   Does it only contain the keys it was querried with, or
+    # #   the whole parsed message. I think I lean towards the whole message.
+    # #   Or I could at least just allow keys of the form topix:address.
+    # #   If the original querry key was just a topic then it would contain everything.
+    # #   But then we had __node__, so dunno.
+    # def __getitem__(self, key):
+    #     return self.values()[key]
 
 
 # TODO: we might want to add different versions of the taker result
@@ -510,7 +530,7 @@ class McapTaker:
         t0: float | None = None,
         t1: float | None = None,
         default_limit: int | None = None,
-        reverse: bool = True,  # TODO: Default to False? or None?
+        reverse: bool = False,  # TODO: Default to False? or None?
         lag: float = 2.0,
         sort_key: str = "message_time",
     ):

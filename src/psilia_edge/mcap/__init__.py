@@ -14,4 +14,5 @@ from psilia_edge.mcap.reader import (
     get_channel_overview as get_channel_overview,
     get_summary as get_summary,
     list_mcaps as list_mcaps,
+    read_nth_message as read_nth_message,
 )
