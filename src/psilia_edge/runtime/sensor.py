@@ -202,16 +202,18 @@ def is_calibration_compatible(
     """Check if a calibration can be uniformly rescaled to a stereo frame size.
 
     The frame is side-by-side stereo, so per-eye width is frame_w // 2.
-    Returns True if the calibration resolution is an exact integer multiple
-    of the per-eye frame resolution with the same scale factor in both dimensions.
+    Returns True if the scale factor is the same in both dimensions and is
+    either an integer (2, 3, ...) or a clean fraction (1/2, 1/3, ...).
     """
     eye_w = frame_w // 2
     eye_h = frame_h
-    if eye_w == 0 or eye_h == 0:
+    if eye_w == 0 or eye_h == 0 or cal_w == 0 or cal_h == 0:
         return False
-    if cal_w % eye_w != 0 or cal_h % eye_h != 0:
-        return False
-    return cal_w // eye_w == cal_h // eye_h
+    if eye_w % cal_w == 0 and eye_h % cal_h == 0:
+        return eye_w // cal_w == eye_h // cal_h
+    if cal_w % eye_w == 0 and cal_h % eye_h == 0:
+        return cal_w // eye_w == cal_h // eye_h
+    return False
 
 
 def get_calibration_resolution(cal_path: Path) -> tuple[int, int] | None:
