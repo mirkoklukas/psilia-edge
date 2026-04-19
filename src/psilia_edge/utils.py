@@ -10,11 +10,18 @@ import psilia_edge.ui as ui
 import yaml
 
 
+class _NoAliasDumper(yaml.SafeDumper):
+    def ignore_aliases(self, data):
+        return True
+
+
 def write_yaml(path: Path, data: dict, parents=True, exist_ok=True) -> None:
     path.parent.mkdir(parents=parents, exist_ok=exist_ok)
 
     with open(path, "w") as outfile:
-        yaml.safe_dump(dict(**data), outfile, default_flow_style=False)
+        yaml.dump(
+            dict(**data), outfile, Dumper=_NoAliasDumper, default_flow_style=False
+        )
 
 
 def read_yaml(path: Path) -> dict:

@@ -527,6 +527,11 @@ def _run_attach() -> None:
         )
         line = Text("  base layer: ")
         line.append_text(base_text)
+        if base_running:
+            from psilia_edge.runtime.config import get_api_port
+
+            port = get_api_port()
+            line.append(f"  http://localhost:{port}", style="dim")
         parts.append(line)
 
         # ── Spatial layer ────────────────────────────────────
