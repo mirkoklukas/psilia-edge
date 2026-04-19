@@ -437,7 +437,9 @@ class StereoCalibration:
         cx0 = cam0.rectified_projection[2]
         cy0 = cam0.rectified_projection[3]
         cx1 = cam1.rectified_projection[2]
-        Tx = cam1.rectified_projection[4]
+        # rectified_projection[4] is P1[0,3] = Tx_meters * fx.
+        # Q needs the raw baseline in meters.
+        Tx = cam1.rectified_projection[4] / fx
         return np.array(
             [
                 [1, 0, 0, -cx0],
