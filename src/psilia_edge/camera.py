@@ -76,7 +76,7 @@ class CameraCalibration:
         distortion_coeffs: Array | None = None,
         name: str = "",
         model: str = "PINHOLE",
-        distortion_model: str | None = None,
+        distortion_model: str = "",
         width: int = -1,
         height: int = -1,
         rectification: Array | None = None,
@@ -84,9 +84,19 @@ class CameraCalibration:
         parent: str | None = None,
     ):
         # Distortion model
-        self.model = model
-        self.distortion_model = distortion_model
-        self.distortion_coeffs = distortion_coeffs
+        self.model = model.upper()
+        self.distortion_model = distortion_model.upper()
+        self.distortion_coeffs = (
+            np.asarray(distortion_coeffs, dtype=np.float64)
+            if distortion_coeffs is not None
+            else None
+        )
+
+        # Metadata
+        self.name = name
+        self.width = width
+        self.height = height
+        self.parent = parent
 
         # Calibration
         self.intrinsics = np.asarray(intrinsics, dtype=np.float64)
@@ -114,12 +124,6 @@ class CameraCalibration:
             self.extrinsics = np.concatenate([t, np.array([0.0, 0.0, 0.0, 1.0])])
         else:
             self.extrinsics = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
-
-        # Metadata
-        self.width = width
-        self.height = height
-        self.name = name
-        self.parent = parent
 
         # Derived matrices
         fx, fy, cx, cy = self.intrinsics
@@ -256,6 +260,7 @@ class CameraCalibration:
             "width": self.width,
             "height": self.height,
             "name": self.name,
+            "parent": self.parent,
         }
 
     @classmethod
@@ -334,7 +339,7 @@ class CameraCalibration:
         save_yaml(Path(path), self.as_dict())
 
     @classmethod
-    def load_dict(cls, data: dict) -> "CameraCalibration":
+    def from_dict(cls, data: dict) -> "CameraCalibration":
         data = dict(data)
         for k, v in data.items():
             if isinstance(v, list):
@@ -343,7 +348,7 @@ class CameraCalibration:
 
     @classmethod
     def load(cls, path: str):
-        return cls.load_dict(load_yaml(Path(path)))
+        return cls.from_dict(load_yaml(Path(path)))
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -373,9 +378,63 @@ class StereoCalibration:
     def __init__(self, cam0: CameraCalibration, cam1: CameraCalibration):
         self.cam0 = cam0  # left camera
         self.cam1 = cam1  # right camera
-        # Set after rectify():
-        self.maps: StereoRectification | None = None  # undistort+rectify remap tables
-        self.disparity_to_3d: Matrix4x4 | None = None  # Q matrix from stereoRectify
+        self.maps: StereoRectification | None = None
+        self.disparity_to_3d: Matrix4x4 | None = None
+
+        if self.is_rectified:
+            self.disparity_to_3d = self._compute_Q(cam0, cam1)
+            self.maps = self._compute_maps(cam0, cam1)
+
+    @property
+    def is_rectified(self) -> bool:
+        return (
+            self.cam0.rectified_projection is not None
+            and self.cam1.rectified_projection is not None
+            and self.cam0.rectification is not None
+            and self.cam1.rectification is not None
+        )
+
+    @staticmethod
+    def _compute_maps(
+        cam0: CameraCalibration, cam1: CameraCalibration
+    ) -> StereoRectification:
+        R0, R1 = cam0.R_rect, cam1.R_rect
+        P0, P1 = cam0.P_rect, cam1.P_rect
+        Q = StereoCalibration._compute_Q(cam0, cam1)
+
+        map1_l, map2_l = cv2.initUndistortRectifyMap(
+            cam0.K, np.array(cam0.d), R0, P0, cam0.res, cv2.CV_16SC2
+        )
+        map1_r, map2_r = cv2.initUndistortRectifyMap(
+            cam1.K, np.array(cam1.d), R1, P1, cam1.res, cv2.CV_16SC2
+        )
+        return StereoRectification(
+            map1_l=map1_l,
+            map2_l=map2_l,
+            map1_r=map1_r,
+            map2_r=map2_r,
+            R0=R0,
+            R1=R1,
+            P0=P0,
+            P1=P1,
+            Q=Q,
+        )
+
+    @staticmethod
+    def _compute_Q(cam0: CameraCalibration, cam1: CameraCalibration) -> Matrix4x4:
+        fx = cam0.rectified_projection[0]
+        cx0 = cam0.rectified_projection[2]
+        cy0 = cam0.rectified_projection[3]
+        cx1 = cam1.rectified_projection[2]
+        Tx = cam1.rectified_projection[4]
+        return np.array(
+            [
+                [1, 0, 0, -cx0],
+                [0, 1, 0, -cy0],
+                [0, 0, 0, fx],
+                [0, 0, -1.0 / Tx, (cx0 - cx1) / Tx],
+            ]
+        )
 
     def rectify(self) -> "StereoCalibration":
         """Compute stereo rectification and return a new StereoCalibration.
@@ -422,14 +481,6 @@ class StereoCalibration:
             alpha=0,
         )
 
-        # CV_16SC2: fixed-point with interpolation weights — fastest format for cv2.remap.
-        map1_l, map2_l = cv2.initUndistortRectifyMap(
-            K0, D0, R0, P0, cal0.res, cv2.CV_16SC2
-        )
-        map1_r, map2_r = cv2.initUndistortRectifyMap(
-            K1, D1, R1, P1, cal1.res, cv2.CV_16SC2
-        )
-
         def _rectified_projection_from_matrix(P):
             return np.array([P[0, 0], P[1, 1], P[0, 2], P[1, 2], P[0, 3], P[1, 3]])
 
@@ -460,23 +511,16 @@ class StereoCalibration:
             parent=cal1.parent,
         )
 
-        result = StereoCalibration(rect_cam0, rect_cam1)
-        result.maps = StereoRectification(
-            map1_l=map1_l,
-            map2_l=map2_l,
-            map1_r=map1_r,
-            map2_r=map2_r,
-            R0=R0,
-            R1=R1,
-            P0=P0,
-            P1=P1,
-            Q=Q,
-        )
-        result.disparity_to_3d = Q
-        return result
+        return StereoCalibration(rect_cam0, rect_cam1)
+
+    FORMAT = "psilia-stereo-calibration"
 
     def as_dict(self) -> dict:
         return {
+            "header": {
+                "format": self.FORMAT,
+                "is_rectified": self.is_rectified,
+            },
             "cam0": self.cam0.as_dict(),
             "cam1": self.cam1.as_dict(),
         }
@@ -485,11 +529,23 @@ class StereoCalibration:
         save_yaml(Path(path), self.as_dict())
 
     @classmethod
-    def load(cls, path: str) -> "StereoCalibration":
+    def load(cls, path: str, strict: bool = True) -> "StereoCalibration":
         data = load_yaml(Path(path))
-        cam0 = CameraCalibration.load_dict(data["cam0"])
-        cam1 = CameraCalibration.load_dict(data["cam1"])
-        return cls(cam0, cam1)
+        header = data.get("header", {})
+        if header.get("format") == cls.FORMAT:
+            cam0 = CameraCalibration.from_dict(data["cam0"])
+            cam1 = CameraCalibration.from_dict(data["cam1"])
+            return cls(cam0, cam1)
+        if strict:
+            raise ValueError(
+                f"Expected format '{cls.FORMAT}', got '{header.get('format')}'"
+            )
+        try:
+            return cls.from_kalibr(path)
+        except Exception as e:
+            raise ValueError(
+                f"Could not load '{path}' as psilia or Kalibr calibration: {e}"
+            ) from e
 
     @classmethod
     def from_kalibr(cls, yaml_path: str) -> "StereoCalibration":

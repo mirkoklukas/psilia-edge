@@ -9,7 +9,6 @@ A sensor entry is keyed by either a human-friendly label or a UID
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 from psilia_edge.runtime.config import CALIBRATIONS_DIR, read_config, write_config
@@ -50,22 +49,27 @@ def register_sensor(
     entry: dict,
     calibration_src: Path,
 ) -> None:
-    """Register a sensor: copy calibration file and write entry to psilia.yaml.
+    """Register a sensor: load, rectify, and save calibration file, then write entry to psilia.yaml.
 
     Args:
         key: The sensor key (label or UID).
         entry: Sensor metadata (type, manufacturer, product, label, etc.).
         calibration_src: Path to the calibration file to import.
     """
+    from psilia_edge.camera import StereoCalibration
+
     CALIBRATIONS_DIR.mkdir(parents=True, exist_ok=True)
+
+    stereo = StereoCalibration.load(str(calibration_src), strict=False)
+    if not stereo.is_rectified:
+        stereo = stereo.rectify()
 
     label = entry.get("label", key)
     uid = key if key != label else None
-    cal_name = _calibration_filename(label, uid, calibration_src.suffix)
+    cal_name = _calibration_filename(label, uid, ".yaml")
 
     calibration_dst = CALIBRATIONS_DIR / cal_name
-    if calibration_src.resolve() != calibration_dst.resolve():
-        shutil.copy2(calibration_src, calibration_dst)
+    stereo.save(str(calibration_dst))
 
     entry["calibration"] = cal_name
 
