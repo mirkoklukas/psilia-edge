@@ -1,7 +1,8 @@
 """
-Point cloud preview node — subscribes to /psilia/stereo/depth (32FC1) and
-/psilia/stereo/depth/camera_info, back-projects valid depth pixels to 3D,
-and publishes on /psilia/preview/pointcloud (sensor_msgs/PointCloud2).
+Point cloud preview node — subscribes to /psilia/stereo/depth (32FC1),
+/psilia/stereo/depth/camera_info, and /psilia/stereo/image_raw (for color),
+back-projects valid depth pixels to 3D, and publishes a colored point cloud
+on /psilia/preview/pointcloud (sensor_msgs/PointCloud2).
 
 Parameters (set via launch file or command line):
   fps         — publish rate in Hz (default 2)
@@ -34,6 +35,7 @@ class PointcloudPreviewNode(Node):
         self._fy = None
         self._cx = None
         self._cy = None
+        self._color_image = None
 
         self._publish_static_tf()
 
@@ -41,6 +43,9 @@ class PointcloudPreviewNode(Node):
             CameraInfo, "/psilia/stereo/depth/camera_info", self._on_camera_info, 1
         )
         self.create_subscription(Image, "/psilia/stereo/depth", self._on_depth, 1)
+        self.create_subscription(
+            Image, "/psilia/stereo/image_rect", self._on_image, 1
+        )
         self.pub = self.create_publisher(PointCloud2, "/psilia/preview/pointcloud", 1)
 
     def _publish_static_tf(self):
@@ -63,6 +68,12 @@ class PointcloudPreviewNode(Node):
         self._cx = msg.k[2]
         self._cy = msg.k[5]
 
+    def _on_image(self, msg: Image):
+        frame = np.frombuffer(msg.data, dtype=np.uint8).reshape(
+            msg.height, msg.width, 3
+        )
+        self._color_image = frame[:, : msg.width // 2]
+
     def _on_depth(self, msg: Image):
         if self._fx is None:
             return
@@ -82,25 +93,42 @@ class PointcloudPreviewNode(Node):
         ys = (vs - self._cy) * z / self._fy
         zs = z
 
-        points = np.stack((xs, ys, zs), axis=-1).astype(np.float32)
+        # Pack XYZRGB: 4 floats per point (x, y, z, rgb_packed).
+        n = len(xs)
+        buf = np.empty((n, 4), dtype=np.float32)
+        buf[:, 0] = xs
+        buf[:, 1] = ys
+        buf[:, 2] = zs
+
+        color = self._color_image
+        if color is not None and color.shape[:2] == (msg.height, msg.width):
+            b = color[vs, us, 0].astype(np.uint32)
+            g = color[vs, us, 1].astype(np.uint32)
+            r = color[vs, us, 2].astype(np.uint32)
+            rgb_packed = (r << 16) | (g << 8) | b
+            buf[:, 3] = rgb_packed.view(np.float32)
+        else:
+            buf[:, 3] = np.float32(0.0)
+
         # Subsample without replacement.
-        if self.num_samples > 0 and len(points) > self.num_samples:
-            idx = np.random.choice(len(points), self.num_samples, replace=False)
-            points = points[idx]
+        if self.num_samples > 0 and n > self.num_samples:
+            idx = np.random.choice(n, self.num_samples, replace=False)
+            buf = buf[idx]
 
         cloud = PointCloud2()
         cloud.header = Header(stamp=msg.header.stamp, frame_id=FRAME_ID)
         cloud.height = 1
-        cloud.width = len(points)
+        cloud.width = len(buf)
         cloud.fields = [
             PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
             PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
             PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+            PointField(name="rgb", offset=12, datatype=PointField.FLOAT32, count=1),
         ]
         cloud.is_bigendian = False
-        cloud.point_step = 12
-        cloud.row_step = 12 * cloud.width
-        cloud.data = points.tobytes()
+        cloud.point_step = 16
+        cloud.row_step = 16 * cloud.width
+        cloud.data = buf.tobytes()
         cloud.is_dense = True
         self.pub.publish(cloud)
 
