@@ -242,6 +242,8 @@ class CameraCalibration:
             parent=self.parent,
         )
 
+    FORMAT = "psilia-camera-calibration"
+
     def as_dict(self):
         def _tolist_or_none(x):
             if x is not None:
@@ -250,6 +252,9 @@ class CameraCalibration:
                 return None
 
         return {
+            "header": {
+                "format": self.FORMAT,
+            },
             "model": self.model,
             "distortion_model": self.distortion_model,
             "intrinsics": self.intrinsics.tolist(),
@@ -340,7 +345,7 @@ class CameraCalibration:
 
     @classmethod
     def from_dict(cls, data: dict) -> "CameraCalibration":
-        data = dict(data)
+        data = {k: v for k, v in data.items() if k != "header"}
         for k, v in data.items():
             if isinstance(v, list):
                 data[k] = np.array(v)
@@ -348,7 +353,13 @@ class CameraCalibration:
 
     @classmethod
     def load(cls, path: str):
-        return cls.from_dict(load_yaml(Path(path)))
+        data = load_yaml(Path(path))
+        header = data.get("header", {})
+        if header.get("format") != cls.FORMAT:
+            raise ValueError(
+                f"Expected format '{cls.FORMAT}', got '{header.get('format')}'"
+            )
+        return cls.from_dict(data)
 
     def __repr__(self) -> str:
         return self.__str__()
