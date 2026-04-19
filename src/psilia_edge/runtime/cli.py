@@ -618,13 +618,13 @@ def _run_attach() -> None:
 
     def do_spatial_start():
         nonlocal status_msg, status_style, checks
-        status_msg = "starting..."
+        status_msg = "starting spatial layer..."
         status_style = "yellow"
         try:
             from psilia_edge.runtime.core import start_spatial_layer
 
             start_spatial_layer(force=force_mode)
-            status_msg = "started"
+            status_msg = "spatial layer started"
             status_style = "green"
         except SpatialRequirementsError as e:
             checks = e.result.to_dict()
@@ -637,13 +637,13 @@ def _run_attach() -> None:
 
     def do_spatial_stop():
         nonlocal status_msg, status_style
-        status_msg = "stopping..."
+        status_msg = "stopping spatial layer..."
         status_style = "yellow"
         try:
             from psilia_edge.runtime.core import stop_spatial_layer
 
             stop_spatial_layer()
-            status_msg = "stopped"
+            status_msg = "spatial layer stopped"
             status_style = "green"
         except Exception as e:
             status_msg = f"error: {e}"
@@ -651,7 +651,7 @@ def _run_attach() -> None:
 
     def do_refresh_checks():
         nonlocal status_msg, status_style
-        status_msg = "checking..."
+        status_msg = "checking spatial requirements..."
         status_style = "yellow"
         try:
             refresh_checks()
