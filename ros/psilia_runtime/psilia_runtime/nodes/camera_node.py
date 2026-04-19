@@ -56,11 +56,8 @@ class CameraNode(Node):
         self._stream.open()
         self._last_open_attempt = 0.0
         self.frame_count = 0
-        # Pre-allocated publish buffer reused every frame. _np_buf is a numpy
-        # view into _buf (shared memory), so np.copyto(_np_buf, ...) writes
-        # directly into the array.array that rclpy can bulk-copy at the C level.
-        self._buf = array.array('B', bytes(self.width * self.height * 3))
-        self._np_buf = np.frombuffer(self._buf, dtype=np.uint8)
+        self._buf = None
+        self._np_buf = None
         self.create_timer(1.0 / self.fps, self.publish_frame)
 
     def _setup_camera_info(self):
@@ -127,31 +124,17 @@ class CameraNode(Node):
         t, frame = entry
         stamp = Time(sec=int(t), nanosec=int((t % 1) * 1e9))
 
-        # np.copyto writes directly into the pre-allocated array.array buffer via
-        # a numpy view (_np_buf = np.frombuffer(_buf)) — no intermediate bytes object.
-        # rclpy then bulk-copies from the array.array at the C level (~0.17ms).
-        # Net: one copy (frame → _buf) instead of two (frame → bytes → array).
-        #
-        # Previous approach (two allocations, two copies):
-        #   msg.data = array.array('B', frame.tobytes())
-        #
-        # Note on the previous approach: msg.data = frame.tobytes() was ~97ms on Jetson —
-        # not tobytes() itself (0.05ms), but the assignment, which triggers slow
-        # element-by-element Python iteration in rclpy's uint8[] field (bytes → array.array).
-        # Using array.array('B', ...) hits rclpy's fast C-level bulk copy instead (~0.17ms).
-        # 'B' is the type code for unsigned char (uint8) — exactly what rclpy expects
-        # for a uint8[] field, so no conversion is needed and the assignment is fast.
-        #
-        # CvBridge alternative (~0.26ms, requires numpy<2 pin due to ABI mismatch
-        # with ros-humble-cv-bridge compiled against numpy 1.x):
-        #   msg = self._bridge.cv2_to_imgmsg(frame, encoding="bgr8")
-        #   msg.header = Header(stamp=stamp, frame_id="camera")
+        if self._buf is None:
+            n = frame.shape[0] * frame.shape[1] * 3
+            self._buf = array.array('B', bytes(n))
+            self._np_buf = np.frombuffer(self._buf, dtype=np.uint8)
+
         msg = Image()
         msg.header = Header(stamp=stamp, frame_id="camera")
         msg.height, msg.width = frame.shape[:2]
         msg.encoding = "bgr8"
         msg.step = msg.width * 3
-        np.copyto(self._np_buf, frame.ravel())  # writes into _buf via shared memory
+        np.copyto(self._np_buf, frame.ravel())
         msg.data = self._buf
         self.pub.publish(msg)
 

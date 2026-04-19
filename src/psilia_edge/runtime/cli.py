@@ -25,6 +25,7 @@ from builtins import print as builtins_print
 from typing import Any, Optional, Annotated, get_type_hints
 import functools
 import inspect
+import socket
 from pathlib import Path
 
 import typer
@@ -531,7 +532,8 @@ def _run_attach() -> None:
             from psilia_edge.runtime.config import get_api_port
 
             port = get_api_port()
-            line.append(f"  http://localhost:{port}", style="dim")
+            hostname = socket.gethostname().split(".")[0]
+            line.append(f"  http://{hostname}.local:{port}", style="dim")
         parts.append(line)
 
         # ── Spatial layer ────────────────────────────────────

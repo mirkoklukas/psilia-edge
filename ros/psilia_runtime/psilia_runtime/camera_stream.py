@@ -126,8 +126,12 @@ class CameraStream:
         cfg_width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         cfg_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         cfg_fps    = cap.get(cv2.CAP_PROP_FPS)
+        self.width = cfg_width
+        self.height = cfg_height
+        self.fps = cfg_fps
+
         self._log_info(
-            f"Camera configured: {cfg_fmt} {cfg_width}x{cfg_height} @ {cfg_fps:.1f}fps"
+            f"Camera configured: {cfg_fmt} {self.width}x{self.height} @ {self.fps:.1f}fps"
         )
 
         self._cap = cap
