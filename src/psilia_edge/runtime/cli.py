@@ -311,10 +311,6 @@ def start(
         raise typer.Exit(1)
     result = start_base_layer(host=host, port=port)
     ui.print_tree(result, label="base")
-    from psilia_edge.runtime.core import check_spatial_requirements
-
-    ctx = check_spatial_requirements()
-    ui.print_tree(_checks_dict(ctx), label="spatial requirements")
 
 
 @app.command()

@@ -215,16 +215,16 @@ def is_calibration_compatible(
 
 
 def get_calibration_resolution(cal_path: Path) -> tuple[int, int] | None:
-    """Read the resolution from a Kalibr calibration file.
+    """Read the resolution from a psilia stereo calibration file.
 
-    Returns (width, height) from cam0.resolution, or None if unreadable.
+    Returns (width, height) from cam0, or None if unreadable.
     """
     import yaml
 
     try:
         data = yaml.safe_load(cal_path.read_text())
-        res = data["cam0"]["resolution"]
-        return int(res[0]), int(res[1])
+        cam0 = data["cam0"]
+        return int(cam0["width"]), int(cam0["height"])
     except Exception:
         return None
 
