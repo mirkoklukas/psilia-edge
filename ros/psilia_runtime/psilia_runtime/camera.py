@@ -244,17 +244,20 @@ class CameraCalibration:
 
     FORMAT = "psilia-camera-calibration"
 
-    def as_dict(self):
+    def as_dict(self, include_header: bool = True):
         def _tolist_or_none(x):
             if x is not None:
                 return x.tolist()
             else:
                 return None
 
-        return {
-            "header": {
+        d = {}
+        if include_header:
+            d["header"] = {
                 "format": self.FORMAT,
-            },
+                "resolution": [self.width, self.height],
+            }
+        d.update({
             "model": self.model,
             "distortion_model": self.distortion_model,
             "intrinsics": self.intrinsics.tolist(),
@@ -266,7 +269,8 @@ class CameraCalibration:
             "height": self.height,
             "name": self.name,
             "parent": self.parent,
-        }
+        })
+        return d
 
     @classmethod
     def from_camera_info(
@@ -538,9 +542,10 @@ class StereoCalibration:
             "header": {
                 "format": self.FORMAT,
                 "is_rectified": self.is_rectified,
+                "resolution": [self.cam0.width, self.cam0.height],
             },
-            "cam0": self.cam0.as_dict(),
-            "cam1": self.cam1.as_dict(),
+            "cam0": self.cam0.as_dict(include_header=False),
+            "cam1": self.cam1.as_dict(include_header=False),
         }
 
     def save(self, path: str):

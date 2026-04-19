@@ -217,12 +217,20 @@ def is_calibration_compatible(
 def get_calibration_resolution(cal_path: Path) -> tuple[int, int] | None:
     """Read the resolution from a psilia stereo calibration file.
 
-    Returns (width, height) from cam0, or None if unreadable.
+    Tries header.resolution first, falls back to cam0.width/height for
+    older files without a header.
+
+    TODO: Remove fallback once all calibration files have been re-saved
+    with the header.resolution field.
     """
     import yaml
 
     try:
         data = yaml.safe_load(cal_path.read_text())
+        header = data.get("header", {})
+        if "resolution" in header:
+            res = header["resolution"]
+            return int(res[0]), int(res[1])
         cam0 = data["cam0"]
         return int(cam0["width"]), int(cam0["height"])
     except Exception:
