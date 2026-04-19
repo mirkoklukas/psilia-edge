@@ -3,11 +3,10 @@ Rectify node — subscribes to /psilia/stereo/image_raw (side-by-side stereo),
 applies stereo rectification, and publishes on /psilia/stereo/image_rect.
 
 Parameters (set via launch file or command line):
-  calibration_file  — path to a Kalibr calibration-camchain YAML file
+  calibration_file  — path to a stereo calibration YAML file (psilia or Kalibr format)
   camera_left       — camera name for the left image (default: cam0)
   camera_right      — camera name for the right image (default: cam1)
 
-TODO: Replace Kalibr camchain format with our own calibration format.
 """
 import array
 
@@ -21,7 +20,7 @@ from std_msgs.msg import Header  # type: ignore
 from builtin_interfaces.msg import Time  # type: ignore
 
 from psilia_runtime.better_ros import better_node, ROSValue
-from psilia_runtime.camera_calibration import CameraCalibration
+from psilia_runtime.camera import StereoCalibration
 
 
 @better_node
@@ -35,8 +34,7 @@ class RectifyNode(Node):
             self.get_logger().error("No calibration_file parameter set — cannot rectify.")
             return
 
-        self._cal0 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_left)
-        self._cal1 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_right)
+        self._stereo_cal = StereoCalibration.load(self.calibration_file, strict=False).rectify()
         self._ready = False
 
         self.pub = self.create_publisher(Image, "/psilia/stereo/image_rect", 1)
@@ -45,25 +43,24 @@ class RectifyNode(Node):
     def _setup_rectification(self, frame_width: int, frame_height: int):
         """Initialize rectification maps, rescaling calibration if needed."""
         eye_w = frame_width // 2
-        cal0, cal1 = self._cal0, self._cal1
+        stereo = self._stereo_cal
 
-        if eye_w != cal0.width or frame_height != cal0.height:
-            factor = eye_w / cal0.width
+        if eye_w != stereo.cam0.width or frame_height != stereo.cam0.height:
+            factor = eye_w / stereo.cam0.width
             self.get_logger().info(
-                f"Rescaling calibration: {cal0.width}x{cal0.height} → {eye_w}x{frame_height} "
+                f"Rescaling calibration: {stereo.cam0.width}x{stereo.cam0.height} → {eye_w}x{frame_height} "
                 f"(factor={factor:.3f})"
             )
-            cal0 = cal0.rescale(factor)
-            cal1 = cal1.rescale(factor)
+            stereo = StereoCalibration(
+                stereo.cam0.rescale(factor), stereo.cam1.rescale(factor)
+            ).rectify()
 
-        rect = CameraCalibration.stereo_rectification(cal0, cal1)
-
-        self._map1_l = rect.map1_l
-        self._map2_l = rect.map2_l
-        self._map1_r = rect.map1_r
-        self._map2_r = rect.map2_r
-        self.width = cal0.width
-        self.height = cal0.height
+        self._map1_l = stereo.maps.map1_l
+        self._map2_l = stereo.maps.map2_l
+        self._map1_r = stereo.maps.map1_r
+        self._map2_r = stereo.maps.map2_r
+        self.width = stereo.cam0.width
+        self.height = stereo.cam0.height
         self._ready = True
 
         self.get_logger().info(

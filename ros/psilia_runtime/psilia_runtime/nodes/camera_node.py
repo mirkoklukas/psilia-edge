@@ -28,7 +28,7 @@ from sensor_msgs.msg import CameraInfo, Image # type: ignore
 from std_msgs.msg import Header # type: ignore
 from psilia_runtime.better_ros import better_node, ROSValue, every_seconds
 from psilia_runtime.camera_stream import CameraStream
-from psilia_runtime.camera_calibration import CameraCalibration
+from psilia_runtime.camera import CameraCalibration, StereoCalibration
 
 
 @better_node
@@ -79,30 +79,28 @@ class CameraNode(Node):
             self.get_logger().info("No calibration_file — CameraInfo will not be published.")
             return
 
-        cal0 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_left)
-        cal1 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_right)
+        stereo = StereoCalibration.load(self.calibration_file, strict=False).rectify()
 
         # Rescale calibration if the capture resolution doesn't match.
         eye_w = self.width // 2
-        if eye_w != cal0.width or self.height != cal0.height:
-            factor = eye_w / cal0.width
+        if eye_w != stereo.cam0.width or self.height != stereo.cam0.height:
+            factor = eye_w / stereo.cam0.width
             self.get_logger().info(
-                f"Rescaling calibration: {cal0.width}x{cal0.height} → {eye_w}x{self.height} "
+                f"Rescaling calibration: {stereo.cam0.width}x{stereo.cam0.height} → {eye_w}x{self.height} "
                 f"(factor={factor:.3f})"
             )
-            cal0 = cal0.rescale(factor)
-            cal1 = cal1.rescale(factor)
+            stereo = StereoCalibration(
+                stereo.cam0.rescale(factor), stereo.cam1.rescale(factor)
+            ).rectify()
 
-        rect = CameraCalibration.stereo_rectification(cal0, cal1)
-
-        self._camera_info_left = self._build_camera_info(cal0, rect.R0, rect.P0)
-        self._camera_info_right = self._build_camera_info(cal1, rect.R1, rect.P1)
+        self._camera_info_left = self._build_camera_info(stereo.cam0)
+        self._camera_info_right = self._build_camera_info(stereo.cam1)
         self._pub_info_left = self.create_publisher(CameraInfo, "/psilia/stereo/left/camera_info", 10)
         self._pub_info_right = self.create_publisher(CameraInfo, "/psilia/stereo/right/camera_info", 10)
 
         self.get_logger().info("CameraInfo ready (left + right).")
 
-    def _build_camera_info(self, cal: CameraCalibration, R, P) -> CameraInfo:
+    def _build_camera_info(self, cal: CameraCalibration) -> CameraInfo:
         info = CameraInfo()
         info.header.frame_id = "camera"
         info.width = cal.width
@@ -110,8 +108,8 @@ class CameraNode(Node):
         info.distortion_model = "plumb_bob"
         info.d = cal.distortion_coeffs.flatten().tolist()
         info.k = cal.K.flatten().tolist()
-        info.r = R.flatten().tolist()
-        info.p = P.flatten().tolist()
+        info.r = cal.R_rect.flatten().tolist()
+        info.p = cal.P_rect.flatten().tolist()
         return info
 
     def publish_frame(self):

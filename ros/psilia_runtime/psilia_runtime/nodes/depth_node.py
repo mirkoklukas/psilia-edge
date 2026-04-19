@@ -4,7 +4,7 @@ computes disparity via StereoSGBM, converts to depth, and publishes on
 /psilia/stereo/depth (32FC1) and /psilia/stereo/depth/camera_info (rectified left camera).
 
 Parameters (set via launch file or command line):
-  calibration_file  — path to a Kalibr calibration-camchain YAML file
+  calibration_file  — path to a stereo calibration YAML file (psilia or Kalibr format)
   camera_left       — camera name for the left image (default: cam0)
   camera_right      — camera name for the right image (default: cam1)
   num_disparities   — max disparity range, must be divisible by 16 (default: 128)
@@ -16,7 +16,6 @@ Parameters (set via launch file or command line):
   speckle_window_size — max size of smooth disparity regions for speckle filter, 0 to disable (default: 100)
   speckle_range     — max disparity variation within a speckle region (default: 32)
 
-TODO: Replace Kalibr camchain format with our own calibration format.
 TODO: Compute and publish a confidence map alongside depth.
 TODO: Optionally publish the raw disparity map (e.g. on /psilia/disparity).
 """
@@ -30,7 +29,7 @@ from rclpy.node import Node  # type: ignore
 from sensor_msgs.msg import CameraInfo, Image  # type: ignore
 
 from psilia_runtime.better_ros import better_node, ROSValue
-from psilia_runtime.camera_calibration import CameraCalibration
+from psilia_runtime.camera import StereoCalibration
 
 
 @better_node
@@ -52,8 +51,7 @@ class DepthNode(Node):
             self.get_logger().error("No calibration_file parameter set.")
             return
 
-        self._cal0 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_left)
-        self._cal1 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_right)
+        self._stereo_cal = StereoCalibration.load(self.calibration_file, strict=False).rectify()
         self._ready = False
 
         self.pub = self.create_publisher(Image, "/psilia/stereo/depth", 1)
@@ -64,37 +62,36 @@ class DepthNode(Node):
     def _setup_depth(self, frame_width: int, frame_height: int):
         """Initialize depth computation, rescaling calibration if needed."""
         eye_w = frame_width // 2
-        cal0, cal1 = self._cal0, self._cal1
+        stereo = self._stereo_cal
 
-        if eye_w != cal0.width or frame_height != cal0.height:
-            factor = eye_w / cal0.width
+        if eye_w != stereo.cam0.width or frame_height != stereo.cam0.height:
+            factor = eye_w / stereo.cam0.width
             self.get_logger().info(
-                f"Rescaling calibration: {cal0.width}x{cal0.height} → {eye_w}x{frame_height} "
+                f"Rescaling calibration: {stereo.cam0.width}x{stereo.cam0.height} → {eye_w}x{frame_height} "
                 f"(factor={factor:.3f})"
             )
-            cal0 = cal0.rescale(factor)
-            cal1 = cal1.rescale(factor)
+            stereo = StereoCalibration(
+                stereo.cam0.rescale(factor), stereo.cam1.rescale(factor)
+            ).rectify()
 
-        rect = CameraCalibration.stereo_rectification(cal0, cal1)
-
-        # Extract focal length and baseline from the Q matrix.
-        # Q[2,3] = focal length, Q[3,2] = -1/baseline
-        self.focal_length = rect.Q[2, 3]
-        self.baseline = abs(1.0 / rect.Q[3, 2])
-        self.width = cal0.width
-        self.height = cal0.height
+        Q = stereo.disparity_to_3d
+        self.focal_length = Q[2, 3]
+        self.baseline = abs(1.0 / Q[3, 2])
+        self.width = stereo.cam0.width
+        self.height = stereo.cam0.height
         self._ready = True
 
         # Build CameraInfo for the rectified left camera (depth viewpoint).
+        cal0 = stereo.cam0
         info = CameraInfo()
         info.header.frame_id = "camera"
         info.width = cal0.width
         info.height = cal0.height
         info.distortion_model = "plumb_bob"
         info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
-        info.k = rect.P0[:3, :3].flatten().tolist()
-        info.r = rect.R0.flatten().tolist()
-        info.p = rect.P0.flatten().tolist()
+        info.k = cal0.P_rect[:3, :3].flatten().tolist()
+        info.r = cal0.R_rect.flatten().tolist()
+        info.p = cal0.P_rect.flatten().tolist()
         self._camera_info = info
 
         self._stereo = cv2.StereoSGBM_create(

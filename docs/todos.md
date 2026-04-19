@@ -56,14 +56,24 @@ What remains:
 
 ## Other
 
+### Docker image: shared Python package
+Figure out what to install in the Docker image so the ROS nodes and the host
+CLI share the same code without duplication. Options: install full `psilia-edge`,
+a minimal `psilia-core` package, or a new lightweight shared package. Currently
+`camera.py` is copied into both `psilia_edge` and `psilia_runtime` — this is a
+stopgap until a proper shared package strategy is in place.
+
+### ROS nodes: remove unused camera_left/camera_right params
+The `camera_left` / `camera_right` ROS parameters in depth_node, depth_cuda_node,
+rectify_node, and camera_node are now unused — `StereoCalibration.load` always
+uses cam0/cam1. Remove the params and update launch configs accordingly.
+
 ### Depth pipeline
 - GPU acceleration for rectify and depth nodes on Jetson. Currently rectify
   uses ~250% CPU (`cv2.remap` x2) and depth ~113% CPU (`StereoSGBM`) at
   1280x720, starving other nodes. Use `cv2.cuda.remap` for rectification
   and explore CUDA stereo matching (`cv2.cuda.StereoSGBM` or
   `cv2.cuda.StereoBM`) for depth. This would free most of the CPU budget.
-- Replace Kalibr camchain format with our own calibration format
-  (noted in rectify_node.py and depth_node.py).
 - Compute and publish a confidence map alongside depth (depth_node.py).
 - Optionally publish the raw disparity map on /psilia/disparity (depth_node.py).
 - Generalize preview_node into a single node that accepts a list of image

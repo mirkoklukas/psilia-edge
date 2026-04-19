@@ -60,9 +60,7 @@ def register_sensor(
 
     CALIBRATIONS_DIR.mkdir(parents=True, exist_ok=True)
 
-    stereo = StereoCalibration.load(str(calibration_src), strict=False)
-    if not stereo.is_rectified:
-        stereo = stereo.rectify()
+    stereo = StereoCalibration.load(str(calibration_src), strict=False).rectify()
 
     label = entry.get("label", key)
     uid = key if key != label else None

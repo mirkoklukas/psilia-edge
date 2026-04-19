@@ -7,7 +7,7 @@ Replaces rectify_node + depth_node when CUDA is available. Disable those two
 and enable this one via ros.nodes in runtime.yaml.
 
 Parameters (set via launch file or command line):
-  calibration_file  — path to a Kalibr calibration-camchain YAML file
+  calibration_file  — path to a stereo calibration YAML file (psilia or Kalibr format)
   camera_left       — camera name for the left image (default: cam0)
   camera_right      — camera name for the right image (default: cam1)
   num_disparities   — max disparity range, 64 or 128 (default: 128)
@@ -26,7 +26,7 @@ from rclpy.node import Node  # type: ignore
 from sensor_msgs.msg import CameraInfo, Image  # type: ignore
 
 from psilia_runtime.better_ros import better_node, ROSValue
-from psilia_runtime.camera_calibration import CameraCalibration
+from psilia_runtime.camera import StereoCalibration
 
 
 @better_node
@@ -49,8 +49,7 @@ class DepthCudaNode(Node):
             self.get_logger().error("No CUDA device found — cannot run depth_cuda_node.")
             return
 
-        self._cal0 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_left)
-        self._cal1 = CameraCalibration.from_kalibr(self.calibration_file, self.camera_right)
+        self._stereo_cal = StereoCalibration.load(self.calibration_file, strict=False).rectify()
         self._ready = False
 
         self.pub = self.create_publisher(Image, "/psilia/stereo/depth", 1)
@@ -64,36 +63,31 @@ class DepthCudaNode(Node):
     def _setup_depth(self, frame_width: int, frame_height: int):
         """Initialize GPU rectification maps, stereo matcher, and buffers."""
         eye_w = frame_width // 2
-        cal0, cal1 = self._cal0, self._cal1
+        stereo = self._stereo_cal
 
-        if eye_w != cal0.width or frame_height != cal0.height:
-            factor = eye_w / cal0.width
+        if eye_w != stereo.cam0.width or frame_height != stereo.cam0.height:
+            factor = eye_w / stereo.cam0.width
             self.get_logger().info(
-                f"Rescaling calibration: {cal0.width}x{cal0.height} -> {eye_w}x{frame_height} "
+                f"Rescaling calibration: {stereo.cam0.width}x{stereo.cam0.height} -> {eye_w}x{frame_height} "
                 f"(factor={factor:.3f})"
             )
-            cal0 = cal0.rescale(factor)
-            cal1 = cal1.rescale(factor)
+            stereo = StereoCalibration(
+                stereo.cam0.rescale(factor), stereo.cam1.rescale(factor)
+            ).rectify()
 
-        # Compute rectification (R, P, Q matrices).
-        rect = CameraCalibration.stereo_rectification(cal0, cal1)
-
-        self.focal_length = rect.Q[2, 3]
-        self.baseline = abs(1.0 / rect.Q[3, 2])
-        self.width = cal0.width
-        self.height = cal0.height
+        Q = stereo.disparity_to_3d
+        self.focal_length = Q[2, 3]
+        self.baseline = abs(1.0 / Q[3, 2])
+        self.width = stereo.cam0.width
+        self.height = stereo.cam0.height
 
         # Build GPU remap tables as separate x,y float maps (CV_32FC1).
-        K0 = cal0.K.astype(np.float64)
-        K1 = cal1.K.astype(np.float64)
-        D0 = np.array(cal0.d).astype(np.float64)
-        D1 = np.array(cal1.d).astype(np.float64)
-
+        cal0, cal1 = stereo.cam0, stereo.cam1
         map1_l, map2_l = cv2.initUndistortRectifyMap(
-            K0, D0, rect.R0, rect.P0, cal0.res, cv2.CV_32FC1
+            cal0.K, np.array(cal0.d), cal0.R_rect, cal0.P_rect, cal0.res, cv2.CV_32FC1
         )
         map1_r, map2_r = cv2.initUndistortRectifyMap(
-            K1, D1, rect.R1, rect.P1, cal1.res, cv2.CV_32FC1
+            cal1.K, np.array(cal1.d), cal1.R_rect, cal1.P_rect, cal1.res, cv2.CV_32FC1
         )
 
         self._gpu_map1_l = cv2.cuda.GpuMat(map1_l)
@@ -120,9 +114,9 @@ class DepthCudaNode(Node):
         info.height = cal0.height
         info.distortion_model = "plumb_bob"
         info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
-        info.k = rect.P0[:3, :3].flatten().tolist()
-        info.r = rect.R0.flatten().tolist()
-        info.p = rect.P0.flatten().tolist()
+        info.k = cal0.P_rect[:3, :3].flatten().tolist()
+        info.r = cal0.R_rect.flatten().tolist()
+        info.p = cal0.P_rect.flatten().tolist()
         self._camera_info = info
 
         # Pre-allocated publish buffer for depth (32FC1 = 4 bytes per pixel).
