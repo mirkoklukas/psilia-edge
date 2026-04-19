@@ -24,6 +24,8 @@ RUN apt-get update && apt-get install -y \
     ros-humble-rosbridge-server \
     ros-humble-rosbag2-storage-mcap \
     ros-humble-foxglove-bridge \
+    ros-humble-tf2-ros \
+    ros-humble-geometry-msgs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
