@@ -26,6 +26,18 @@
       font-size: 0.7rem;
       color: var(--color-idle);
     }
+    .epipolar-wrap {
+      position: relative;
+    }
+    .epipolar-wrap canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      border-radius: var(--radius-sm);
+    }
     #ros-status {
       font-family: var(--font-mono);
       font-size: 0.7rem;
@@ -71,7 +83,10 @@
     <div class="cc preview">
       <div class="cc__title">/psilia/preview/rectified/compressed</div>
       <div class="placeholder" id="ph-rect">waiting for data</div>
-      <img id="img-rect" style="display:none;">
+      <div class="epipolar-wrap">
+        <img id="img-rect" style="display:none;">
+        <canvas id="epipolar-lines"></canvas>
+      </div>
     </div>
 
     <div class="cc preview">
@@ -120,6 +135,26 @@
     subscribeCompressed('/psilia/preview/image/compressed',      'img-image', 'ph-image');
     subscribeCompressed('/psilia/preview/rectified/compressed',  'img-rect',  'ph-rect');
     subscribeCompressed('/psilia/preview/depth/compressed',      'img-depth', 'ph-depth');
+
+    // Draw horizontal epipolar lines over the rectified image.
+    const rectImg = document.getElementById('img-rect');
+    const epiCanvas = document.getElementById('epipolar-lines');
+    const EPIPOLAR_LINE_COUNT = 12;
+    rectImg.addEventListener('load', () => {
+      epiCanvas.width = rectImg.naturalWidth;
+      epiCanvas.height = rectImg.naturalHeight;
+      const ctx = epiCanvas.getContext('2d');
+      ctx.clearRect(0, 0, epiCanvas.width, epiCanvas.height);
+      ctx.strokeStyle = 'rgba(0, 255, 180, 0.4)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i <= EPIPOLAR_LINE_COUNT; i++) {
+        const y = Math.round((i / (EPIPOLAR_LINE_COUNT + 1)) * epiCanvas.height);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(epiCanvas.width, y);
+        ctx.stroke();
+      }
+    });
 
     // ── Topic Hz (from hz_node) ─────────────────────────────
     new ROSLIB.Topic({ ros, name: '/psilia/diagnostics/hz', messageType: 'std_msgs/String' })

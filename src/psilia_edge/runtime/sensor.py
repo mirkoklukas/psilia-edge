@@ -57,10 +57,22 @@ def register_sensor(
         calibration_src: Path to the calibration file to import.
     """
     from psilia_edge.camera import StereoCalibration
+    import psilia_edge.ui as ui
 
     CALIBRATIONS_DIR.mkdir(parents=True, exist_ok=True)
 
-    stereo = StereoCalibration.load(str(calibration_src), strict=False).rectify()
+    stereo = StereoCalibration.load(str(calibration_src), strict=False)
+    ok, issues = stereo.validate_rectification()
+    if not ok:
+        ui.warn("Rectification data looks suspect:")
+        for issue in issues:
+            ui.print_line(f"  - {issue}")
+        if ui.confirm("Re-rectify from raw intrinsics and extrinsics?", default=True):
+            stereo = stereo.rectify(force=True)
+        else:
+            stereo = stereo.rectify()
+    else:
+        stereo = stereo.rectify()
 
     label = entry.get("label", key)
     uid = key if key != label else None

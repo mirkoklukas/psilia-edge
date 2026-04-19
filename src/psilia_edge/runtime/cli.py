@@ -550,7 +550,7 @@ def _run_attach() -> None:
                 spatial_text = Text("stale", style="yellow")
                 hb_detail = f"  heartbeat {age:.0f}s ago"
         else:
-            spatial_text = Text("stopped", style="red")
+            spatial_text = Text("not running", style="dim")
             hb_detail = ""
 
         line = Text("  spatial layer: ")

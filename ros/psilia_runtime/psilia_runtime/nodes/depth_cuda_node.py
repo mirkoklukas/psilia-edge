@@ -49,6 +49,7 @@ class DepthCudaNode(Node):
             self.get_logger().error("No CUDA device found — cannot run depth_cuda_node.")
             return
 
+        # TODO: validate_rectification() here and log warnings if it fails.
         self._stereo_cal = StereoCalibration.load(self.calibration_file, strict=False).rectify()
         self._ready = False
 

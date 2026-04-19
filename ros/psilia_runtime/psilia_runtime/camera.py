@@ -409,6 +409,40 @@ class StereoCalibration:
             and self.cam1.rectification is not None
         )
 
+    def validate_rectification(self, tol: float = 1.0) -> tuple[bool, list[str]]:
+        """Check whether the rectification data looks plausible.
+
+        Returns (ok, issues) where issues is a list of human-readable strings.
+        """
+        issues = []
+        if not self.is_rectified:
+            return True, []
+
+        p0 = self.cam0.rectified_projection
+        p1 = self.cam1.rectified_projection
+
+        if abs(p0[0] - p1[0]) > tol or abs(p0[1] - p1[1]) > tol:
+            issues.append(
+                f"Focal length mismatch: cam0=({p0[0]:.2f}, {p0[1]:.2f}) "
+                f"cam1=({p1[0]:.2f}, {p1[1]:.2f})"
+            )
+
+        if abs(p0[3] - p1[3]) > tol:
+            issues.append(
+                f"cy not aligned: cam0={p0[3]:.2f} cam1={p1[3]:.2f}"
+            )
+
+        for cam in (self.cam0, self.cam1):
+            r_is_identity = np.allclose(cam.R_rect, np.eye(3), atol=1e-6)
+            p_matches_k = np.allclose(cam.rectified_projection[:4], cam.intrinsics, atol=1e-6)
+            if not r_is_identity and p_matches_k:
+                issues.append(
+                    f"{cam.name}: rectification is non-identity but "
+                    f"rectified projection matches raw intrinsics"
+                )
+
+        return len(issues) == 0, issues
+
     @staticmethod
     def _compute_maps(
         cam0: CameraCalibration, cam1: CameraCalibration
