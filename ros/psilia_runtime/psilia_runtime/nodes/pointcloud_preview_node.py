@@ -20,7 +20,7 @@ from tf2_ros import StaticTransformBroadcaster  # type: ignore
 
 from psilia_runtime.better_ros import better_node, ROSValue
 
-FRAME_ID = "preview_camera"
+FRAME_ID = "psilia/preview_camera"
 
 
 @better_node
@@ -47,7 +47,7 @@ class PointcloudPreviewNode(Node):
         br = StaticTransformBroadcaster(self)
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = "world"
+        t.header.frame_id = "psilia/world"
         t.child_frame_id = FRAME_ID
         # Optical frame (z-fwd, x-right, y-down) oriented so camera
         # points along world x-axis (x-fwd, y-left, z-up).
