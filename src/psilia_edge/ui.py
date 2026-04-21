@@ -147,6 +147,23 @@ def print_line(text: str, padding_left=PADDING_LEFT, highlight=True) -> None:
     )
 
 
+def print_progress(
+    text: str, end: str = "\n", overwrite: bool = False, padding_left=PADDING_LEFT
+) -> None:
+    """Print a progress line, optionally overwriting the current line."""
+    if overwrite:
+        padding = " " * padding_left
+        with console.capture() as capture:
+            console.print(text, highlight=False, end="")
+        rendered = capture.get()
+        console.file.write(f"\r{padding}{rendered}")
+        console.file.flush()
+    else:
+        console.print(
+            Padding(text, (0, padding_left), expand=False), highlight=False, end=end
+        )
+
+
 def ask(prompt: str, default: str = "", password: bool = False) -> str:
     """Styled user prompt."""
     from rich.prompt import Prompt

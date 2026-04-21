@@ -64,13 +64,13 @@ def build_rsync_cmd(
 ) -> str:
     """Build an rsync command to pull data from a remote device.
 
-    # --archive        preserves timestamps, permissions, symlinks
-    # --progress       shows per-file progress
-    # --human-readable human-readable sizes
+    # --archive         preserves timestamps, permissions, symlinks
+    # --info=progress2  single overall progress line (updated in-place via \r)
+    # --human-readable  human-readable sizes
     """
     excludes = " ".join(f"--exclude '{f}'" for f in ["*.tmp", *(exclude or [])])
     return (
-        f"rsync --archive --progress --human-readable "
+        f"rsync --archive --info=progress2 --human-readable "
         f"{excludes} "
         f"{device}:{remote_data_dir}/ "
         f"{pull_to}/"

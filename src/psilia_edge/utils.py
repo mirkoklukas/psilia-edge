@@ -171,15 +171,46 @@ def run_with_spinner(cmd: str, msg: str, tail: int = 3) -> int:
 def run_streamed(cmd: str, prefix: str = "") -> int:
     """Run a command and stream output live to the terminal via Rich.
 
-    Each output line is printed with the given prefix. Returns the exit code.
-    stdout and stderr are merged into a single stream.
+    Handles \\r-delimited progress updates (e.g. rsync --info=progress2) by
+    overwriting the current line in place. \\n advances to a new line as usual.
     """
+    import re
+
     process = subprocess.Popen(
-        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
-    for line in process.stdout:
-        line = line.rstrip()
-        ui.print_line(f"[dim]{prefix}{line}[/dim]", highlight=False)
+    buf = ""
+    on_cr_line = False
+    while True:
+        chunk = process.stdout.read(256)
+        if not chunk:
+            break
+        buf += chunk.decode("utf-8", errors="replace")
+        parts = re.split(r"(\r\n|\r|\n)", buf)
+        for i in range(0, len(parts) - 1, 2):
+            text = parts[i].rstrip()
+            sep = parts[i + 1]
+            if sep == "\r":
+                if not text:
+                    continue
+                on_cr_line = True
+                ui.print_progress(f"[dim]{prefix}{text}[/dim]", end="", overwrite=True)
+            else:
+                if on_cr_line:
+                    ui.console.file.write("\n")
+                    on_cr_line = False
+                if text:
+                    ui.print_progress(
+                        f"[dim]{prefix}{text}[/dim]", end="\n", overwrite=False
+                    )
+        buf = parts[-1]
+
+    if on_cr_line:
+        ui.console.file.write("\n")
+    if buf.strip():
+        ui.print_progress(
+            f"[dim]{prefix}{buf.strip()}[/dim]", end="\n", overwrite=False
+        )
 
     process.wait()
     return process.returncode
