@@ -1,4 +1,7 @@
 name: My Runtime Config
+# docker:
+#   profile: jetson          # laptop | jetson | isaac (default: auto-detected by platform)
+#   # image: my/custom:tag   # optional — overrides the profile's default image
 ros:
     launch: default.launch.py
     nodes:

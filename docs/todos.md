@@ -68,6 +68,14 @@ The `camera_left` / `camera_right` ROS parameters in depth_node, depth_cuda_node
 rectify_node, and camera_node are now unused — `StereoCalibration.load` always
 uses cam0/cam1. Remove the params and update launch configs accordingly.
 
+### Isaac ROS / ESS stereo depth
+- Explore NVIDIA's `isaac_ros_common` workflow (`run_dev.sh`, `docker_deploy.sh`,
+  Isaac ROS CLI) and evaluate whether it offers benefits over our standalone
+  Dockerfile approach. Currently we bypass it in favor of a simpler
+  `dustynv/ros` base + `apt-get install` for Isaac ROS packages.
+- Understand how NVIDIA versions and distributes Isaac ROS Docker images via NGC
+  (`nvcr.io`), including auth requirements and EULA implications for ESS models.
+
 ### Depth pipeline
 - GPU acceleration for rectify and depth nodes on Jetson. Currently rectify
   uses ~250% CPU (`cv2.remap` x2) and depth ~113% CPU (`StereoSGBM`) at

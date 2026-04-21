@@ -1,0 +1,60 @@
+# psilia/runtime-isaac:latest (Jetson + Isaac ROS)
+# Builds the Spatial Runtime Docker image with Isaac ROS support (ROS 2 Jazzy + CUDA).
+#
+# Based on dustynv/ros:jazzy-ros-base-r36.4.0-cu128-24.04 which provides:
+#   - L4T R36.4 (JetPack 6.x) with CUDA
+#   - ROS 2 Jazzy (ros-base)
+#   - OpenCV with CUDA support (system install)
+#
+# Adds NVIDIA Isaac ROS packages (ESS stereo depth, NITROS) via apt.
+#
+# Requires: JetPack 6.x (L4T R36.4.x) on the host.
+FROM dustynv/ros:jazzy-ros-base-r36.4.0-cu128-24.04
+
+# Add NVIDIA Isaac ROS apt repository
+RUN curl -fsSL https://isaac.download.nvidia.com/isaac-ros/repos.key \
+        | gpg --dearmor -o /usr/share/keyrings/nvidia-isaac-ros.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/nvidia-isaac-ros.gpg] \
+        https://isaac.download.nvidia.com/isaac-ros/release-4 noble main" \
+        > /etc/apt/sources.list.d/nvidia-isaac-ros.list
+
+# Install ROS packages and Isaac ROS ESS
+RUN apt-get update && apt-get install -y \
+    ros-jazzy-launch-ros \
+    ros-jazzy-ros2launch \
+    ros-jazzy-sensor-msgs \
+    ros-jazzy-std-msgs \
+    ros-jazzy-builtin-interfaces \
+    ros-jazzy-rosbridge-server \
+    ros-jazzy-rosbag2-storage-mcap \
+    ros-jazzy-foxglove-bridge \
+    ros-jazzy-tf2-ros \
+    ros-jazzy-tf2-ros-py \
+    ros-jazzy-geometry-msgs \
+    ros-jazzy-isaac-ros-ess \
+    ros-jazzy-isaac-ros-ess-models-install \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+# Note: OpenCV with CUDA comes from the base image (system install).
+# Do NOT install opencv-python-headless — it would shadow the system OpenCV.
+RUN pip3 install --index-url https://pypi.org/simple scipy
+
+# Make ROS available to all login shells (e.g. docker exec bash -l)
+RUN echo "source /opt/ros/jazzy/setup.bash" > /etc/profile.d/ros_setup.sh
+
+# Source PSILIA ROS workspace in all shells if not already present
+RUN mkdir -p /psilia/ros/src/install
+COPY <<'EOF' /etc/profile.d/psilia_setup.sh
+if [ -f /psilia/ros/install/setup.bash ]; then
+  source /psilia/ros/install/setup.bash
+fi
+EOF
+
+# Entrypoint: build workspace, source, and launch
+COPY scripts/ /scripts/
+RUN for f in /scripts/*.sh; do \
+        cp "$f" / && chmod +x "/$(basename "$f")"; \
+    done && rm -rf /scripts
+
+ENTRYPOINT ["/prep_ros.sh"]

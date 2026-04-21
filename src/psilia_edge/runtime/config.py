@@ -63,7 +63,22 @@ INITIAL_RUNTIME_CONFIG_PATH = (
 # -- Docker-related constants --
 #
 CONTAINER_NAME = "psilia-runtime"
-DEFAULT_DOCKER_IMAGE = "psilia/runtime:latest"
+DOCKER_PROFILES = {
+    "laptop": {
+        "dockerfile": "Dockerfile.laptop",
+        "image": "psilia/runtime:latest",
+    },
+    "jetson": {
+        "dockerfile": "Dockerfile.jetson",
+        "image": "psilia/runtime:latest",
+    },
+    "isaac": {
+        "dockerfile": "Dockerfile.isaac",
+        "image": "psilia/runtime-isaac:latest",
+    },
+}
+DEFAULT_DOCKER_IMAGE = DOCKER_PROFILES["laptop"]["image"]
+MODELS_DIR = CONFIG_DIR / "models"
 
 
 # TODO: Check dependency structure. We should make explicit who reads from what,
@@ -207,23 +222,52 @@ def get_docker_dir() -> Path:
     return get_repo_dir() / "ros" / "docker"
 
 
-def get_dockerfile() -> Path:
-    """Return the Dockerfile path for the current platform.
-
-    TODO: Improve platform detection — currently uses a simple arch check.
-    Could use /etc/nv_tegra_release, a config option, or both.
-    """
+def _default_docker_profile_name() -> str:
+    """Return the default Docker profile name based on platform."""
     import platform
 
-    docker_dir = get_docker_dir()
     if platform.machine() == "aarch64":
-        return docker_dir / "Dockerfile.jetson"
-    return docker_dir / "Dockerfile.laptop"
+        return "jetson"
+    return "laptop"
+
+
+def get_docker_profile_name() -> str:
+    """Return the active Docker profile name.
+
+    Reads ``docker.profile`` from runtime.yaml, falls back to platform heuristic.
+    """
+    return (
+        read_runtime_config()
+        .get("docker", {})
+        .get("profile", _default_docker_profile_name())
+    )
+
+
+def get_docker_profile() -> dict:
+    """Return the active Docker profile dict (dockerfile, image)."""
+    name = get_docker_profile_name()
+    if name not in DOCKER_PROFILES:
+        raise ConfigurationError(
+            f"Unknown docker profile '{name}'. Available: {', '.join(DOCKER_PROFILES)}"
+        )
+    return DOCKER_PROFILES[name]
+
+
+def get_dockerfile() -> Path:
+    """Return the Dockerfile path for the active Docker profile."""
+    profile = get_docker_profile()
+    return get_docker_dir() / profile["dockerfile"]
 
 
 def get_docker_image() -> str:
-    """Return the name of the Docker image to use for the runtime container."""
-    return read_runtime_config().get("docker", {}).get("image", DEFAULT_DOCKER_IMAGE)
+    """Return the Docker image name for the active profile.
+
+    An explicit ``docker.image`` in runtime.yaml overrides the profile default.
+    """
+    docker_cfg = read_runtime_config().get("docker", {})
+    if "image" in docker_cfg:
+        return docker_cfg["image"]
+    return get_docker_profile()["image"]
 
 
 def _check_paths(path_dict) -> None:

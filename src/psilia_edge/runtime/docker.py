@@ -8,6 +8,7 @@ from psilia_edge.runtime.config import (  # noqa: E402
     CALIBRATIONS_DIR,
     CONFIG_PATH,
     CONTAINER_NAME,
+    MODELS_DIR,
     RUN_DIR,
     get_ros_dir,
     get_log_dir,
@@ -26,6 +27,10 @@ def start_runtime_container() -> tuple[int, str, str]:
     """
     RUN_DIR.mkdir(parents=True, exist_ok=True)
 
+    models_mount = (
+        f"-v {str(MODELS_DIR)}:/psilia/models:ro " if MODELS_DIR.is_dir() else ""
+    )
+
     cmd = (
         f"docker run -i -d --rm "
         f"--privileged "
@@ -36,6 +41,7 @@ def start_runtime_container() -> tuple[int, str, str]:
         f"-v {str(get_runtime_config_path())}:/psilia/runtime.yaml:ro "
         f"-v {str(CONFIG_PATH)}:/psilia/psilia.yaml:ro "
         f"-v {str(CALIBRATIONS_DIR)}:/psilia/calibrations:ro "
+        f"{models_mount}"
         f"-v {RUN_DIR}:/psilia/run "
         f"-e ROS_LOG_DIR=/psilia/log "
         f"-e RCUTILS_LOGGING_USE_STDOUT=1 "
