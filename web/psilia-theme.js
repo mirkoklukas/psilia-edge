@@ -1,7 +1,7 @@
 /* Psilia theme toggle — persist choice in localStorage */
 (function () {
   var key = 'psilia-theme';
-  var cycle = [null, 'mono', 'light', 'light-mono'];
+  var cycle = [null, 'light-mono'];
   var saved = localStorage.getItem(key);
   if (saved) document.documentElement.setAttribute('data-theme', saved);
 

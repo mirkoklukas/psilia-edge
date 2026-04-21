@@ -712,6 +712,14 @@ def _run_attach() -> None:
         ui.print("[dim]Detached.[/dim]")
 
 
+@app.command(name="ui")
+def run_ui() -> None:
+    """Launch the Textual TUI for runtime monitoring."""
+    from psilia_edge.runtime.app import run
+
+    run()
+
+
 @app.command()
 @device_decorator
 def logs(

@@ -6,6 +6,7 @@ requires-python = ">=3.10"
 dependencies = [
     "typer",
     "rich",
+    "textual",
     "numpy",
     "paramiko",
     "psutil",

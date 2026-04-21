@@ -110,6 +110,11 @@ uses cam0/cam1. Remove the params and update launch configs accordingly.
 - Add a `psilia runtime status --reliable` (or `--slow`) mode that fetches ROS nodes and topics directly via `docker exec ros2 node list` / `ros2 topic list` — slower but ground-truth, doesn't depend on rosbridge or status.json.
 - `psilia runtime status` should never show stale state from a previous session. Any data sourced from files (`heartbeat.json`, `status.json`) must either pass a freshness check or be shown as unavailable.
 - Show logs in live view, ros2 logs and so on.
+- Add log source cycling to `psilia runtime attach`: a key (e.g. `[n]`) to
+  cycle the log panel between `ros.log`, `psilia-edge.log` (daemon), and
+  per-node ROS logs. The Rich `Live` + key handling infrastructure is already
+  in place (`_run_attach` in `cli.py`). Also add a `--source` flag to
+  `psilia runtime logs` for non-interactive use.
 - Structure logging across the stack and document a clear map of what writes where: daemon PID and log (`~/.psilia/run/`, `~/.psilia/log/`), ROS node logs (`{runtime_home}/log/` via `ROS_LOG_DIR`), colcon build logs (`{runtime_home}/ros/log/`), FastAPI/uvicorn logs, and `heartbeat.json`/`status.json` in `~/.psilia/run/`.
 - Set up structured logging across `psilia_edge` (currently using `logging.getLogger(__name__)` in places but no root config). Warnings like rosbridge publish failures currently go nowhere.
 
