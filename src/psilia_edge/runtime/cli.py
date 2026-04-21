@@ -537,21 +537,33 @@ def _run_attach() -> None:
         parts.append(line)
 
         # ── Spatial layer ────────────────────────────────────
-        hb = read_json(hb_file)
-        if hb:
-            try:
-                age = time.time() - hb_file.stat().st_mtime
-            except OSError:
-                age = 999
-            if age < 5:
-                spatial_text = Text("running", style="green")
-                hb_detail = f"  heartbeat {age:.1f}s ago"
-            else:
-                spatial_text = Text("stale", style="yellow")
-                hb_detail = f"  heartbeat {age:.0f}s ago"
-        else:
+        from psilia_edge.runtime.docker import (
+            is_container_running,
+            is_ros_launch_running,
+        )
+
+        if not is_container_running():
             spatial_text = Text("not running", style="dim")
             hb_detail = ""
+        elif not is_ros_launch_running():
+            spatial_text = Text("stopped", style="dim")
+            hb_detail = ""
+        else:
+            hb = read_json(hb_file)
+            if hb:
+                try:
+                    age = time.time() - hb_file.stat().st_mtime
+                except OSError:
+                    age = 999
+                if age < 5:
+                    spatial_text = Text("running", style="green")
+                    hb_detail = f"  heartbeat {age:.1f}s ago"
+                else:
+                    spatial_text = Text("stale", style="yellow")
+                    hb_detail = f"  heartbeat {age:.0f}s ago"
+            else:
+                spatial_text = Text("waiting for heartbeat", style="yellow")
+                hb_detail = ""
 
         line = Text("  spatial layer: ")
         line.append_text(spatial_text)

@@ -16,7 +16,27 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.reactive import reactive
+from textual.theme import Theme
 from textual.widgets import Footer, Header, Log, Static, TabbedContent, TabPane
+
+PSILIA_THEME = Theme(
+    name="psilia",
+    primary="#4ecca3",
+    secondary="#009dff",
+    accent="#9c27b0",
+    foreground="#e0e0e0",
+    background="#1a1a2e",
+    success="#4ecca3",
+    warning="#f0c040",
+    error="#e05555",
+    surface="#16213e",
+    panel="#16213e",
+    dark=True,
+    variables={
+        "footer-key-foreground": "#4ecca3",
+        "footer-description-foreground": "#3392db",
+    },
+)
 
 
 class BaseLayerPanel(Static):
@@ -73,20 +93,30 @@ class SpatialLayerPanel(Static):
 
         lines = []
 
-        # ── Heartbeat ────────────────────────────────────────
-        hb_file = RUN_DIR / "heartbeat.json"
-        hb = _read_json(hb_file)
-        if hb:
-            try:
-                age = time.time() - hb_file.stat().st_mtime
-            except OSError:
-                age = 999
-            if age < 5:
-                spatial = f"[green]running[/]  [dim]heartbeat {age:.1f}s ago[/]"
-            else:
-                spatial = f"[yellow]stale[/]  [dim]heartbeat {age:.0f}s ago[/]"
-        else:
+        # ── Spatial status ────────────────────────────────────
+        from psilia_edge.runtime.docker import (
+            is_container_running,
+            is_ros_launch_running,
+        )
+
+        if not is_container_running():
             spatial = "[dim]not running[/]"
+        elif not is_ros_launch_running():
+            spatial = "[dim]stopped[/]"
+        else:
+            hb_file = RUN_DIR / "heartbeat.json"
+            hb = _read_json(hb_file)
+            if hb:
+                try:
+                    age = time.time() - hb_file.stat().st_mtime
+                except OSError:
+                    age = 999
+                if age < 5:
+                    spatial = f"[green]running[/]  [dim]heartbeat {age:.1f}s ago[/]"
+                else:
+                    spatial = f"[yellow]stale[/]  [dim]heartbeat {age:.0f}s ago[/]"
+            else:
+                spatial = "[yellow]waiting for heartbeat[/]"
         lines.append(f"status:  {spatial}")
 
         # ── Force mode ───────────────────────────────────────
@@ -162,14 +192,14 @@ class PsiliaApp(App):
     CSS = """
     #base-panel {
         height: auto;
-        border: solid $primary-background;
-        border-title-color: $text-muted;
+        border: solid $surface;
+        border-title-color: $secondary;
         padding: 1;
     }
     #spatial-panel {
         height: auto;
-        border: solid $primary-background;
-        border-title-color: $text-muted;
+        border: solid $surface;
+        border-title-color: $secondary;
         padding: 1;
     }
     #log-panel {
@@ -197,6 +227,8 @@ class PsiliaApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        self.register_theme(PSILIA_THEME)
+        self.theme = "psilia"
         self.sub_title = socket.gethostname().split(".")[0]
         self.query_one("#base-panel").border_title = "Base Layer"
         self.query_one("#spatial-panel").border_title = "Spatial Layer"

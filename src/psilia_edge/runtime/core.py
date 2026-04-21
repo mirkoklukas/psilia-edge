@@ -205,7 +205,7 @@ def stop_runtime() -> dict:
 
 def _clear_run_state():
     """Remove ephemeral status files from a previous session."""
-    for name in ("heartbeat.json", "hz.json"):
+    for name in ("heartbeat.json", "hz.json", "status.json"):
         (RUN_DIR / name).unlink(missing_ok=True)
 
 
