@@ -43,9 +43,9 @@ ros:
             - /psilia/interface
             - /psilia/heartbeat
     foxglove:
-        enabled: false
+        enabled: true
         topics:
             - /psilia/preview/image/compressed
             - /psilia/preview/depth/compressed
-            - /psilia/preview/rectified/compressed
             - /psilia/preview/pointcloud
+            - /tf_static

@@ -681,7 +681,7 @@ body {
 }
 
 [data-theme="light-mono"] .btn--stop {
-  background: #cc0000;
+  background: #555;
   color: #fff;
 }
 
@@ -691,7 +691,7 @@ body {
 }
 
 [data-theme="light-mono"] .btn--stop.btn--gradient {
-  background: linear-gradient(135deg, #dd1111, #cc0000);
+  background: linear-gradient(135deg, #666, #555);
   color: #fff;
 }
 
