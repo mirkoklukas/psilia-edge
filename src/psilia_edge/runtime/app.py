@@ -14,6 +14,7 @@ import time
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.containers import VerticalScroll
 from textual.reactive import reactive
 from textual.theme import Theme
 from textual.widgets import Footer, Header, Log, Static, Tabs, TabbedContent, TabPane
@@ -221,7 +222,7 @@ class ThemeReferencePanel(Static):
         return "\n".join(lines)
 
 
-class ConfigPanel(Static):
+class ConfigPanel(VerticalScroll):
     """Displays a YAML config file. Collapses when not focused."""
 
     can_focus = True
@@ -238,6 +239,9 @@ class ConfigPanel(Static):
         self._file_label = file_label
         self._file_path_getter = file_path_getter
         self._init_collapsed = collapsed
+
+    def compose(self) -> ComposeResult:
+        yield Static("", classes="config-content")
 
     def on_mount(self) -> None:
         self.collapsed = self._init_collapsed
@@ -258,7 +262,10 @@ class ConfigPanel(Static):
         self.styles.height = "auto" if self.collapsed else "1fr"
 
     def refresh_content(self) -> None:
-        self.update(self._build())
+        try:
+            self.query_one(".config-content", Static).update(self._build())
+        except Exception:
+            pass
 
     def _build(self) -> str:
         arrow = "▶" if self.collapsed else "▼"
@@ -415,7 +422,6 @@ class PsiliaApp(App):
     }
     #config-psilia, #config-runtime {
         padding: 1;
-        overflow-y: auto;
     }
     #config-psilia:focus, #config-runtime:focus {
         background: $surface;
