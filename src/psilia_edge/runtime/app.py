@@ -14,10 +14,9 @@ import time
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
 from textual.reactive import reactive
 from textual.theme import Theme
-from textual.widgets import Footer, Header, Log, Static, TabbedContent, TabPane
+from textual.widgets import Footer, Header, Log, Static, Tabs, TabbedContent, TabPane
 
 PSILIA_THEME = Theme(
     name="psilia",
@@ -39,8 +38,22 @@ PSILIA_THEME = Theme(
 )
 
 
+_TAB_NAV = [
+    Binding("left", "app.prev_tab", show=False),
+    Binding("right", "app.next_tab", show=False),
+]
+
+
 class BaseLayerPanel(Static):
     """Base layer status: daemon, container, URL."""
+
+    can_focus = True
+
+    BINDINGS = [
+        *_TAB_NAV,
+        Binding("s", "app.start_base", "Start"),
+        Binding("x", "app.stop_base", "Stop"),
+    ]
 
     def on_mount(self) -> None:
         self.refresh_status()
@@ -52,7 +65,7 @@ class BaseLayerPanel(Static):
         from psilia_edge.runtime.daemon import is_running as is_daemon_running
         from psilia_edge.runtime.docker import check_container_status
 
-        lines = []
+        lines = ["[bold]Base Layer[/]"]
 
         daemon_running = is_daemon_running()
         daemon = "[green]running[/]" if daemon_running else "[red]stopped[/]"
@@ -79,8 +92,18 @@ class BaseLayerPanel(Static):
 class SpatialLayerPanel(Static):
     """Spatial layer status: heartbeat, Hz table, preflight checks."""
 
+    can_focus = True
+
+    BINDINGS = [
+        *_TAB_NAV,
+        Binding("s", "app.start_spatial", "Start"),
+        Binding("x", "app.stop_spatial", "Stop"),
+        Binding("f", "app.toggle_force", "Force"),
+    ]
+
     checks: reactive[dict] = reactive({})
     force_mode: reactive[bool] = reactive(True)
+    _ros_nodes: list[str] | None = None
 
     def on_mount(self) -> None:
         self.refresh_status()
@@ -89,10 +112,16 @@ class SpatialLayerPanel(Static):
     def refresh_status(self) -> None:
         self.update(self._build())
 
+    def refresh_nodes(self) -> None:
+        from psilia_edge.runtime.docker import list_ros_nodes
+
+        self._ros_nodes = list_ros_nodes()
+        self.update(self._build())
+
     def _build(self) -> str:
         from psilia_edge.runtime.config import RUN_DIR
 
-        lines = []
+        lines = ["[bold]Spatial Layer[/]"]
 
         # ── Spatial status ────────────────────────────────────
         from psilia_edge.runtime.core import check_spatial_layer_status
@@ -135,7 +164,7 @@ class SpatialLayerPanel(Static):
                 hz_age = 999
             hz_live = hz_age < 3
             lines.append("")
-            lines.append("[bold]topics[/]")
+            lines.append("[bold]diagnostics[/]")
             for topic, info in hz.items():
                 rate_val = info.get("hz", 0)
                 if hz_live and rate_val > 0:
@@ -143,6 +172,13 @@ class SpatialLayerPanel(Static):
                 else:
                     rate = "[dim]—[/]"
                 lines.append(f"  {topic:<40s} {rate}")
+
+        # ── Nodes ────────────────────────────────────────────
+        if self._ros_nodes is not None:
+            lines.append("")
+            lines.append("[bold]nodes[/]")
+            for node in self._ros_nodes:
+                lines.append(f"  [dim]{node}[/]")
 
         return "\n".join(lines)
 
@@ -186,6 +222,16 @@ class LogPanel(Log):
 
     follow: reactive[bool] = reactive(True)
 
+    BINDINGS = [
+        *_TAB_NAV,
+        Binding("f", "toggle_follow", "Follow"),
+    ]
+
+    def action_toggle_follow(self) -> None:
+        self.follow = not self.follow
+        label = "follow" if self.follow else "paused"
+        self.app.notify(f"Logs: {label}", severity="information")
+
     def on_mount(self) -> None:
         self._last_size = 0
         self.set_interval(1.0, self.poll_log)
@@ -227,22 +273,15 @@ class PsiliaApp(App):
 
     TITLE = "Psilia Edge"
     CSS = """
-    #base-panel {
+    #base-panel, #spatial-panel {
         height: auto;
-        border: solid $surface;
-        border-title-color: $secondary;
         padding: 1;
     }
-    #spatial-panel {
-        height: auto;
-        border: solid $surface;
-        border-title-color: $secondary;
-        padding: 1;
+    #base-panel:focus, #spatial-panel:focus, #log-panel:focus {
+        background: $surface;
     }
     #log-panel {
         height: 1fr;
-        border: solid $surface;
-        border-title-color: $secondary;
     }
     #theme-panel {
         padding: 1;
@@ -250,10 +289,6 @@ class PsiliaApp(App):
     """
 
     BINDINGS = [
-        Binding("s", "start_spatial", "Start"),
-        Binding("x", "stop_spatial", "Stop"),
-        Binding("f", "toggle_force", "Force"),
-        Binding("l", "toggle_follow", "Follow"),
         Binding("r", "refresh", "Refresh"),
         Binding("q", "quit", "Quit"),
     ]
@@ -262,9 +297,8 @@ class PsiliaApp(App):
         yield Header()
         with TabbedContent("Status", "Logs", "Theme"):
             with TabPane("Status", id="tab-status"):
-                with Vertical():
-                    yield BaseLayerPanel(id="base-panel")
-                    yield SpatialLayerPanel(id="spatial-panel")
+                yield BaseLayerPanel(id="base-panel")
+                yield SpatialLayerPanel(id="spatial-panel")
             with TabPane("Logs", id="tab-logs"):
                 yield LogPanel(id="log-panel")
             with TabPane("Theme", id="tab-theme"):
@@ -275,10 +309,22 @@ class PsiliaApp(App):
         self.register_theme(PSILIA_THEME)
         self.theme = "psilia"
         self.sub_title = socket.gethostname().split(".")[0]
-        self.query_one("#base-panel").border_title = "Base Layer"
-        self.query_one("#spatial-panel").border_title = "Spatial Layer"
         self._load_initial_log()
         self.action_refresh()
+
+    def on_tabbed_content_tab_activated(
+        self, event: TabbedContent.TabActivated
+    ) -> None:
+        if event.pane.id == "tab-status":
+            self.query_one("#base-panel", BaseLayerPanel).focus()
+        elif event.pane.id == "tab-logs":
+            self.query_one("#log-panel", LogPanel).focus()
+
+    def action_prev_tab(self) -> None:
+        self.query_one(Tabs).action_previous_tab()
+
+    def action_next_tab(self) -> None:
+        self.query_one(Tabs).action_next_tab()
 
     def _load_initial_log(self) -> None:
         from psilia_edge.runtime.docker import get_ros_log_path
@@ -292,6 +338,14 @@ class PsiliaApp(App):
             log_panel._last_size = log_path.stat().st_size
         except OSError:
             pass
+
+    def action_start_base(self) -> None:
+        self.notify("Starting base layer...", severity="information")
+        self.run_worker(self._start_base, thread=True)
+
+    def action_stop_base(self) -> None:
+        self.notify("Stopping base layer...", severity="information")
+        self.run_worker(self._stop_base, thread=True)
 
     def action_start_spatial(self) -> None:
         self.notify("Starting spatial layer...", severity="information")
@@ -307,16 +361,31 @@ class PsiliaApp(App):
         label = "on" if panel.force_mode else "off"
         self.notify(f"Force mode: {label}", severity="information")
 
-    def action_toggle_follow(self) -> None:
-        panel = self.query_one("#log-panel", LogPanel)
-        panel.follow = not panel.follow
-        label = "follow" if panel.follow else "paused"
-        self.notify(f"Logs: {label}", severity="information")
-
     def action_refresh(self) -> None:
         self.query_one("#base-panel", BaseLayerPanel).refresh_status()
         self.query_one("#spatial-panel", SpatialLayerPanel).refresh_status()
         self.run_worker(self._refresh_checks, thread=True)
+        self.run_worker(self._refresh_nodes, thread=True)
+
+    async def _start_base(self) -> None:
+        from psilia_edge.runtime.core import start_base_layer
+
+        try:
+            start_base_layer()
+            self.notify("Base layer started", severity="information")
+        except Exception as e:
+            self.notify(f"Start failed: {e}", severity="error")
+        self.query_one("#base-panel", BaseLayerPanel).refresh_status()
+
+    async def _stop_base(self) -> None:
+        from psilia_edge.runtime.core import stop_base_layer
+
+        try:
+            stop_base_layer()
+            self.notify("Base layer stopped", severity="information")
+        except Exception as e:
+            self.notify(f"Stop failed: {e}", severity="error")
+        self.query_one("#base-panel", BaseLayerPanel).refresh_status()
 
     async def _start_spatial(self) -> None:
         from psilia_edge.runtime.core import (
@@ -343,6 +412,9 @@ class PsiliaApp(App):
             self.notify("Spatial layer stopped", severity="information")
         except Exception as e:
             self.notify(f"Stop failed: {e}", severity="error")
+
+    async def _refresh_nodes(self) -> None:
+        self.query_one("#spatial-panel", SpatialLayerPanel).refresh_nodes()
 
     async def _refresh_checks(self) -> None:
         from psilia_edge.runtime.core import check_spatial_requirements
