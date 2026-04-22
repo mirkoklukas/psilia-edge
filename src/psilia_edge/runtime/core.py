@@ -204,9 +204,29 @@ def stop_runtime() -> dict:
 
 
 def _clear_run_state():
-    """Remove ephemeral status files from a previous session."""
-    for name in ("heartbeat.json", "hz.json", "status.json"):
+    """Remove ephemeral status files from a previous session and seed hz.json."""
+    import json
+
+    from psilia_edge.runtime.config import read_runtime_config
+
+    for name in ("heartbeat.json", "status.json", "launch_id"):
         (RUN_DIR / name).unlink(missing_ok=True)
+
+    (RUN_DIR / "hz.json").unlink(missing_ok=True)
+
+    rt_config = read_runtime_config(missing_ok=True)
+    hz_topics_raw = (
+        rt_config.get("ros", {})
+        .get("nodes", {})
+        .get("diagnostics_node", {})
+        .get("parameters", {})
+        .get("hz_topics", [])
+    )
+    if hz_topics_raw:
+        topics = [e.split(",", 1)[0].strip() for e in hz_topics_raw if e and "," in e]
+        empty_hz = {t: {"hz": 0.0, "min_dt": 0.0, "max_dt": 0.0} for t in topics}
+        RUN_DIR.mkdir(parents=True, exist_ok=True)
+        (RUN_DIR / "hz.json").write_text(json.dumps(empty_hz))
 
 
 def start_base_layer(host: str = "0.0.0.0", port: int | None = None) -> dict:
@@ -393,7 +413,7 @@ def _build_launch_params(ctx) -> dict:
         if not enabled and name in nodes:
             logger.info("Disabled node: %s", name)
             nodes.remove(name)
-        elif user_params and name in nodes:
+        if user_params:
             existing = params.get(name, {}).get("ros__parameters", {})
             params[name] = {"ros__parameters": {**existing, **user_params}}
 
@@ -405,6 +425,18 @@ def start_spatial_layer(force: bool = False) -> dict:
 
     Returns a summary dict for display (CLI tree, API JSON). No caller
     depends on specific keys — treat as informational.
+
+    Writes ``RUN_DIR/launch_id`` with format ``{id}:{timestamp}``.
+    ``core_node`` includes the same ``launch_id`` in every ``heartbeat.json``
+    write, enabling cheap file-only liveness detection from the host:
+
+        stopped     — launch_id missing or ends with ``:stopped``
+        running     — launch_id matches heartbeat, heartbeat mtime fresh
+        stale       — heartbeat missing or stale, ros2 launch still alive
+        crashed     — heartbeat missing or stale, ros2 launch dead
+
+    Only the last two states require a ``docker exec`` call (``pgrep``).
+    ``stop_spatial_layer()`` appends ``:stopped`` to the file.
     """
     from psilia_edge.runtime.config import RUN_DIR, get_launch_script
     from psilia_edge.runtime.docker import start_ros_launch
@@ -419,10 +451,18 @@ def start_spatial_layer(force: bool = False) -> dict:
     if not force and not ctx.ok:
         raise SpatialRequirementsError(ctx)
 
+    import time
+    import uuid
+
+    launch_id = uuid.uuid4().hex[:12]
+    launch_time = time.time()
+
     logger.info("Building launch parameters…")
     launch_params = _build_launch_params(ctx)
+    launch_params["launch_id"] = launch_id
 
     RUN_DIR.mkdir(parents=True, exist_ok=True)
+    (RUN_DIR / "launch_id").write_text(f"{launch_id}:{launch_time}")
     write_yaml(RUN_DIR / "launch_params.yaml", launch_params)
 
     launch_script = get_launch_script()
@@ -457,6 +497,13 @@ def stop_spatial_layer() -> dict:
 
     logger.info("Stopping ROS nodes…")
     rc, _, err = stop_ros_launch()
+
+    from psilia_edge.runtime.config import RUN_DIR
+
+    launch_id_file = RUN_DIR / "launch_id"
+    if launch_id_file.exists():
+        launch_id_file.write_text(launch_id_file.read_text().strip() + ":stopped")
+
     if rc != 0:
         logger.info("Failed to stop ROS nodes: %s", err)
         return {"status": "error", "error": err}
@@ -475,10 +522,75 @@ def is_base_layer_running() -> bool:
     return is_running()
 
 
-def is_spatial_layer_running() -> bool:
+def check_spatial_layer_status() -> dict:
+    """Determine spatial layer state from launch_id + heartbeat files.
+
+    See ``start_spatial_layer()`` docstring for the ``launch_id`` protocol.
+
+    Returns ``{"state": ..., "detail": ...}`` where state is one of:
+        stopped  — launch_id missing or marked stopped
+        running  — launch_id matches heartbeat and heartbeat is fresh
+        stale    — heartbeat missing or stale, ros2 launch still alive
+        crashed  — heartbeat missing or stale, ros2 launch dead
+
+    Only ``stale`` and ``crashed`` trigger a ``docker exec`` call.
+    """
+    import json
+
+    from psilia_edge.runtime.config import RUN_DIR
+
+    launch_id_file = RUN_DIR / "launch_id"
+    hb_file = RUN_DIR / "heartbeat.json"
+
+    try:
+        raw = launch_id_file.read_text().strip()
+    except OSError:
+        return {"state": "stopped", "detail": "no launch_id file"}
+
+    if raw.endswith(":stopped"):
+        return {"state": "stopped", "detail": "cleanly stopped"}
+
+    parts = raw.split(":")
+    launch_id = parts[0]
+    try:
+        launch_time = float(parts[1]) if len(parts) >= 2 else None
+    except ValueError:
+        launch_time = None
+
+    try:
+        hb = json.loads(hb_file.read_text())
+    except (OSError, json.JSONDecodeError):
+        hb = None
+
+    hb_id = hb.get("launch_id") if hb else None
+    now = time.time()
+
+    if hb_id == launch_id:
+        try:
+            age = now - hb_file.stat().st_mtime
+        except OSError:
+            age = 999
+        if age < 5:
+            return {"state": "running", "detail": f"heartbeat {age:.1f}s ago"}
+
+        from psilia_edge.runtime.docker import is_ros_launch_running
+
+        if is_ros_launch_running():
+            return {"state": "stale", "detail": f"lost {age:.0f}s ago"}
+        return {"state": "crashed", "detail": f"lost {age:.0f}s ago"}
+
+    since = f"{now - launch_time:.0f}s since launch" if launch_time else ""
+
     from psilia_edge.runtime.docker import is_ros_launch_running
 
-    return is_ros_launch_running()
+    if is_ros_launch_running():
+        return {"state": "stale", "detail": since}
+    return {"state": "crashed", "detail": since}
+
+
+def is_spatial_layer_running() -> bool:
+    """Quick check: is the spatial layer running as expected?"""
+    return check_spatial_layer_status()["state"] == "running"
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #

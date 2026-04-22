@@ -92,6 +92,12 @@ uses cam0/cam1. Remove the params and update launch configs accordingly.
 - Implement `psilia data push` — push recorded MCAP data from Jetson to a remote destination (laptop or cloud). Complement to `data pull`: where pull is laptop-initiated, push is Jetson-initiated. Design target configuration (cloud bucket URL or laptop address), authentication, and how the destination is stored in `psilia.yaml`.
 
 ### Runtime
+- Establish a return-type pattern for layer status checks. `is_running()` (daemon)
+  and `is_container_running()` (docker) return `bool`, but spatial layer status has
+  four states: `stopped`, `running`, `stale`, `crashed`. Decide on a convention
+  (e.g. `bool | str`, enum, named tuple) and add `is_spatial_layer_running()` in
+  `status.py` or `core.py`. See `start_spatial_layer()` docstring for the
+  `launch_id` protocol and state table.
 - Finish runtime refactoring — review any remaining loose ends from the two-layer runtime redesign (base layer owns container, spatial layer via docker exec).
 - Fix `device_decorator` to forward flags to the remote command. Currently it only forwards `psilia runtime {func_name}` with no arguments, so any decorated command that also takes flags (e.g. `psilia runtime config --data-dir -d my-jetson`) silently drops those flags when run with `-d`. Fix by reconstructing the full CLI invocation from `sys.argv`, stripping `--device`/`-d` and its value, before passing to `run_on_device`.
 - Fix `psilia runtime stop` behavior when spatial layer is already stopped — currently shows `spatial.status: error` even when spatial was never running. Should show a neutral/not-running status instead of an error.

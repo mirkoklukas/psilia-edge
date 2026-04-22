@@ -23,6 +23,8 @@ def generate_launch_description():
     launch_params = _load_yaml(_LAUNCH_PARAMS)
 
     # --- Infrastructure (always launched) ---
+    launch_id = launch_params.get("launch_id", "")
+
     core_node = Node(
         package="psilia_runtime",
         executable="core_node",
@@ -31,6 +33,7 @@ def generate_launch_description():
         parameters=[{
             "psilia_version": "0.1.0",
             "interface_topics": ["/psilia/heartbeat"],
+            "launch_id": launch_id,
         }],
     )
 
@@ -63,11 +66,13 @@ def generate_launch_description():
         output="screen",
     )
 
+    diag_params = launch_params.get("diagnostics_node", {}).get("ros__parameters", {})
     diagnostics_node = Node(
         package="psilia_runtime",
         executable="diagnostics_node",
         name="diagnostics_node",
         output="screen",
+        parameters=[diag_params] if diag_params else [],
     )
 
     nodes = [core_node, ping_node, recording_node, diagnostics_node, rosbridge, rosapi]

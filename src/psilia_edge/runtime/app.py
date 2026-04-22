@@ -43,7 +43,7 @@ class BaseLayerPanel(Static):
     """Base layer status: daemon, container, URL."""
 
     def on_mount(self) -> None:
-        self.set_interval(1.0, self.refresh_status)
+        self.refresh_status()
 
     def refresh_status(self) -> None:
         self.update(self._build())
@@ -83,7 +83,8 @@ class SpatialLayerPanel(Static):
     force_mode: reactive[bool] = reactive(True)
 
     def on_mount(self) -> None:
-        self.set_interval(1.0, self.refresh_status)
+        self.refresh_status()
+        self.set_interval(2.0, self.refresh_status)
 
     def refresh_status(self) -> None:
         self.update(self._build())
@@ -94,39 +95,28 @@ class SpatialLayerPanel(Static):
         lines = []
 
         # ── Spatial status ────────────────────────────────────
-        from psilia_edge.runtime.docker import (
-            is_container_running,
-            is_ros_launch_running,
-        )
+        from psilia_edge.runtime.core import check_spatial_layer_status
 
-        if not is_container_running():
-            spatial = "[dim]not running[/]"
-        elif not is_ros_launch_running():
-            spatial = "[dim]stopped[/]"
-        else:
-            hb_file = RUN_DIR / "heartbeat.json"
-            hb = _read_json(hb_file)
-            if hb:
-                try:
-                    age = time.time() - hb_file.stat().st_mtime
-                except OSError:
-                    age = 999
-                if age < 5:
-                    spatial = f"[green]running[/]  [dim]heartbeat {age:.1f}s ago[/]"
-                else:
-                    spatial = f"[yellow]stale[/]  [dim]heartbeat {age:.0f}s ago[/]"
-            else:
-                spatial = "[yellow]waiting for heartbeat[/]"
+        status = check_spatial_layer_status()
+        state = status["state"]
+        detail = status.get("detail", "")
+
+        _STATE_STYLE = {
+            "stopped": "[dim]stopped[/]",
+            "running": "[green]running[/]",
+            "stale": "[yellow]stale[/]",
+            "crashed": "[red]crashed[/]",
+        }
+        spatial = _STATE_STYLE.get(state, f"[dim]{state}[/]")
+        if detail:
+            spatial += f"  [dim]{detail}[/]"
         lines.append(f"status:  {spatial}")
-
-        # ── Force mode ───────────────────────────────────────
-        force_label = "[green]on[/]" if self.force_mode else "[dim]off[/]"
-        lines.append(f"force:   {force_label}")
 
         # ── Preflight checks ────────────────────────────────
         if self.checks:
+            force_label = "[green]on[/]" if self.force_mode else "[dim]off[/]"
             lines.append("")
-            lines.append("[bold]preflight checks[/]")
+            lines.append(f"[bold]preflight checks[/]  [dim]force:[/] {force_label}")
             for key, info in self.checks.items():
                 ok = info["ok"]
                 detail = info.get("detail", "")
@@ -153,6 +143,40 @@ class SpatialLayerPanel(Static):
                 else:
                     rate = "[dim]—[/]"
                 lines.append(f"  {topic:<40s} {rate}")
+
+        return "\n".join(lines)
+
+
+class ThemeReferencePanel(Static):
+    """Displays base theme colors as a visual reference."""
+
+    def on_mount(self) -> None:
+        self.update(self._build())
+
+    def _build(self) -> str:
+        colors = [
+            ("primary", PSILIA_THEME.primary),
+            ("secondary", PSILIA_THEME.secondary),
+            ("accent", PSILIA_THEME.accent),
+            ("foreground", PSILIA_THEME.foreground),
+            ("background", PSILIA_THEME.background),
+            ("success", PSILIA_THEME.success),
+            ("warning", PSILIA_THEME.warning),
+            ("error", PSILIA_THEME.error),
+            ("surface", PSILIA_THEME.surface),
+            ("panel", PSILIA_THEME.panel),
+        ]
+        lines = []
+        for name, hex_val in colors:
+            swatch = f"[{hex_val}]████[/]"
+            lines.append(f"  {swatch}  {name:<16s} [dim]{hex_val}[/]")
+
+        if PSILIA_THEME.variables:
+            lines.append("")
+            lines.append("[bold]variables[/]")
+            for var_name, hex_val in PSILIA_THEME.variables.items():
+                swatch = f"[{hex_val}]████[/]"
+                lines.append(f"  {swatch}  {var_name:<40s} [dim]{hex_val}[/]")
 
         return "\n".join(lines)
 
@@ -205,25 +229,30 @@ class PsiliaApp(App):
     #log-panel {
         height: 1fr;
     }
+    #theme-panel {
+        padding: 1;
+    }
     """
 
     BINDINGS = [
         Binding("s", "start_spatial", "Start"),
         Binding("x", "stop_spatial", "Stop"),
         Binding("f", "toggle_force", "Force"),
-        Binding("r", "refresh_checks", "Checks"),
+        Binding("r", "refresh", "Refresh"),
         Binding("q", "quit", "Quit"),
     ]
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with TabbedContent("Status", "Logs"):
+        with TabbedContent("Status", "Logs", "Theme"):
             with TabPane("Status", id="tab-status"):
                 with Vertical():
                     yield BaseLayerPanel(id="base-panel")
                     yield SpatialLayerPanel(id="spatial-panel")
             with TabPane("Logs", id="tab-logs"):
                 yield LogPanel(id="log-panel")
+            with TabPane("Theme", id="tab-theme"):
+                yield ThemeReferencePanel(id="theme-panel")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -233,7 +262,7 @@ class PsiliaApp(App):
         self.query_one("#base-panel").border_title = "Base Layer"
         self.query_one("#spatial-panel").border_title = "Spatial Layer"
         self._load_initial_log()
-        self.action_refresh_checks()
+        self.action_refresh()
 
     def _load_initial_log(self) -> None:
         from psilia_edge.runtime.docker import get_ros_log_path
@@ -262,7 +291,9 @@ class PsiliaApp(App):
         label = "on" if panel.force_mode else "off"
         self.notify(f"Force mode: {label}", severity="information")
 
-    def action_refresh_checks(self) -> None:
+    def action_refresh(self) -> None:
+        self.query_one("#base-panel", BaseLayerPanel).refresh_status()
+        self.query_one("#spatial-panel", SpatialLayerPanel).refresh_status()
         self.run_worker(self._refresh_checks, thread=True)
 
     async def _start_spatial(self) -> None:

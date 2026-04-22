@@ -27,32 +27,29 @@ from rclpy.node import Node # type: ignore
 from rclpy.qos import DurabilityPolicy, QoSProfile # type: ignore
 from std_msgs.msg import String # type: ignore
 
+from psilia_runtime.better_ros import better_node, ROSValue
+
 _LATCHED = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 
 _HEARTBEAT_FILE = Path("/psilia/run/heartbeat.json")
 _STATUS_FILE = Path("/psilia/run/status.json")
 
 
+@better_node
 class CoreNode(Node):
-    def __init__(self):
-        super().__init__("psilia_core")
+    psilia_version: ROSValue = "0.1.0"
+    interface_topics: ROSValue = [""]
+    launch_id: ROSValue = ""
 
-        self.declare_parameter("psilia_version", "0.1.0")
-        self.declare_parameter("interface_topics", [""])
-
-        self.psilia_version = self.get_parameter("psilia_version").get_parameter_value().string_value
-        self.interface_topics = [
-            t for t in self.get_parameter("interface_topics").get_parameter_value().string_array_value
-            if t
-        ]
+    def __node_init__(self):
+        self.interface_topics = [t for t in self.interface_topics if t]
 
         self.heartbeat_pub = self.create_publisher(String, "/psilia/heartbeat", _LATCHED)
         self.interface_pub = self.create_publisher(String, "/psilia/interface", _LATCHED)
         self.create_subscription(String, "/psilia/status_request", self._on_status_request, 10)
 
         self._publish_interface()
-        # TODO: can publish at a slower rate as well, or make it configurable.
-        self.timer = self.create_timer(2.0, self._publish_heartbeat)
+        self.create_timer(2.0, self._publish_heartbeat)
         self.get_logger().info("Core node started — publishing heartbeat on /psilia/heartbeat")
 
     def _publish_interface(self):
@@ -70,6 +67,7 @@ class CoreNode(Node):
             "status": "ok",
             "stamp": self.get_clock().now().nanoseconds,
             "ros_domain_id": int(os.environ.get("ROS_DOMAIN_ID", 0)),
+            "launch_id": self.launch_id,
         }
 
     def _publish_heartbeat(self):
