@@ -184,9 +184,22 @@ class ThemeReferencePanel(Static):
 class LogPanel(Log):
     """Tails the ROS log file."""
 
+    follow: reactive[bool] = reactive(True)
+
     def on_mount(self) -> None:
         self._last_size = 0
         self.set_interval(1.0, self.poll_log)
+        self._update_border_title()
+
+    def watch_follow(self) -> None:
+        self.auto_scroll = self.follow
+        self._update_border_title()
+        if self.follow:
+            self.scroll_end(animate=False)
+
+    def _update_border_title(self) -> None:
+        label = "follow" if self.follow else "paused"
+        self.border_title = f"Logs ({label})"
 
     def poll_log(self) -> None:
         from psilia_edge.runtime.docker import get_ros_log_path
@@ -228,6 +241,8 @@ class PsiliaApp(App):
     }
     #log-panel {
         height: 1fr;
+        border: solid $surface;
+        border-title-color: $secondary;
     }
     #theme-panel {
         padding: 1;
@@ -238,6 +253,7 @@ class PsiliaApp(App):
         Binding("s", "start_spatial", "Start"),
         Binding("x", "stop_spatial", "Stop"),
         Binding("f", "toggle_force", "Force"),
+        Binding("l", "toggle_follow", "Follow"),
         Binding("r", "refresh", "Refresh"),
         Binding("q", "quit", "Quit"),
     ]
@@ -290,6 +306,12 @@ class PsiliaApp(App):
         panel.force_mode = not panel.force_mode
         label = "on" if panel.force_mode else "off"
         self.notify(f"Force mode: {label}", severity="information")
+
+    def action_toggle_follow(self) -> None:
+        panel = self.query_one("#log-panel", LogPanel)
+        panel.follow = not panel.follow
+        label = "follow" if panel.follow else "paused"
+        self.notify(f"Logs: {label}", severity="information")
 
     def action_refresh(self) -> None:
         self.query_one("#base-panel", BaseLayerPanel).refresh_status()
