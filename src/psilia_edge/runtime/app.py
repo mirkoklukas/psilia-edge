@@ -426,6 +426,12 @@ class PsiliaApp(App):
     #config-psilia:focus, #config-runtime:focus {
         background: $surface;
     }
+    Tabs {
+        can-focus: false;
+    }
+    Tab {
+        can-focus: false;
+    }
     #theme-panel {
         padding: 1;
     }
