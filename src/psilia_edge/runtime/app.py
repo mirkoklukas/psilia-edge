@@ -520,14 +520,15 @@ class PsiliaApp(App):
         self.query_one("#base-panel", BaseLayerPanel).refresh_status()
 
     async def _stop_base(self) -> None:
-        from psilia_edge.runtime.core import stop_base_layer
+        from psilia_edge.runtime.core import stop_runtime
 
         try:
-            stop_base_layer()
-            self.notify("Base layer stopped", severity="information")
+            stop_runtime()
+            self.notify("Runtime stopped", severity="information")
         except Exception as e:
             self.notify(f"Stop failed: {e}", severity="error")
         self.query_one("#base-panel", BaseLayerPanel).refresh_status()
+        self.query_one("#spatial-panel", SpatialLayerPanel).refresh_status()
 
     async def _start_spatial(self) -> None:
         from psilia_edge.runtime.core import (
