@@ -222,28 +222,59 @@ class ThemeReferencePanel(Static):
 
 
 class ConfigPanel(Static):
-    """Displays a YAML config file."""
+    """Displays a YAML config file. Collapses when not focused."""
 
     can_focus = True
+    collapsed: reactive[bool] = reactive(False)
 
-    def __init__(self, file_label: str, file_path_getter, **kwargs) -> None:
+    def __init__(
+        self,
+        file_label: str,
+        file_path_getter,
+        collapsed: bool = False,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self._file_label = file_label
         self._file_path_getter = file_path_getter
+        self._init_collapsed = collapsed
 
     def on_mount(self) -> None:
+        self.collapsed = self._init_collapsed
+        self._apply_layout()
         self.refresh_content()
+
+    def on_focus(self) -> None:
+        self.collapsed = False
+        for panel in self.screen.query(ConfigPanel):
+            if panel is not self:
+                panel.collapsed = True
+
+    def watch_collapsed(self) -> None:
+        self._apply_layout()
+        self.refresh_content()
+
+    def _apply_layout(self) -> None:
+        self.styles.height = "auto" if self.collapsed else "1fr"
 
     def refresh_content(self) -> None:
         self.update(self._build())
 
     def _build(self) -> str:
+        arrow = "▶" if self.collapsed else "▼"
         try:
             path = self._file_path_getter()
-            content = path.read_text(errors="replace")
-            return f"[bold]{self._file_label}[/]  [dim]{path}[/]\n\n{content}"
         except Exception:
-            return f"[bold]{self._file_label}[/]  [dim](not found)[/]"
+            return f"{arrow} [bold]{self._file_label}[/]  [dim](not found)[/]"
+
+        if self.collapsed:
+            return f"{arrow} [bold]{self._file_label}[/]  [dim]{path}[/]"
+
+        try:
+            content = path.read_text(errors="replace")
+            return f"{arrow} [bold]{self._file_label}[/]  [dim]{path}[/]\n\n{content}"
+        except Exception:
+            return f"{arrow} [bold]{self._file_label}[/]  [dim](not found)[/]"
 
 
 class LogPanel(Log):
@@ -383,7 +414,6 @@ class PsiliaApp(App):
         height: 1fr;
     }
     #config-psilia, #config-runtime {
-        height: 1fr;
         padding: 1;
         overflow-y: auto;
     }
@@ -416,7 +446,10 @@ class PsiliaApp(App):
                     "psilia.yaml", _get_psilia_config_path, id="config-psilia"
                 )
                 yield ConfigPanel(
-                    "runtime.yaml", _get_runtime_config_path, id="config-runtime"
+                    "runtime.yaml",
+                    _get_runtime_config_path,
+                    collapsed=True,
+                    id="config-runtime",
                 )
             with TabPane("Theme", id="tab-theme"):
                 yield ThemeReferencePanel(id="theme-panel")
