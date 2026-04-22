@@ -17,7 +17,16 @@ from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.reactive import reactive
 from textual.theme import Theme
-from textual.widgets import Footer, Header, Log, Static, Tabs, TabbedContent, TabPane
+from textual.widgets import (
+    Footer,
+    Header,
+    Log,
+    Static,
+    Tab,
+    Tabs,
+    TabbedContent,
+    TabPane,
+)
 
 PSILIA_THEME = Theme(
     name="psilia",
@@ -426,12 +435,6 @@ class PsiliaApp(App):
     #config-psilia:focus, #config-runtime:focus {
         background: $surface;
     }
-    Tabs {
-        can-focus: false;
-    }
-    Tab {
-        can-focus: false;
-    }
     #theme-panel {
         padding: 1;
     }
@@ -471,6 +474,10 @@ class PsiliaApp(App):
         self.register_theme(PSILIA_THEME)
         self.theme = "psilia"
         self.sub_title = socket.gethostname().split(".")[0]
+        for widget in self.query(Tabs):
+            widget.can_focus = False
+        for widget in self.query(Tab):
+            widget.can_focus = False
         self._load_initial_log()
         self.action_refresh()
 
