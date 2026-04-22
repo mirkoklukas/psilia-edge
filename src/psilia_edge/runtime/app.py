@@ -16,7 +16,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.reactive import reactive
 from textual.theme import Theme
-from textual.widgets import Footer, Header, Log, Static, TabbedContent, TabPane
+from textual.widgets import Footer, Header, Log, Static, Tabs, TabbedContent, TabPane
 
 PSILIA_THEME = Theme(
     name="psilia",
@@ -396,6 +396,8 @@ class PsiliaApp(App):
     """
 
     BINDINGS = [
+        Binding("shift+left", "prev_tab", "◀ Tab"),
+        Binding("shift+right", "next_tab", "Tab ▶"),
         Binding("r", "refresh", "Refresh"),
         Binding("q", "quit", "Quit"),
     ]
@@ -461,6 +463,12 @@ class PsiliaApp(App):
         panel.force_mode = not panel.force_mode
         label = "on" if panel.force_mode else "off"
         self.notify(f"Force mode: {label}", severity="information")
+
+    def action_prev_tab(self) -> None:
+        self.query_one(Tabs).action_previous_tab()
+
+    def action_next_tab(self) -> None:
+        self.query_one(Tabs).action_next_tab()
 
     def action_refresh(self) -> None:
         self.query_one("#base-panel", BaseLayerPanel).refresh_status()
