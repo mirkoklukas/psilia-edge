@@ -43,7 +43,7 @@ def start_runtime_container() -> tuple[int, str, str]:
         f"-v {str(CALIBRATIONS_DIR)}:/psilia/calibrations:ro "
         f"{models_mount}"
         f"-v {RUN_DIR}:/psilia/run "
-        f"-e ROS_LOG_DIR=/psilia/log "
+        f"-e ROS_LOG_DIR=/psilia/log/ros_log "
         f"-e RCUTILS_LOGGING_USE_STDOUT=1 "
         f"--hostname {platform.node().split('.')[0]} "
         f"--name {CONTAINER_NAME} "
@@ -170,7 +170,7 @@ def _network_args(ports: list[int]) -> list[str]:
 
 def get_ros_log_path():
     """Return the path to the ROS launch log file on the host."""
-    return get_log_dir() / "ros.log"
+    return get_log_dir() / "ros2_launch.log"
 
 
 def is_port_open(port: int) -> bool:

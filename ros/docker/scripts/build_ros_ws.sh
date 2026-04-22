@@ -17,5 +17,6 @@ fi
 # Build the workspace and source it so launch files can find the packages.
 source /etc/profile.d/ros_setup.sh
 cd /psilia/ros
-colcon build --packages-select psilia_runtime --base-paths src
+mkdir -p /psilia/log
+colcon build --packages-select psilia_runtime --base-paths src 2>&1 | tee /psilia/log/colcon_build.log
 source /psilia/ros/install/setup.bash

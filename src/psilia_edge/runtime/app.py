@@ -16,7 +16,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.reactive import reactive
 from textual.theme import Theme
-from textual.widgets import Footer, Header, Log, Static, Tabs, TabbedContent, TabPane
+from textual.widgets import Footer, Header, Log, Static, TabbedContent, TabPane
 
 PSILIA_THEME = Theme(
     name="psilia",
@@ -38,10 +38,16 @@ PSILIA_THEME = Theme(
 )
 
 
-_TAB_NAV = [
-    Binding("left", "app.prev_tab", show=False),
-    Binding("right", "app.next_tab", show=False),
-]
+def _get_psilia_config_path():
+    from psilia_edge.runtime.config import CONFIG_PATH
+
+    return CONFIG_PATH
+
+
+def _get_runtime_config_path():
+    from psilia_edge.runtime.config import get_runtime_config_path
+
+    return get_runtime_config_path(missing_ok=True)
 
 
 class BaseLayerPanel(Static):
@@ -50,7 +56,6 @@ class BaseLayerPanel(Static):
     can_focus = True
 
     BINDINGS = [
-        *_TAB_NAV,
         Binding("s", "app.start_base", "Start"),
         Binding("x", "app.stop_base", "Stop"),
     ]
@@ -95,7 +100,6 @@ class SpatialLayerPanel(Static):
     can_focus = True
 
     BINDINGS = [
-        *_TAB_NAV,
         Binding("s", "app.start_spatial", "Start"),
         Binding("x", "app.stop_spatial", "Stop"),
         Binding("f", "app.toggle_force", "Force"),
@@ -217,15 +221,102 @@ class ThemeReferencePanel(Static):
         return "\n".join(lines)
 
 
+class ConfigPanel(Static):
+    """Displays a YAML config file."""
+
+    can_focus = True
+
+    def __init__(self, file_label: str, file_path_getter, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._file_label = file_label
+        self._file_path_getter = file_path_getter
+
+    def on_mount(self) -> None:
+        self.refresh_content()
+
+    def refresh_content(self) -> None:
+        self.update(self._build())
+
+    def _build(self) -> str:
+        try:
+            path = self._file_path_getter()
+            content = path.read_text(errors="replace")
+            return f"[bold]{self._file_label}[/]  [dim]{path}[/]\n\n{content}"
+        except Exception:
+            return f"[bold]{self._file_label}[/]  [dim](not found)[/]"
+
+
 class LogPanel(Log):
-    """Tails the ROS log file."""
+    """Tails log files with cycling support."""
 
     follow: reactive[bool] = reactive(True)
+    _log_index: int = 0
 
     BINDINGS = [
-        *_TAB_NAV,
         Binding("f", "toggle_follow", "Follow"),
+        Binding("n", "next_log", "Next"),
+        Binding("N", "prev_log", "Prev"),
     ]
+
+    def _log_sources(self) -> list[tuple[str, str]]:
+        from psilia_edge.runtime.config import get_log_dir
+        from psilia_edge.runtime.daemon import LOG_FILE
+        from psilia_edge.runtime.docker import get_ros_log_path
+
+        log_dir = get_log_dir()
+
+        sources = [
+            str(get_ros_log_path()),
+            str(log_dir / "colcon_build.log"),
+        ]
+
+        ros_log_dir = log_dir / "ros_log"
+        if ros_log_dir.is_dir():
+            subdirs = sorted(
+                (d for d in ros_log_dir.iterdir() if d.is_dir()),
+                key=lambda d: d.stat().st_mtime,
+                reverse=True,
+            )
+            for d in subdirs:
+                launch_log = d / "launch.log"
+                if launch_log.exists():
+                    sources.append(str(launch_log))
+                    break
+
+        sources.append(str(LOG_FILE))
+
+        return sources
+
+    @property
+    def _current_path(self) -> str:
+        sources = self._log_sources()
+        return sources[self._log_index % len(sources)]
+
+    def _switch_log(self) -> None:
+        from pathlib import Path
+
+        self.clear()
+        self._last_size = 0
+        path = Path(self._current_path)
+        try:
+            lines = path.read_text(errors="replace").splitlines()
+            tail = lines[-50:]
+            if tail:
+                self.write("\n".join(tail))
+            self._last_size = path.stat().st_size
+        except OSError:
+            pass
+        self._update_label()
+
+    def action_next_log(self) -> None:
+        sources = self._log_sources()
+        self._log_index = (self._log_index + 1) % len(sources)
+        self._switch_log()
+
+    def action_prev_log(self) -> None:
+        sources = self._log_sources()
+        self._log_index = (self._log_index - 1) % len(sources)
+        self._switch_log()
 
     def action_toggle_follow(self) -> None:
         self.follow = not self.follow
@@ -235,22 +326,26 @@ class LogPanel(Log):
     def on_mount(self) -> None:
         self._last_size = 0
         self.set_interval(1.0, self.poll_log)
-        self._update_border_title()
+        self._update_label()
 
     def watch_follow(self) -> None:
         self.auto_scroll = self.follow
-        self._update_border_title()
+        self._update_label()
         if self.follow:
             self.scroll_end(animate=False)
 
-    def _update_border_title(self) -> None:
-        label = "follow" if self.follow else "paused"
-        self.border_title = f"Logs ({label})"
+    def _update_label(self) -> None:
+        follow_label = "[green]follow[/]" if self.follow else "[yellow]paused[/]"
+        try:
+            label = self.app.query_one("#log-label", Static)
+            label.update(f"[bold]{self._current_path}[/]  {follow_label}")
+        except Exception:
+            pass
 
     def poll_log(self) -> None:
-        from psilia_edge.runtime.docker import get_ros_log_path
+        from pathlib import Path
 
-        log_path = get_ros_log_path()
+        log_path = Path(self._current_path)
         try:
             size = log_path.stat().st_size
         except OSError:
@@ -280,8 +375,20 @@ class PsiliaApp(App):
     #base-panel:focus, #spatial-panel:focus, #log-panel:focus {
         background: $surface;
     }
+    #log-label {
+        height: 1;
+        padding: 0 1;
+    }
     #log-panel {
         height: 1fr;
+    }
+    #config-psilia, #config-runtime {
+        height: 1fr;
+        padding: 1;
+        overflow-y: auto;
+    }
+    #config-psilia:focus, #config-runtime:focus {
+        background: $surface;
     }
     #theme-panel {
         padding: 1;
@@ -295,12 +402,20 @@ class PsiliaApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with TabbedContent("Status", "Logs", "Theme"):
+        with TabbedContent("Status", "Logs", "Config", "Theme"):
             with TabPane("Status", id="tab-status"):
                 yield BaseLayerPanel(id="base-panel")
                 yield SpatialLayerPanel(id="spatial-panel")
             with TabPane("Logs", id="tab-logs"):
+                yield Static("", id="log-label")
                 yield LogPanel(id="log-panel")
+            with TabPane("Config", id="tab-config"):
+                yield ConfigPanel(
+                    "psilia.yaml", _get_psilia_config_path, id="config-psilia"
+                )
+                yield ConfigPanel(
+                    "runtime.yaml", _get_runtime_config_path, id="config-runtime"
+                )
             with TabPane("Theme", id="tab-theme"):
                 yield ThemeReferencePanel(id="theme-panel")
         yield Footer()
@@ -319,25 +434,11 @@ class PsiliaApp(App):
             self.query_one("#base-panel", BaseLayerPanel).focus()
         elif event.pane.id == "tab-logs":
             self.query_one("#log-panel", LogPanel).focus()
-
-    def action_prev_tab(self) -> None:
-        self.query_one(Tabs).action_previous_tab()
-
-    def action_next_tab(self) -> None:
-        self.query_one(Tabs).action_next_tab()
+        elif event.pane.id == "tab-config":
+            self.query_one("#config-psilia", ConfigPanel).focus()
 
     def _load_initial_log(self) -> None:
-        from psilia_edge.runtime.docker import get_ros_log_path
-
-        log_path = get_ros_log_path()
-        try:
-            lines = log_path.read_text(errors="replace").splitlines()
-            tail = lines[-50:]
-            log_panel = self.query_one("#log-panel", LogPanel)
-            log_panel.write("\n".join(tail))
-            log_panel._last_size = log_path.stat().st_size
-        except OSError:
-            pass
+        self.query_one("#log-panel", LogPanel)._switch_log()
 
     def action_start_base(self) -> None:
         self.notify("Starting base layer...", severity="information")

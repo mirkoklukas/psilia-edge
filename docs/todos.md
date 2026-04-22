@@ -117,7 +117,7 @@ uses cam0/cam1. Remove the params and update launch configs accordingly.
 - `psilia runtime status` should never show stale state from a previous session. Any data sourced from files (`heartbeat.json`, `status.json`) must either pass a freshness check or be shown as unavailable.
 - Show logs in live view, ros2 logs and so on.
 - Add log source cycling to `psilia runtime attach`: a key (e.g. `[n]`) to
-  cycle the log panel between `ros.log`, `psilia-edge.log` (daemon), and
+  cycle the log panel between `ros2_launch.log`, `psilia-edge.log` (daemon), and
   per-node ROS logs. The Rich `Live` + key handling infrastructure is already
   in place (`_run_attach` in `cli.py`). Also add a `--source` flag to
   `psilia runtime logs` for non-interactive use.

@@ -410,12 +410,14 @@ Where to look when something goes wrong at each layer:
 | `~/.psilia/log/psilia-edge.log` | uvicorn (stdout/stderr redirected by `start_daemon()`) | Base layer startup, request logs, errors |
 | `~/.psilia/run/heartbeat.json` | `core_node` inside Docker (1 Hz) | `status`, `stamp`, `ros_domain_id` |
 | `~/.psilia/run/status.json` | `core_node` inside Docker (on demand) | heartbeat fields + `nodes`, `topics` |
-| `{runtime_home}/log/ros.log` | `launch_ros.sh` via `docker exec -d` | ROS launch output (stdout+stderr); truncated on each spatial layer start. View with `psilia runtime logs [-f]` |
-| `{runtime_home}/log/` | ROS nodes inside Docker (`ROS_LOG_DIR`) | Per-node ROS logs |
+| `{runtime_home}/log/colcon_build.log` | `build_ros_ws.sh` (container entrypoint) | `colcon build` output; overwritten on each container start |
+| `{runtime_home}/log/ros2_launch.log` | `launch_ros.sh` via `docker exec -d` | `ros2 launch` output (stdout+stderr); truncated on each spatial layer start. View with `psilia runtime logs [-f]` |
+| `{runtime_home}/log/ros_log/<date-time-host-pid>/launch.log` | ROS 2 launch system (automatic) | Launch-level events: node PIDs, exit codes, startup failures. One folder per `ros2 launch` invocation (e.g. `2026-04-19-11-40-43-313899-borne-404`). |
 | `{runtime_home}/ros/log/` | colcon on container startup | Build logs |
 
 Note: `heartbeat.json` and `status.json` are ephemeral — cleared when the container starts.
-Note: `ros.log` is truncated on each spatial layer start — only contains the current session.
+Note: `ros2_launch.log` is truncated on each spatial layer start — only contains the current session.
+Note: `ROS_LOG_DIR` is set to `/psilia/log/ros_log` in the `docker run` command (`docker.py`), keeping the ROS 2 launch system's own logs (timestamped folders with `launch.log`) separate from `ros2_launch.log`.
 
 To view ROS launch output:
 ```bash
