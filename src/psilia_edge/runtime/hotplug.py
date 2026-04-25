@@ -150,12 +150,13 @@ def scan_cameras() -> list[list[dict]]:
 
     On Linux: scans /dev/video* and reads the device name from sysfs,
               enriched with format/resolution info via v4l2-ctl.
-    On macOS: uses system_profiler SPCameraDataType.
+    On macOS: uses system_profiler SPUSBDataType, enriched with
+              format/resolution info via ffmpeg (AVFoundation).
     """
     if sys.platform == "linux":
         return _group_cameras(_scan_linux_2())
     if sys.platform == "darwin":
-        return _group_cameras(_scan_macos())
+        return _group_cameras(_scan_macos_2())
     return []
 
 
@@ -452,6 +453,112 @@ def pick_camera_device(fps: int = 30) -> dict | None:
         return result
 
     return None
+
+
+# =============================================================================
+# AVFoundation utils (macOS) — equivalent of v4l2-ctl, requires ffmpeg/ffprobe
+# =============================================================================
+
+
+def _avf_list_devices() -> list[dict]:
+    """List AVFoundation video devices via ffmpeg.
+
+    Returns [{"index": 0, "name": "ZED 2i"}, ...].
+    Requires ffmpeg; returns [] if not installed.
+    """
+    import re
+
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-f",
+                "avfoundation",
+                "-list_devices",
+                "true",
+                "-i",
+                "",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except FileNotFoundError:
+        return []
+
+    devices = []
+    in_video = False
+    for line in result.stderr.splitlines():
+        if "AVFoundation video devices:" in line:
+            in_video = True
+            continue
+        if "AVFoundation audio devices:" in line:
+            break
+        if in_video:
+            m = re.search(r"\[(\d+)\]\s+(.+)", line)
+            if m:
+                devices.append({"index": int(m.group(1)), "name": m.group(2).strip()})
+    return devices
+
+
+def _avf_device_formats(device_index: int) -> dict[str, dict]:
+    """Query available resolutions for an AVFoundation device via ffprobe.
+
+    ffprobe prints "Supported modes:" with lines like "2560x720@[30.0 30.0]fps"
+    when it fails to open the device at the default framerate. We parse those
+    to extract unique resolutions.
+
+    Returns same structure as v4l2 format data. Since AVFoundation doesn't
+    expose per-format resolution lists, sizes are grouped under a single
+    "unknown" key.
+
+    Requires ffprobe; returns {} if not installed.
+    """
+    import re
+
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-hide_banner", "-f", "avfoundation", "-i", str(device_index)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except FileNotFoundError:
+        return {}
+
+    seen: set[tuple[int, int]] = set()
+    sizes: list[dict] = []
+    for line in result.stderr.splitlines():
+        m = re.search(r"(\d{3,5})x(\d{3,5})@", line)
+        if not m:
+            continue
+        w, h = int(m.group(1)), int(m.group(2))
+        if (w, h) not in seen:
+            seen.add((w, h))
+            sizes.append({"width": w, "height": h})
+
+    if not sizes:
+        return {}
+    return {"unknown": {"description": "unknown", "sizes": sizes}}
+
+
+def _scan_macos_2() -> list[dict]:
+    """Like _scan_macos but adds format/resolution info via ffmpeg (AVFoundation)."""
+    cameras = _scan_macos()
+    avf_devices = _avf_list_devices()
+    if not avf_devices:
+        return cameras
+
+    for cam in cameras:
+        cam_name = cam.get("product", cam.get("name", ""))
+        for avf in avf_devices:
+            if avf["name"] == cam_name or cam_name in avf["name"]:
+                formats = _avf_device_formats(avf["index"])
+                if formats:
+                    cam["formats"] = formats
+                break
+    return cameras
 
 
 def _scan_macos() -> list[dict]:

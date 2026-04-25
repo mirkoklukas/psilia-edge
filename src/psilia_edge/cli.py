@@ -95,7 +95,7 @@ def sensor_add(
     # -- Interactive mode --
     import sys
     from psilia_edge.runtime.hotplug import scan_cameras
-    from psilia_edge.runtime.sensor import build_sensor_id
+    from psilia_edge.runtime.sensor import build_sensor_id, extract_stereo_resolutions
 
     ui.header(["Sensor", "Add"])
 
@@ -172,6 +172,9 @@ def sensor_add(
             "product": selected["product"],
             "label": label,
         }
+        resolutions = extract_stereo_resolutions(selected["group"])
+        if resolutions:
+            _entry["resolutions"] = resolutions
     else:
         _key = label
         _entry = {

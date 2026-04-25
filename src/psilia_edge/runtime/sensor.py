@@ -14,6 +14,26 @@ from pathlib import Path
 from psilia_edge.runtime.config import CALIBRATIONS_DIR, read_config, write_config
 
 
+def extract_stereo_resolutions(group: list[dict]) -> list[list[int]]:
+    """Extract per-eye resolutions from a camera group's v4l2 format data.
+
+    Stereo cameras report side-by-side frames (e.g. 2560x720 for 1280x720
+    per eye). This divides width by 2, deduplicates across formats, and
+    returns sorted largest-first: [[1280, 720], [960, 540], ...].
+    """
+    seen: set[tuple[int, int]] = set()
+    resolutions: list[list[int]] = []
+    for cam in group:
+        for fmt_info in cam.get("formats", {}).values():
+            for size in fmt_info.get("sizes", []):
+                eye = (size["width"] // 2, size["height"])
+                if eye not in seen:
+                    seen.add(eye)
+                    resolutions.append([eye[0], eye[1]])
+    resolutions.sort(key=lambda r: r[0] * r[1], reverse=True)
+    return resolutions
+
+
 def build_sensor_id(usb_info: dict) -> str:
     """Build a sensor UID from USB descriptor fields.
 
