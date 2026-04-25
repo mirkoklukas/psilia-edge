@@ -446,6 +446,8 @@ def attach() -> None:
 
 
 def _run_attach() -> None:
+    # TODO: replace with Textual app (app.py) — status logic here
+    # duplicates check_spatial_layer_status() and lacks the "starting" grace period.
     import json
     import select
     import sys

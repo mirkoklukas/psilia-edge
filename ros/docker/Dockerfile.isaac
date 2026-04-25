@@ -11,12 +11,17 @@
 # Requires: JetPack 6.x (L4T R36.4.x) on the host.
 FROM dustynv/ros:jazzy-ros-base-r36.4.0-cu128-24.04
 
-# Add NVIDIA Isaac ROS apt repository
+# Add NVIDIA Isaac ROS apt repository (release-4.3, matching isaac-ros-cli)
 RUN curl -fsSL https://isaac.download.nvidia.com/isaac-ros/repos.key \
-        | gpg --dearmor -o /usr/share/keyrings/nvidia-isaac-ros.gpg \
+        | gpg --batch --dearmor -o /usr/share/keyrings/nvidia-isaac-ros.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/nvidia-isaac-ros.gpg] \
-        https://isaac.download.nvidia.com/isaac-ros/release-4 noble main" \
+        https://isaac.download.nvidia.com/isaac-ros/release-4.3 noble main external-main" \
         > /etc/apt/sources.list.d/nvidia-isaac-ros.list
+
+# Refresh expired ROS 2 GPG key from base image
+RUN rm -f /usr/share/keyrings/ros-archive-keyring.gpg \
+    && curl -fsSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+        | gpg --batch --dearmor -o /usr/share/keyrings/ros-archive-keyring.gpg
 
 # Install ROS packages and Isaac ROS ESS
 RUN apt-get update && apt-get install -y \

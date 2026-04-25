@@ -528,10 +528,11 @@ def check_spatial_layer_status() -> dict:
     See ``start_spatial_layer()`` docstring for the ``launch_id`` protocol.
 
     Returns ``{"state": ..., "detail": ...}`` where state is one of:
-        stopped  — launch_id missing or marked stopped
-        running  — launch_id matches heartbeat and heartbeat is fresh
-        stale    — heartbeat missing or stale, ros2 launch still alive
-        crashed  — heartbeat missing or stale, ros2 launch dead
+        stopped   — launch_id missing or marked stopped
+        starting  — launch_id present, within 2s grace period after launch
+        running   — launch_id matches heartbeat and heartbeat is fresh
+        stale     — heartbeat missing or stale, ros2 launch still alive
+        crashed   — heartbeat missing or stale, ros2 launch dead
 
     Only ``stale`` and ``crashed`` trigger a ``docker exec`` call.
     """
@@ -580,6 +581,9 @@ def check_spatial_layer_status() -> dict:
         return {"state": "crashed", "detail": f"lost {age:.0f}s ago"}
 
     since = f"{now - launch_time:.0f}s since launch" if launch_time else ""
+
+    if launch_time and (now - launch_time) < 2:
+        return {"state": "starting", "detail": since}
 
     from psilia_edge.runtime.docker import is_ros_launch_running
 

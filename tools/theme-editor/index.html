@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Psilia Theme Editor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "SF Mono", "Fira Code", monospace;
+    background: #111;
+    color: #e0e0e0;
+    padding: 2rem;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+  .subtitle { color: #888; font-size: 0.8rem; margin-bottom: 2rem; }
+  h2 { font-size: 0.9rem; color: #888; margin: 1.5rem 0 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; }
+
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    transition: background 0.15s;
+  }
+  .color-row:hover { background: #1a1a1a; }
+
+  input[type="color"] {
+    width: 40px;
+    height: 30px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    cursor: pointer;
+    background: none;
+    padding: 0;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+
+  .color-name {
+    width: 200px;
+    font-size: 0.85rem;
+  }
+  .color-hex {
+    font-size: 0.8rem;
+    color: #888;
+    font-family: inherit;
+    width: 80px;
+  }
+
+  input.color-hex-input {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 3px;
+    color: #e0e0e0;
+    font-family: inherit;
+    font-size: 0.8rem;
+    padding: 0.2rem 0.4rem;
+    width: 90px;
+  }
+  input.color-hex-input:focus { border-color: #4ecca3; outline: none; }
+
+  .preview {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    border-radius: 6px;
+    border: 1px solid #333;
+  }
+  .preview-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.3rem;
+    font-size: 0.85rem;
+  }
+  .preview-swatch {
+    width: 3rem;
+    text-align: center;
+    border-radius: 2px;
+  }
+
+  .status {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    font-size: 0.75rem;
+    color: #4ecca3;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .status.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<h1>Psilia Theme Editor</h1>
+<p class="subtitle">Edit colors below. Changes are saved to _theme.yaml automatically.</p>
+
+<div id="status" class="status">Saved</div>
+
+<div id="colors-main"></div>
+<div id="colors-vars"></div>
+<div id="preview"></div>
+
+<script>
+const MAIN_KEYS = [
+  "primary", "secondary", "accent", "foreground", "background",
+  "success", "warning", "error", "surface", "panel"
+];
+
+let theme = {};
+let saveTimeout = null;
+
+async function loadTheme() {
+  const resp = await fetch("/api/theme");
+  theme = await resp.json();
+  render();
+}
+
+function render() {
+  renderSection("colors-main", "Colors", MAIN_KEYS, theme);
+
+  const vars = theme.variables || {};
+  const varKeys = Object.keys(vars);
+  renderSection("colors-vars", "Variables", varKeys, vars);
+
+  renderPreview();
+}
+
+function renderSection(containerId, title, keys, obj) {
+  const el = document.getElementById(containerId);
+  let html = `<h2>${title}</h2>`;
+  for (const key of keys) {
+    const val = obj[key] || "#000000";
+    html += `
+      <div class="color-row">
+        <input type="color" value="${val}" data-section="${containerId}" data-key="${key}">
+        <span class="color-name">${key}</span>
+        <input class="color-hex-input" type="text" value="${val}" data-section="${containerId}" data-key="${key}">
+      </div>`;
+  }
+  el.innerHTML = html;
+
+  el.querySelectorAll('input[type="color"]').forEach(input => {
+    input.addEventListener("input", (e) => {
+      updateColor(e.target.dataset.section, e.target.dataset.key, e.target.value);
+    });
+  });
+
+  el.querySelectorAll('.color-hex-input').forEach(input => {
+    input.addEventListener("change", (e) => {
+      let val = e.target.value.trim();
+      if (val.match(/^#?[0-9a-fA-F]{6}$/)) {
+        if (!val.startsWith("#")) val = "#" + val;
+        updateColor(e.target.dataset.section, e.target.dataset.key, val);
+      }
+    });
+  });
+}
+
+function updateColor(section, key, value) {
+  if (section === "colors-vars") {
+    if (!theme.variables) theme.variables = {};
+    theme.variables[key] = value;
+  } else {
+    theme[key] = value;
+  }
+
+  // Sync both inputs for this key
+  const container = document.getElementById(section);
+  container.querySelectorAll(`[data-key="${key}"]`).forEach(input => {
+    input.value = value;
+  });
+
+  renderPreview();
+  scheduleSave();
+}
+
+function scheduleSave() {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(saveTheme, 300);
+}
+
+async function saveTheme() {
+  const resp = await fetch("/api/theme", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(theme),
+  });
+  if (resp.ok) flashStatus("Saved");
+}
+
+function flashStatus(msg) {
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 1500);
+}
+
+function renderPreview() {
+  const bg = theme.background || "#1a1a2e";
+  const fg = theme.foreground || "#e0e0e0";
+  const surface = theme.surface || "#16213e";
+
+  let html = `<div class="preview" style="background:${bg}; color:${fg};">`;
+  html += `<div style="margin-bottom:0.75rem; font-weight:bold;">Preview</div>`;
+
+  for (const key of MAIN_KEYS) {
+    const color = theme[key] || "#000";
+    html += `<div class="preview-row">
+      <span class="preview-swatch" style="background:${color}; color:${bg};">${key.slice(0,3)}</span>
+      <span style="color:${color};">${key}: The quick brown fox jumps over the lazy dog</span>
+    </div>`;
+  }
+
+  html += `<div style="margin-top:0.75rem; padding:0.75rem; background:${surface}; border-radius:4px;">`;
+  html += `<span style="color:${theme.primary || '#fff'};">surface panel</span>`;
+  html += ` <span style="color:${theme.secondary || '#fff'};">with text</span>`;
+  html += `</div>`;
+
+  html += `</div>`;
+  document.getElementById("preview").innerHTML = html;
+}
+
+loadTheme();
+</script>
+</body>
+</html>

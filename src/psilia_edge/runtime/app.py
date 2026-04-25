@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import socket
 import time
+from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -28,24 +29,54 @@ from textual.widgets import (
     TabPane,
 )
 
-PSILIA_THEME = Theme(
-    name="psilia",
-    primary="#4ecca3",
-    secondary="#009dff",
-    accent="#9c27b0",
-    foreground="#e0e0e0",
-    background="#1a1a2e",
-    success="#4ecca3",
+_THEME_FILE = Path(__file__).parent / "_theme.yaml"
+
+_DEFAULT_THEME_COLORS = dict(
+    primary="#8c00ff",
+    secondary="#8c00ff",
+    accent="#ff0000",
+    foreground="#3d3d3d",
+    background="#ffffff",
+    success="#108448",
     warning="#f0c040",
-    error="#e05555",
-    surface="#16213e",
-    panel="#16213e",
-    dark=True,
+    error="#f53d00",
+    surface="#e3e3e3",
+    panel="#e3e3e3",
     variables={
-        "footer-key-foreground": "#4ecca3",
-        "footer-description-foreground": "#3392db",
+        "footer-key-foreground": "#8c00ff",
+        "footer-description-foreground": "#684d80",
+        "tab-foreground": "#684d80",
+        "tab-active-foreground": "#8c00ff",
     },
 )
+
+
+def _load_theme() -> Theme:
+    colors = _DEFAULT_THEME_COLORS.copy()
+    if _THEME_FILE.exists():
+        import yaml
+
+        with open(_THEME_FILE) as f:
+            overrides = yaml.safe_load(f) or {}
+        colors.update(overrides)
+    return Theme(name="psilia", dark=True, **colors)
+
+
+def _theme_colors() -> dict[str, str]:
+    """Return current theme color map for use in Rich markup."""
+    theme = _load_theme()
+    return {
+        "success": theme.success,
+        "warning": theme.warning,
+        "error": theme.error,
+        "primary": theme.primary,
+        "secondary": theme.secondary,
+        "accent": theme.accent,
+        "foreground": theme.foreground,
+        "background": theme.background,
+        "surface": theme.surface,
+        "panel": theme.panel,
+    }
 
 
 def _get_psilia_config_path():
@@ -80,10 +111,15 @@ class BaseLayerPanel(Static):
         from psilia_edge.runtime.daemon import is_running as is_daemon_running
         from psilia_edge.runtime.docker import check_container_status
 
-        lines = ["[bold]Base Layer[/]"]
+        c = _theme_colors()
+        lines = [f"[bold {c['primary']}]Base Layer[/]"]
 
         daemon_running = is_daemon_running()
-        daemon = "[green]running[/]" if daemon_running else "[red]stopped[/]"
+        daemon = (
+            f"[{c['success']}]running[/]"
+            if daemon_running
+            else f"[{c['error']}]stopped[/]"
+        )
         if daemon_running:
             from psilia_edge.runtime.config import get_api_port
 
@@ -94,9 +130,9 @@ class BaseLayerPanel(Static):
 
         container = check_container_status()
         if container == "running":
-            container_text = "[green]running[/]"
+            container_text = f"[{c['success']}]running[/]"
         elif container == "exited":
-            container_text = "[red]exited[/]"
+            container_text = f"[{c['error']}]exited[/]"
         else:
             container_text = "[dim]absent[/]"
         lines.append(f"container:   {container_text}")
@@ -135,7 +171,8 @@ class SpatialLayerPanel(Static):
     def _build(self) -> str:
         from psilia_edge.runtime.config import RUN_DIR
 
-        lines = ["[bold]Spatial Layer[/]"]
+        c = _theme_colors()
+        lines = [f"[bold {c['primary']}]Spatial Layer[/]"]
 
         # ── Spatial status ────────────────────────────────────
         from psilia_edge.runtime.core import check_spatial_layer_status
@@ -146,9 +183,10 @@ class SpatialLayerPanel(Static):
 
         _STATE_STYLE = {
             "stopped": "[dim]stopped[/]",
-            "running": "[green]running[/]",
-            "stale": "[yellow]stale[/]",
-            "crashed": "[red]crashed[/]",
+            "starting": f"[{c['warning']}]starting[/]",
+            "running": f"[{c['success']}]running[/]",
+            "stale": f"[{c['warning']}]stale[/]",
+            "crashed": f"[{c['error']}]crashed[/]",
         }
         spatial = _STATE_STYLE.get(state, f"[dim]{state}[/]")
         if detail:
@@ -157,13 +195,13 @@ class SpatialLayerPanel(Static):
 
         # ── Preflight checks ────────────────────────────────
         if self.checks:
-            force_label = "[green]on[/]" if self.force_mode else "[dim]off[/]"
+            force_label = f"[{c['success']}]on[/]" if self.force_mode else "[dim]off[/]"
             lines.append("")
             lines.append(f"[bold]preflight checks[/]  [dim]force:[/] {force_label}")
             for key, info in self.checks.items():
                 ok = info["ok"]
                 detail = info.get("detail", "")
-                symbol = "[green]✓[/]" if ok else "[red]✗[/]"
+                symbol = f"[{c['success']}]✓[/]" if ok else f"[{c['error']}]✗[/]"
                 name = key if ok else f"[bold]{key}[/]"
                 detail_text = f"  [dim]{detail}[/]" if detail else ""
                 lines.append(f"  {symbol} {name}{detail_text}")
@@ -182,7 +220,7 @@ class SpatialLayerPanel(Static):
             for topic, info in hz.items():
                 rate_val = info.get("hz", 0)
                 if hz_live and rate_val > 0:
-                    rate = f"[cyan]{rate_val:.1f} Hz[/]"
+                    rate = f"[{c['secondary']}]{rate_val:.1f} Hz[/]"
                 else:
                     rate = "[dim]—[/]"
                 lines.append(f"  {topic:<40s} {rate}")
@@ -193,40 +231,6 @@ class SpatialLayerPanel(Static):
             lines.append("[bold]nodes[/]")
             for node in self._ros_nodes:
                 lines.append(f"  [dim]{node}[/]")
-
-        return "\n".join(lines)
-
-
-class ThemeReferencePanel(Static):
-    """Displays base theme colors as a visual reference."""
-
-    def on_mount(self) -> None:
-        self.update(self._build())
-
-    def _build(self) -> str:
-        colors = [
-            ("primary", PSILIA_THEME.primary),
-            ("secondary", PSILIA_THEME.secondary),
-            ("accent", PSILIA_THEME.accent),
-            ("foreground", PSILIA_THEME.foreground),
-            ("background", PSILIA_THEME.background),
-            ("success", PSILIA_THEME.success),
-            ("warning", PSILIA_THEME.warning),
-            ("error", PSILIA_THEME.error),
-            ("surface", PSILIA_THEME.surface),
-            ("panel", PSILIA_THEME.panel),
-        ]
-        lines = []
-        for name, hex_val in colors:
-            swatch = f"[{hex_val}]████[/]"
-            lines.append(f"  {swatch}  {name:<16s} [dim]{hex_val}[/]")
-
-        if PSILIA_THEME.variables:
-            lines.append("")
-            lines.append("[bold]variables[/]")
-            for var_name, hex_val in PSILIA_THEME.variables.items():
-                swatch = f"[{hex_val}]████[/]"
-                lines.append(f"  {swatch}  {var_name:<40s} [dim]{hex_val}[/]")
 
         return "\n".join(lines)
 
@@ -413,8 +417,22 @@ class LogPanel(Log):
 class PsiliaApp(App):
     """Psilia Runtime TUI."""
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.register_theme(_load_theme())
+        self.theme = "psilia"
+
     TITLE = "Psilia Edge"
     CSS = """
+    Tab {
+        color: $tab-foreground;
+    }
+    Tab:hover {
+        color: $foreground;
+    }
+    Tab.-active {
+        color: $tab-active-foreground;
+    }
     #base-panel, #spatial-panel {
         height: auto;
         padding: 1;
@@ -435,21 +453,19 @@ class PsiliaApp(App):
     #config-psilia:focus, #config-runtime:focus {
         background: $surface;
     }
-    #theme-panel {
-        padding: 1;
-    }
     """
 
     BINDINGS = [
         Binding("shift+left", "prev_tab", "◀ Tab"),
         Binding("shift+right", "next_tab", "Tab ▶"),
         Binding("r", "refresh", "Refresh"),
+        Binding("T", "reload_theme", "Theme"),
         Binding("q", "quit", "Quit"),
     ]
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with TabbedContent("Status", "Logs", "Config", "Theme"):
+        with TabbedContent("Status", "Logs", "Config"):
             with TabPane("Status", id="tab-status"):
                 yield BaseLayerPanel(id="base-panel")
                 yield SpatialLayerPanel(id="spatial-panel")
@@ -466,13 +482,9 @@ class PsiliaApp(App):
                     collapsed=True,
                     id="config-runtime",
                 )
-            with TabPane("Theme", id="tab-theme"):
-                yield ThemeReferencePanel(id="theme-panel")
         yield Footer()
 
     def on_mount(self) -> None:
-        self.register_theme(PSILIA_THEME)
-        self.theme = "psilia"
         self.sub_title = socket.gethostname().split(".")[0]
         for widget in self.query(Tabs):
             widget.can_focus = False
@@ -521,6 +533,11 @@ class PsiliaApp(App):
 
     def action_next_tab(self) -> None:
         self.query_one(Tabs).action_next_tab()
+
+    def action_reload_theme(self) -> None:
+        self.register_theme(_load_theme())
+        self._watch_theme(self.theme)
+        self.notify("Theme reloaded", severity="information")
 
     def action_refresh(self) -> None:
         self.query_one("#base-panel", BaseLayerPanel).refresh_status()

@@ -247,4 +247,8 @@ pandoc about.md -o about.pdf --pdf-engine=xelatex -V geometry:margin=1.75in
 pandoc psilia-pitch.md -o psilia-pitch.pdf --pdf-engine=xelatex -V geometry:margin=1.5in
 
 pandoc psilia-defensibility.md -o psilia-defensibility.pdf --pdf-engine=xelatex -V geometry:margin=1.5in
+
+pandoc psilia-reframing.md -o psilia-reframin.pdf --pdf-engine=xelatex -V geometry:margin=1.5in
+
+pandoc psilia-interview-questions.md -o psilia-interview-questions.pdf --pdf-engine=xelatex -V geometry:margin=1.5in
 ```

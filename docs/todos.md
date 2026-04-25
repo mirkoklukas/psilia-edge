@@ -131,6 +131,38 @@ uses cam0/cam1. Remove the params and update launch configs accordingly.
   (explicit "run these") or a negative `ros.disabled_nodes` list ("skip these").
   `start_spatial_layer()` would apply this before writing `launch_params.yaml`.
   Decide which route to take when implementing.
+- Evaluate `ros.nodes` structure in `runtime.yaml` — currently a flat dict
+  (`node_name: true | {parameters: ...}`). Consider whether adopting a structure
+  closer to the ROS 2 launch description YAML (`pkg`, `exec`, `name`,
+  `parameters` as list-of-dicts) would add value. Current assessment: probably
+  not — our format is an override layer, not a full launch description, so the
+  extra fields (`pkg`, `exec`, `namespace`, `remappings`) would be pure noise.
+  Revisit if we ever want users to inject arbitrary nodes.
+
+  **Ours (`runtime.yaml`):**
+  ```yaml
+  ros:
+    nodes:
+      depth_preview_node:
+        parameters:
+          max_depth: 3.0
+          fps: 5
+  ```
+  **ROS 2 launch YAML:**
+  ```yaml
+  launch:
+  - node:
+      pkg: psilia_runtime
+      exec: depth_preview_node
+      name: depth_preview_node
+      namespace: /psilia
+      parameters:
+      - max_depth: 3.0
+      - fps: 5
+  ```
+  Differences: ours uses the node key as identity (the launch file knows `pkg`,
+  `exec`, `namespace`), and parameters are a flat dict instead of a list of
+  single-key dicts. Everything the launch file already owns is omitted.
 
 ### Hotplug
 - Implement `hotplug` in the daemon: use `pyudev` to watch for USB device events (cameras, network dongles) and react — update `psilia.yaml`, notify the UI. Replaces the current "written once, may go stale" camera/hotspot detection.
