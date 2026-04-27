@@ -66,13 +66,11 @@ def sensor_add(
 
     # -- Non-interactive mode (--key provided) --
     if key is not None:
-        if calibration is None:
-            ui.fail("--calibration is required when using --key.")
-            raise typer.Exit(1)
-        calibration = calibration.expanduser().resolve()
-        if not calibration.is_file():
-            ui.fail(f"File not found: {calibration}")
-            raise typer.Exit(1)
+        if calibration is not None:
+            calibration = calibration.expanduser().resolve()
+            if not calibration.is_file():
+                ui.fail(f"File not found: {calibration}")
+                raise typer.Exit(1)
 
         if label is None:
             label = key
@@ -90,7 +88,8 @@ def sensor_add(
         ui.ok(f"Sensor registered: [bold]{label}[/bold]")
         if key != label:
             ui.detail("uid", key)
-        ui.detail("calibration", calibration.name)
+        if calibration:
+            ui.detail("calibration", calibration.name)
         return
 
     # -- Interactive mode --
@@ -195,8 +194,22 @@ def sensor_add(
 
 
 @sensor_app.command("list")
-def sensor_list() -> None:
+def sensor_list(
+    device: Optional[str] = typer.Option(
+        None, "--device", "-d", help="Registered device name (runs command over SSH)."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
+) -> None:
     """Show registered sensors."""
+    if device is not None:
+        from psilia_edge.utils import run_on_device
+
+        cmd = "psilia sensor list"
+        if json_output:
+            cmd += " --json"
+        run_on_device(device, cmd)
+        return
+
     from psilia_edge.runtime.sensor import (
         list_sensors,
         get_available_calibrations,
@@ -204,11 +217,6 @@ def sensor_list() -> None:
     )
 
     sensors = list_sensors()
-    if not sensors:
-        ui.info(
-            "[dim]No sensors registered. Run 'psilia sensor add' to register one.[/dim]"
-        )
-        return
 
     for key, entry in sensors.items():
         label = entry.get("label", key)
@@ -222,6 +230,18 @@ def sensor_list() -> None:
                 cal_resolutions.append(list(res))
         if cal_resolutions:
             entry["calibrated_resolutions"] = cal_resolutions
+
+    if json_output:
+        import json
+
+        print(json.dumps(sensors, indent=2))
+        return
+
+    if not sensors:
+        ui.info(
+            "[dim]No sensors registered. Run 'psilia sensor add' to register one.[/dim]"
+        )
+        return
 
     ui.print_tree(sensors, label="Sensors", collapse_flat_lists=True)
 
@@ -252,6 +272,12 @@ def sensor_push(
     key: Optional[str] = typer.Option(
         None, "--key", "-k", help="Push only this sensor key."
     ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        "-f",
+        help="Overwrite sensors already registered on the device.",
+    ),
 ) -> None:
     """Push sensor entries and calibration files to a remote device."""
     from psilia_edge.runtime.sensor import push_sensors
@@ -260,7 +286,7 @@ def sensor_push(
 
     keys = [key] if key else None
     try:
-        pushed = push_sensors(device, keys=keys)
+        pushed, skipped = push_sensors(device, keys=keys, overwrite=overwrite)
     except KeyError as e:
         ui.fail(str(e))
         raise typer.Exit(1)
@@ -270,6 +296,8 @@ def sensor_push(
 
     for k in pushed:
         ui.ok(f"{k}")
+    for k in skipped:
+        ui.info(f"[dim]Skipped {k} (already registered)[/dim]")
     ui.ok(f"Pushed {len(pushed)} sensor(s) to {device}")
 
 

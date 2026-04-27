@@ -39,6 +39,10 @@ def device_decorator(func):
 
     If --device is given, the command is forwarded over SSH to the named device.
     Otherwise it runs locally, requiring the machine to be a runtime host.
+
+    TODO: Forward CLI flags and arguments to the remote command. Currently only
+    works for zero-argument commands. Also hardcodes `psilia runtime` — won't
+    work for sensor or other sub-apps without changes.
     """
     device_param = inspect.Parameter(
         "device",

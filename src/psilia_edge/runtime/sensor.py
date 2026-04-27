@@ -75,40 +75,45 @@ def _calibration_filename(
 def register_sensor(
     key: str,
     entry: dict,
-    calibration_src: Path,
+    calibration_src: Path | None = None,
 ) -> None:
-    """Register a sensor: load, rectify, and save calibration file, then write entry to psilia.yaml.
+    """Register a sensor and optionally import a calibration file.
 
     Args:
         key: The sensor key (label or UID).
         entry: Sensor metadata (type, manufacturer, product, label, etc.).
-        calibration_src: Path to the calibration file to import.
+        calibration_src: Path to a calibration file to import. If None,
+            only the sensor entry is written (calibration files are assumed
+            to already be in place).
     """
-    from psilia_edge.camera import StereoCalibration
-    import psilia_edge.ui as ui
+    if calibration_src is not None:
+        from psilia_edge.camera import StereoCalibration
+        import psilia_edge.ui as ui
 
-    CALIBRATIONS_DIR.mkdir(parents=True, exist_ok=True)
+        CALIBRATIONS_DIR.mkdir(parents=True, exist_ok=True)
 
-    stereo = StereoCalibration.load(str(calibration_src), strict=False)
-    ok, issues = stereo.validate_rectification()
-    if not ok:
-        ui.warn("Rectification data looks suspect:")
-        for issue in issues:
-            ui.print_line(f"  - {issue}")
-        if ui.confirm("Re-rectify from raw intrinsics and extrinsics?", default=True):
-            stereo = stereo.rectify(force=True)
+        stereo = StereoCalibration.load(str(calibration_src), strict=False)
+        ok, issues = stereo.validate_rectification()
+        if not ok:
+            ui.warn("Rectification data looks suspect:")
+            for issue in issues:
+                ui.print_line(f"  - {issue}")
+            if ui.confirm(
+                "Re-rectify from raw intrinsics and extrinsics?", default=True
+            ):
+                stereo = stereo.rectify(force=True)
+            else:
+                stereo = stereo.rectify()
         else:
             stereo = stereo.rectify()
-    else:
-        stereo = stereo.rectify()
 
-    label = entry.get("label", key)
-    uid = key if key != label else None
-    resolution = (stereo.cam0.width, stereo.cam0.height)
-    cal_name = _calibration_filename(label, uid, resolution, ".yaml")
+        label = entry.get("label", key)
+        uid = key if key != label else None
+        resolution = (stereo.cam0.width, stereo.cam0.height)
+        cal_name = _calibration_filename(label, uid, resolution, ".yaml")
 
-    calibration_dst = CALIBRATIONS_DIR / cal_name
-    stereo.save(str(calibration_dst))
+        calibration_dst = CALIBRATIONS_DIR / cal_name
+        stereo.save(str(calibration_dst))
 
     config = read_config()
     if "sensors" not in config:
@@ -138,29 +143,34 @@ def remove_sensor(key: str, delete_calibration: bool = False) -> None:
         raise KeyError(f"Sensor '{key}' not found.")
 
     if delete_calibration:
-        cal_name = sensors[key].get("calibration")
-        if cal_name:
-            cal_path = CALIBRATIONS_DIR / cal_name
-            if cal_path.exists():
-                cal_path.unlink()
+        entry = sensors[key]
+        label = entry.get("label", key)
+        uid = entry.get("uid")
+        for cal_path in get_available_calibrations(label, uid):
+            cal_path.unlink()
 
     del sensors[key]
     config["sensors"] = sensors
     write_config(config)
 
 
-def push_sensors(device: str, keys: list[str] | None = None) -> list[str]:
+def push_sensors(
+    device: str, keys: list[str] | None = None, overwrite: bool = False
+) -> tuple[list[str], list[str]]:
     """Push sensor entries and calibration files to a remote device.
 
     Copies calibration files via rsync, then registers each sensor on the
     device using `psilia sensor add --key ...` (non-interactive mode).
+    Skips sensors that are already registered on the device unless overwrite
+    is True.
 
     Args:
         device: Registered device name (SSH host alias).
         keys: Specific sensor keys to push. If None, pushes all.
+        overwrite: If True, overwrite sensors already registered on the device.
 
     Returns:
-        List of keys that were pushed.
+        Tuple of (pushed keys, skipped keys).
 
     Raises:
         KeyError: If a requested key is not found locally.
@@ -175,16 +185,35 @@ def push_sensors(device: str, keys: list[str] | None = None) -> list[str]:
         if key not in sensors:
             raise KeyError(f"Sensor '{key}' not found locally.")
 
-    to_push = {key: sensors[key] for key in keys}
+    # Check which sensors already exist on the device.
+    import json
+
+    rc, stdout, _ = run_on_device_capture(device, "psilia sensor list --json")
+    remote_sensors: dict = {}
+    if rc == 0 and stdout.strip():
+        try:
+            remote_sensors = json.loads(stdout)
+        except json.JSONDecodeError:
+            pass
+
+    pushed = []
+    skipped = []
+    to_push = {}
+    for key in keys:
+        if key in remote_sensors and not overwrite:
+            skipped.append(key)
+        else:
+            to_push[key] = sensors[key]
+
+    if not to_push:
+        return pushed, skipped
 
     # 1. rsync calibration files to ~/.psilia/calibrations/ on device.
     cal_files = []
     for entry in to_push.values():
-        cal_name = entry.get("calibration")
-        if cal_name:
-            cal_path = CALIBRATIONS_DIR / cal_name
-            if cal_path.exists():
-                cal_files.append(cal_path)
+        label = entry.get("label", "")
+        uid = entry.get("uid")
+        cal_files.extend(get_available_calibrations(label, uid))
 
     if cal_files:
         run_on_device_capture(device, "mkdir -p ~/.psilia/calibrations")
@@ -197,25 +226,25 @@ def push_sensors(device: str, keys: list[str] | None = None) -> list[str]:
             raise RuntimeError(f"Failed to rsync calibration files to {device}")
 
     # 2. Register each sensor on the device via `psilia sensor add --key`.
+    # Calibration files are already in place from rsync — no --calibration needed.
     for key, entry in to_push.items():
-        cal_name = entry.get("calibration")
-        if not cal_name:
-            continue
-        cmd = f'psilia sensor add --key "{key}" --calibration ~/.psilia/calibrations/{cal_name}'
-        label = entry.get("label")
+        label = entry.get("label", key)
+        cmd = f'psilia sensor add --key "{key}"'
         if label:
             cmd += f' --label "{label}"'
         if entry.get("manufacturer"):
             cmd += f' --manufacturer "{entry["manufacturer"]}"'
         if entry.get("product"):
             cmd += f' --product "{entry["product"]}"'
-        rc, _, stderr = run_on_device_capture(device, cmd)
+        rc, stdout, stderr = run_on_device_capture(device, cmd)
         if rc != 0:
+            detail = (stderr or stdout).strip()
             raise RuntimeError(
-                f"Failed to register sensor '{key}' on {device}: {stderr}"
+                f"Failed to register sensor '{key}' on {device}: {detail}"
             )
+        pushed.append(key)
 
-    return keys
+    return pushed, skipped
 
 
 def find_sensor(name: str) -> tuple[str, dict] | None:
