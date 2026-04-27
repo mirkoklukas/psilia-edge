@@ -225,17 +225,9 @@ def push_sensors(
         if rc != 0:
             raise RuntimeError(f"Failed to rsync calibration files to {device}")
 
-    # 2. Register each sensor on the device via `psilia sensor add --key`.
-    # Calibration files are already in place from rsync — no --calibration needed.
     for key, entry in to_push.items():
-        label = entry.get("label", key)
-        cmd = f'psilia sensor add --key "{key}"'
-        if label:
-            cmd += f' --label "{label}"'
-        if entry.get("manufacturer"):
-            cmd += f' --manufacturer "{entry["manufacturer"]}"'
-        if entry.get("product"):
-            cmd += f' --product "{entry["product"]}"'
+        entry_str = json.dumps(entry)
+        cmd = f"psilia sensor add --key \"{key}\" --raw '{entry_str}'"
         rc, stdout, stderr = run_on_device_capture(device, cmd)
         if rc != 0:
             detail = (stderr or stdout).strip()

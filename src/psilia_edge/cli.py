@@ -57,12 +57,35 @@ def sensor_add(
         str,
         typer.Option("--product", help="Product name."),
     ] = None,
+    raw: Annotated[
+        str,
+        typer.Option(
+            "--raw",
+            help="Full sensor entry as JSON string. Requires --key.",
+        ),
+    ] = None,
 ) -> None:
     """Register a sensor and associate a calibration file."""
     from psilia_edge.runtime.sensor import (
         list_sensors,
         register_sensor,
     )
+
+    # -- Raw JSON entry mode (--key + --raw) --
+    if raw is not None:
+        import json
+
+        if key is None:
+            ui.fail("--key is required when using --raw.")
+            raise typer.Exit(1)
+        try:
+            entry = json.loads(raw)
+        except json.JSONDecodeError as e:
+            ui.fail(f"Invalid JSON: {e}")
+            raise typer.Exit(1)
+        register_sensor(key, entry, calibration)
+        ui.ok(f"Sensor registered: [bold]{entry.get('label', key)}[/bold]")
+        return
 
     # -- Non-interactive mode (--key provided) --
     if key is not None:
