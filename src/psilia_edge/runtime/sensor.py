@@ -226,8 +226,8 @@ def push_sensors(
             raise RuntimeError(f"Failed to rsync calibration files to {device}")
 
     for key, entry in to_push.items():
-        entry_str = json.dumps(entry)
-        cmd = f"psilia sensor add --key \"{key}\" --raw '{entry_str}'"
+        escaped = json.dumps(entry).replace('"', '\\"')
+        cmd = f'psilia sensor add --key "{key}" --raw "{escaped}"'
         rc, stdout, stderr = run_on_device_capture(device, cmd)
         if rc != 0:
             detail = (stderr or stdout).strip()
