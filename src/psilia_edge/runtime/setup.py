@@ -55,8 +55,9 @@ def run_runtime_init(
     """
     runtime_home = runtime_home.expanduser().resolve()
 
-    _step_init_configs(runtime_home)
+    ui.title("Initializing configs and runtime home")
     _step_create_dirs(runtime_home, mkdir=mkdir)
+    _step_init_configs(runtime_home)
     _step_build_image(
         get_docker_image(), get_docker_dir(), get_dockerfile(), quiet=quiet
     )
@@ -379,11 +380,12 @@ def _step_init_configs(runtime_home: Path) -> None:
     config.update(read_config(missing_ok=True))
     config.update({"runtime": {"home_path": str(runtime_home)}})
     write_config(config)
+    ui.ok(f"Psilia config written: {CONFIG_PATH}")
 
     runtime_config = initial_runime_config()
     runtime_config.update(read_runtime_config(missing_ok=True))
     write_runtime_config(runtime_config)
-    ui.ok(f"Config written — runtime home: {runtime_home}")
+    ui.ok(f"Runtime config written: {runtime_home / 'runtime.yaml'}")
 
 
 def _step_create_dirs(runtime_home: Path, mkdir: bool = False) -> None:
@@ -393,10 +395,12 @@ def _step_create_dirs(runtime_home: Path, mkdir: bool = False) -> None:
                 f"Runtime home '{runtime_home}' does not exist. Use --mkdir to create it."
             )
         runtime_home.mkdir(parents=True, exist_ok=True)
-    with ui.status("Creating directories…"):
-        for d in RUNTIME_DIRS:
-            (runtime_home / d).mkdir(parents=True, exist_ok=True)
-    ui.ok("Directories ready")
+        ui.ok(f"Created runtime home: {runtime_home}")
+    else:
+        ui.ok(f"Runtime home exists: {runtime_home}")
+    for d in RUNTIME_DIRS:
+        (runtime_home / d).mkdir(parents=True, exist_ok=True)
+    ui.ok(f"Subdirectories ready: [{', '.join(f'{d}/' for d in RUNTIME_DIRS)}]")
 
 
 def _step_copy_ros() -> None:

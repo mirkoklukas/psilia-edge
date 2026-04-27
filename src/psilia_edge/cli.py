@@ -77,7 +77,8 @@ def sensor_add(
         if label is None:
             label = key
 
-        entry: dict = {"type": "camera"}
+        uid = key if key != label else None
+        entry: dict = {"type": "camera", "uid": uid}
         if manufacturer:
             entry["manufacturer"] = manufacturer
         if product:
@@ -168,6 +169,7 @@ def sensor_add(
         _key = selected["id"]
         _entry: dict = {
             "type": "camera",
+            "uid": selected["id"],
             "manufacturer": selected["manufacturer"],
             "product": selected["product"],
             "label": label,
@@ -179,7 +181,8 @@ def sensor_add(
         _key = label
         _entry = {
             "type": "camera",
-            "id": None,
+            "uid": None,
+            "label": label,
         }
 
     register_sensor(_key, _entry, calibration)
@@ -194,7 +197,11 @@ def sensor_add(
 @sensor_app.command("list")
 def sensor_list() -> None:
     """Show registered sensors."""
-    from psilia_edge.runtime.sensor import list_sensors
+    from psilia_edge.runtime.sensor import (
+        list_sensors,
+        get_available_calibrations,
+        get_calibration_resolution,
+    )
 
     sensors = list_sensors()
     if not sensors:
@@ -202,7 +209,21 @@ def sensor_list() -> None:
             "[dim]No sensors registered. Run 'psilia sensor add' to register one.[/dim]"
         )
         return
-    ui.print_tree(sensors, label="Sensors")
+
+    for key, entry in sensors.items():
+        label = entry.get("label", key)
+        uid = entry.get("uid")
+
+        cal_files = get_available_calibrations(label, uid)
+        cal_resolutions = []
+        for f in cal_files:
+            res = get_calibration_resolution(f)
+            if res:
+                cal_resolutions.append(list(res))
+        if cal_resolutions:
+            entry["calibrated_resolutions"] = cal_resolutions
+
+    ui.print_tree(sensors, label="Sensors", collapse_flat_lists=True)
 
 
 @sensor_app.command("remove")

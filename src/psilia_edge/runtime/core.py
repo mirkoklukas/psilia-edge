@@ -40,74 +40,215 @@ def resolve_container() -> ResolverResult:
 
 
 def resolve_camera() -> ResolverResult:
-    from psilia_edge.runtime.hotplug import pick_camera_device
+    """Pick camera and resolution.
 
-    camera = pick_camera_device()
-    if not camera:
+    1. If camera.name is set in runtime.yaml, match it against detected groups
+       (by product name, label, or UID). Otherwise take the first group.
+    2. If camera.resolution is set ([w, h] per-eye), use it if available.
+       Otherwise pick the highest available resolution.
+    """
+    from psilia_edge.runtime.config import read_runtime_config
+    from psilia_edge.runtime.hotplug import scan_cameras
+    from psilia_edge.runtime.sensor import build_sensor_id, find_sensor
+
+    import sys
+
+    if sys.platform != "linux":
+        return ResolverResult(ok=False, detail="camera detection requires Linux")
+
+    groups = scan_cameras()
+    if not groups:
         return ResolverResult(ok=False, detail="no camera detected")
 
-    from psilia_edge.runtime.sensor import build_sensor_id
+    rt_config = read_runtime_config(missing_ok=True)
+    camera_config = rt_config.get("camera", {})
+    camera_name = camera_config.get("name")
+
+    # -- pick camera group --
+    group = None
+    if camera_name:
+        sensor = find_sensor(camera_name)
+        match_uid = sensor[0] if sensor else None
+        for g in groups:
+            cam = g[0]
+            uid = build_sensor_id(cam)
+            product = cam.get("product", cam.get("name", ""))
+            if uid == match_uid or product == camera_name:
+                group = g
+                break
+        if group is None:
+            return ResolverResult(
+                ok=False,
+                detail=f"camera '{camera_name}' not found among detected devices",
+            )
+    else:
+        group = groups[0]
+
+    # -- pick device node with formats --
+    camera = None
+    for cam in group:
+        formats = cam.get("formats", {})
+        if not formats:
+            continue
+
+        if "MJPG" in formats:
+            fmt = "MJPG"
+        elif "YUYV" in formats:
+            fmt = "YUYV"
+        else:
+            fmt = next(iter(formats))
+
+        sizes = formats[fmt].get("sizes", [])
+        if not sizes:
+            continue
+
+        camera = {
+            "device": cam["device"],
+            "pixel_format": fmt,
+            "available_sizes": sizes,
+            "fps": 30,
+        }
+        for field in (
+            "name",
+            "type",
+            "vendor_id",
+            "product_id",
+            "manufacturer",
+            "product",
+            "serial",
+            "bus_id",
+        ):
+            if field in cam:
+                camera[field] = cam[field]
+        break
+
+    if camera is None:
+        return ResolverResult(ok=False, detail="no usable device node in camera group")
+
+    # -- pick resolution --
+    requested_res = camera_config.get("resolution")
+    sizes = camera.get("available_sizes", [])
+
+    if requested_res:
+        eye_w, eye_h = requested_res[0], requested_res[1]
+        stereo_w, stereo_h = eye_w * 2, eye_h
+        match = next(
+            (s for s in sizes if s["width"] == stereo_w and s["height"] == stereo_h),
+            None,
+        )
+        if match:
+            size = match
+        else:
+            logger.warning(
+                "Requested resolution %dx%d not available, using highest",
+                eye_w,
+                eye_h,
+            )
+            size = max(sizes, key=lambda s: s["width"] * s["height"])
+    else:
+        size = max(sizes, key=lambda s: s["width"] * s["height"])
+
+    camera["width"] = size["width"]
+    camera["height"] = size["height"]
 
     sensor_id = build_sensor_id(camera)
     return ResolverResult(
         ok=True,
-        detail=camera.get("device", "detected"),
+        detail=f"{camera.get('device')} {size['width']}x{size['height']}",
         data={"info": camera, "sensor_id": sensor_id},
     )
 
 
 def resolve_calibration(camera) -> ResolverResult:
+    """Find calibration for the resolved camera and resolution.
+
+    1. If camera.calibration is set in runtime.yaml, use that path directly.
+    2. Look up available calibrations for the sensor. Try exact resolution match first,
+       then rescalable match, then give up.
+    """
     from psilia_edge.runtime.config import read_runtime_config
-    from psilia_edge.runtime.sensor import get_calibration_file
-
-    rt_config = read_runtime_config()
-    camera_config = rt_config.get("camera", {})
-    sensor_id = camera.data.get("sensor_id") if camera.ok else None
-
-    cal_path = get_calibration_file(camera_config.get("name"), sensor_id)
-    if not cal_path:
-        return ResolverResult(ok=False, detail="no calibration found")
-
-    container_path = f"/psilia/calibrations/{cal_path.name}"
-    return ResolverResult(
-        ok=True,
-        detail=cal_path.name,
-        data={"host_path": cal_path, "container_path": container_path},
-    )
-
-
-def resolve_resolution(camera, calibration) -> ResolverResult:
     from psilia_edge.runtime.sensor import (
+        find_sensor,
+        get_available_calibrations,
         get_calibration_resolution,
         is_calibration_compatible,
     )
 
-    cal_path = calibration.data["host_path"]
-    camera_info = camera.data["info"]
+    rt_config = read_runtime_config(missing_ok=True)
+    camera_config = rt_config.get("camera", {})
 
-    cal_res = get_calibration_resolution(cal_path)
-    if not cal_res:
-        return ResolverResult(ok=False, detail="cannot read calibration resolution")
+    # -- explicit override --
+    cal_override = camera_config.get("calibration")
+    if cal_override:
+        from pathlib import Path
 
-    cal_w, cal_h = cal_res
+        cal_path = Path(cal_override).expanduser()
+        if not cal_path.is_absolute():
+            from psilia_edge.runtime.config import CALIBRATIONS_DIR
 
-    # Try smallest compatible resolution.
-    sizes = camera_info.get("available_sizes", [])
-    for size in sorted(sizes, key=lambda s: s["width"] * s["height"]):
-        if is_calibration_compatible(cal_w, cal_h, size["width"], size["height"]):
+            cal_path = CALIBRATIONS_DIR / cal_path
+        if not cal_path.exists():
+            return ResolverResult(ok=False, detail=f"calibration not found: {cal_path}")
+        container_path = f"/psilia/calibrations/{cal_path.name}"
+        return ResolverResult(
+            ok=True,
+            detail=f"{cal_path.name} (override)",
+            data={"host_path": cal_path, "container_path": container_path},
+        )
+
+    # -- look up sensor --
+    camera_name = camera_config.get("name")
+    sensor_id = camera.data.get("sensor_id") if camera.ok else None
+    sensor = find_sensor(camera_name) if camera_name else None
+    if sensor is None and sensor_id:
+        sensor = find_sensor(sensor_id)
+
+    if sensor is None:
+        return ResolverResult(ok=False, detail="no sensor registered for this camera")
+
+    _, entry = sensor
+    label = entry.get("label", "")
+    uid = entry.get("uid")
+
+    cal_files = get_available_calibrations(label, uid)
+    if not cal_files:
+        return ResolverResult(ok=False, detail="no calibration files found")
+
+    # -- match against capture resolution --
+    camera_info = camera.data.get("info", {})
+    frame_w = camera_info.get("width", 0)
+    frame_h = camera_info.get("height", 0)
+    eye_w = frame_w // 2
+
+    # Exact match.
+    for f in cal_files:
+        res = get_calibration_resolution(f)
+        if res and res[0] == eye_w and res[1] == frame_h:
+            container_path = f"/psilia/calibrations/{f.name}"
             return ResolverResult(
                 ok=True,
-                detail=f"{size['width']}x{size['height']}",
-                data={"width": size["width"], "height": size["height"]},
+                detail=f"{f.name} (exact)",
+                data={"host_path": f, "container_path": container_path},
             )
 
-    # Fallback: exact calibration resolution (stereo: 2*cal_w x cal_h).
-    width = cal_w * 2
-    height = cal_h
+    # Rescalable match.
+    for f in cal_files:
+        res = get_calibration_resolution(f)
+        if res and is_calibration_compatible(res[0], res[1], frame_w, frame_h):
+            container_path = f"/psilia/calibrations/{f.name}"
+            return ResolverResult(
+                ok=True,
+                detail=f"{f.name} (rescaled)",
+                data={"host_path": f, "container_path": container_path},
+            )
+
+    # No match — use highest resolution calibration, let camera node rescale.
+    best = cal_files[0]
+    container_path = f"/psilia/calibrations/{best.name}"
     return ResolverResult(
         ok=True,
-        detail=f"{width}x{height} (calibration match)",
-        data={"width": width, "height": height},
+        detail=f"{best.name} (no resolution match, will rescale)",
+        data={"host_path": best, "container_path": container_path},
     )
 
 
@@ -161,13 +302,6 @@ SPATIAL_REQUIREMENTS = [
                 "calibration",
                 resolve_calibration,
                 ("camera",),
-                [
-                    RequirementSpec(
-                        "resolution",
-                        resolve_resolution,
-                        ("camera", "camera.calibration"),
-                    ),
-                ],
             ),
         ],
     ),
@@ -351,11 +485,6 @@ def _build_launch_params(ctx) -> dict:
             for k in ("device", "pixel_format", "width", "height", "fps")
             if k in camera_info
         }
-        resolution = ctx["camera.calibration.resolution"]
-        if resolution and resolution.ok:
-            camera_params["width"] = resolution.data["width"]
-            camera_params["height"] = resolution.data["height"]
-
         params["camera_node"] = {"ros__parameters": camera_params}
         nodes.extend(["camera_node", "preview_node"])
 

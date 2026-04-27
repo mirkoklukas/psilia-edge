@@ -51,16 +51,24 @@ def _sanitize(s: str) -> str:
     return s.replace(":", "-").replace(" ", "-").replace("/", "-")
 
 
-def _calibration_filename(label: str, uid: str | None, ext: str) -> str:
-    """Build a calibration filename from label and optional UID.
+def _calibration_filename(
+    label: str,
+    uid: str | None,
+    resolution: tuple[int, int] | None,
+    ext: str,
+) -> str:
+    """Build a calibration filename from label, optional UID, and optional per-eye resolution.
 
     Examples:
-        ("ZED 2i", "2b03:0b3a:SN123456", ".yaml") → "ZED-2i__2b03-0b3a-SN123456.yaml"
-        ("ZED 2i", None, ".yaml")                   → "ZED-2i.yaml"
+        ("ZED 2i", "2b03:0b3a:SN123456", (1280, 720), ".yaml") → "ZED-2i__2b03-0b3a-SN123456__1280x720.yaml"
+        ("ZED 2i", None, (1280, 720), ".yaml")                   → "ZED-2i__1280x720.yaml"
+        ("ZED 2i", None, None, ".yaml")                           → "ZED-2i.yaml"
     """
     name = _sanitize(label)
     if uid:
         name = f"{name}__{_sanitize(uid)}"
+    if resolution:
+        name = f"{name}__{resolution[0]}x{resolution[1]}"
     return f"{name}{ext}"
 
 
@@ -96,12 +104,11 @@ def register_sensor(
 
     label = entry.get("label", key)
     uid = key if key != label else None
-    cal_name = _calibration_filename(label, uid, ".yaml")
+    resolution = (stereo.cam0.width, stereo.cam0.height)
+    cal_name = _calibration_filename(label, uid, resolution, ".yaml")
 
     calibration_dst = CALIBRATIONS_DIR / cal_name
     stereo.save(str(calibration_dst))
-
-    entry["calibration"] = cal_name
 
     config = read_config()
     if "sensors" not in config:
@@ -269,6 +276,28 @@ def get_calibration_resolution(cal_path: Path) -> tuple[int, int] | None:
         return int(cam0["width"]), int(cam0["height"])
     except Exception:
         return None
+
+
+def get_available_calibrations(label: str, uid: str | None = None) -> list[Path]:
+    """Return all calibration files for a sensor, found by filename convention.
+
+    Builds the filename prefix from label (and optional UID) and globs for
+    matching files in the calibrations directory. Returns a list of paths,
+    sorted by resolution (largest first).
+    """
+    prefix = _sanitize(label)
+    if uid:
+        prefix = f"{prefix}__{_sanitize(uid)}"
+    if not CALIBRATIONS_DIR.exists():
+        return []
+    matches = list(CALIBRATIONS_DIR.glob(f"{prefix}__*.yaml"))
+
+    def _sort_key(p: Path) -> int:
+        res = get_calibration_resolution(p)
+        return -(res[0] * res[1]) if res else 0
+
+    matches.sort(key=_sort_key)
+    return matches
 
 
 def get_calibration_file(*names: str) -> Path | None:

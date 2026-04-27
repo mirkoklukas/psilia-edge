@@ -274,6 +274,8 @@ def build_tree(
     value_style: str = "normal",
     label_style: str = "magenta",
     guide_style: str = "dim cyan",
+    collapse_flat_lists: bool = False,
+    collapse_max: int = 4,
 ):
     """Build and return a Rich Tree from a nested dict (without printing)."""
     from rich.tree import Tree
@@ -286,19 +288,41 @@ def build_tree(
     def _add_list_leaf(node, value) -> None:
         node.add(f"[{key_style}][/{key_style}][{value_style}]{value}[/{value_style}]")
 
+    def _is_flat(lst: list) -> bool:
+        return len(lst) <= collapse_max and all(
+            not isinstance(v, (dict, list)) for v in lst
+        )
+
+    def _collapse(lst: list) -> str:
+        return "[" + ", ".join(str(v) for v in lst) + "]"
+
     def _add(node, d: dict | list) -> None:
         if isinstance(d, dict):
             for key, value in d.items():
                 if isinstance(value, dict) or isinstance(value, list):
-                    branch = node.add(f"[{key_style}]{key}[/{key_style}]")
-                    _add(branch, value)
+                    if (
+                        collapse_flat_lists
+                        and isinstance(value, list)
+                        and _is_flat(value)
+                    ):
+                        _add_dict_leaf(node, key, _collapse(value))
+                    else:
+                        branch = node.add(f"[{key_style}]{key}[/{key_style}]")
+                        _add(branch, value)
                 else:
                     _add_dict_leaf(node, key, value)
         elif isinstance(d, list):
             for value in d:
                 if isinstance(value, dict) or isinstance(value, list):
-                    branch = node.add(f"[{key_style}]*[/{key_style}]")
-                    _add(branch, value)
+                    if (
+                        collapse_flat_lists
+                        and isinstance(value, list)
+                        and _is_flat(value)
+                    ):
+                        _add_list_leaf(node, _collapse(value))
+                    else:
+                        branch = node.add(f"[{key_style}]*[/{key_style}]")
+                        _add(branch, value)
                 else:
                     _add_list_leaf(node, value)
 
@@ -327,6 +351,8 @@ def print_tree(
     value_style: str = "normal",
     label_style: str = "magenta",
     guide_style: str = "dim cyan",
+    collapse_flat_lists: bool = False,
+    collapse_max: int = 4,
 ) -> None:
     """Display a nested dict as a Rich Tree."""
     console.print(
@@ -337,6 +363,8 @@ def print_tree(
             value_style=value_style,
             label_style=label_style,
             guide_style=guide_style,
+            collapse_flat_lists=collapse_flat_lists,
+            collapse_max=collapse_max,
         )
     )
 

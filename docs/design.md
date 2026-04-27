@@ -131,10 +131,10 @@ network:
 sensors:
   "2b03:0b3a:SN123456":
     type: camera
+    uid: "2b03:0b3a:SN123456"
     manufacturer: "Stereolabs"
     product: "ZED 2i"
     label: "ZED 2i"
-    calibration: zed-2i.yaml       # relative to ~/.psilia/calibrations/
 
 #|
 #|  Role 2: Device and Data Management
@@ -228,16 +228,18 @@ For example: `2b03:0b3a:SN123456`. These fields are read from sysfs on Linux (`h
 
 The `sensors:` section in `psilia.yaml` maps a **key** to a sensor entry. The key can be either a human-friendly label or a UID — the system treats them the same way. Keys must be unique across the whole `sensors` dict.
 
+Every entry always has `uid` (string or null) and `label` (string). Calibration files are not referenced in the entry — they are discovered on disk by filename convention (see Calibration Files below).
+
 **Registered with camera plugged in** (UID as key, auto-detected fields filled in):
 
 ```yaml
 sensors:
   "2b03:0b3a:SN123456":             # UID as key
     type: camera                     # auto-detected
+    uid: "2b03:0b3a:SN123456"       # same as key
     manufacturer: "Stereolabs"       # auto-detected
     product: "ZED 2i"                # auto-detected
     label: "ZED 2i"                  # user-provided (default: product)
-    calibration: zed-2i.yaml         # user-provided → copied to ~/.psilia/calibrations/
     formats: [MJPG, YUYV]           # optional — pixel formats, auto-detected via v4l2 (Linux only)
     resolutions:                     # optional — per-eye, auto-detected (v4l2 on Linux, ffprobe on macOS)
       - [1280, 720]
@@ -250,12 +252,12 @@ sensors:
 ```yaml
 sensors:
   "ZED 2i":                          # label as key
-    id: null                          # backfilled on first detection
     type: camera
-    calibration: zed-2i.yaml
+    uid: null                         # backfilled on first detection
+    label: "ZED 2i"
 ```
 
-When a label-keyed sensor is detected for the first time, the system backfills `id`, `manufacturer`, and `product` into the entry automatically.
+When a label-keyed sensor is detected for the first time, the system backfills `uid`, `manufacturer`, and `product` into the entry automatically.
 
 ### Sensor Registration
 
@@ -283,13 +285,24 @@ Related commands:
 
 Calibration files live in `~/.psilia/calibrations/`. They belong to the sensor (hardware), not to a runtime instance — they survive `psilia runtime init` and are shared across runtimes on the same machine.
 
+Files are named by convention: `{label}__{uid}__{width}x{height}.yaml` (per-eye resolution). The UID and resolution parts use sanitized characters (`:` → `-`, spaces → `-`). Examples:
+
+```
+ZED-2i__2b03-f880-OV0001__1280x720.yaml
+ZED-2i__2b03-f880-OV0001__640x360.yaml
+3D-USB-Camera__32e4-2b10-01.00.00__1280x720.yaml
+ZED-2i__960x540.yaml                              # no UID (label-only sensor)
+```
+
+A sensor can have multiple calibration files — one per resolution. The system discovers available calibrations by globbing for the sensor's filename prefix. `psilia sensor list` dynamically shows `calibrated_resolutions` from what's on disk.
+
 ### Calibration Resolution
 
 At launch, the runtime resolves the calibration file for the active camera:
 
 1. **`runtime.yaml` specifies a `calibration:` path** → use that (explicit override).
-2. **`runtime.yaml` specifies `camera.name`** → look up that key in `sensors:`, use its calibration.
-3. **No `camera:` in `runtime.yaml`** → build UID from connected camera, look up in `sensors:`. Error if no match or ambiguous.
+2. **`runtime.yaml` specifies `camera.name`** → look up sensor by name, discover available calibrations on disk, pick the best match for the capture resolution.
+3. **No `camera:` in `runtime.yaml`** → build UID from connected camera, look up in `sensors:`, discover calibrations. Error if no match or ambiguous.
 
 
 ## Two Runtime Layers
