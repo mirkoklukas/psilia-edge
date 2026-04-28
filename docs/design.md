@@ -68,10 +68,11 @@ psilia-runtime-home/
 
 📁 **Fetched/Pulled Data Dir (Manager Only)** (no default — set on first pull).
 
-Where the recorded data pulled from a Jetson (Runtime Host) lands on the laptop (Data Manager) side. There is no default path. `data.pull_to` is prompted lazily on the first `psilia data pull` if `--to` is not given, and then saved to `psilia.yaml`. It is **not** set during `psilia pair`. Once set, the entry in `psilia.yaml` looks like:
+Where the recorded data pulled from a Jetson (Runtime Host) lands on the laptop (Data Manager) side. There is no default path. `data.pull_to` is prompted lazily on the first `psilia data pull` if `--to` is not given, and then saved to `psilia.yaml`. It is **not** set during `psilia pair`. Similarly, `data.push_to` is prompted on the first `psilia data push` if `--to` is not given. Once set, the entries in `psilia.yaml` look like:
 ```yaml
 data:
   pull_to: ~/psilia-fetched/
+  push_to: mycloud:/data/psilia/    # SSH host + remote path
 ```
 
 We could make `pull_to` a field on each paired device in `psilia.yaml` (per-device override) rather than a single global setting.
@@ -140,9 +141,10 @@ sensors:
 #|  Role 2: Device and Data Management
 #|  (typically Laptop)
 #|
-# written by `psilia pair`
+# written by `psilia data pull/push`
 data:
   pull_to: ~/psilia-fetched/
+  push_to: mycloud:/data/psilia/    # SSH host (or alias) + remote path
 # written by `psilia pair`
 registered_devices:
   my-jetson:
@@ -448,6 +450,45 @@ psilia runtime logs -f -d borne  # follow live on a registered device
 ```
 
 
+## Data Operations
+
+Data flows from device to laptop to cloud in two hops:
+
+```
+Device (Jetson)  ──pull──▶  Laptop  ──push──▶  Cloud
+                    or
+Device (Jetson)  ──────push (direct)──────▶  Cloud
+                 (laptop drives, agent-forwarded)
+```
+
+### Pull: Device → Laptop
+
+`psilia data pull [device]` rsyncs the device's data directory to the laptop's `data.pull_to` directory. Excludes any actively recording file. Without a device argument, pulls from all registered devices.
+
+### Push: → Cloud
+
+`psilia data push [device] [--to host:path]` has two modes:
+
+**With device** (device → cloud, direct): The laptop SSH's into the device with agent forwarding (`-A`), then runs rsync on the device to push directly to the cloud. The private key never leaves the laptop — the device sends signing requests back through the SSH connection. Before the first push, `ssh-keyscan` adds the cloud host to the device's `known_hosts`. The laptop resolves the `push_to` SSH alias (via `ssh -G`) to a full `user@hostname` so the device doesn't need the alias in its own SSH config. The laptop also ensures the relevant SSH key is loaded in the agent (`ssh-add`).
+
+**Without device** (laptop → cloud): Rsyncs the local `pull_to` directory to the cloud. Useful after a `psilia data pull`.
+
+Config (`psilia.yaml`):
+```yaml
+data:
+  pull_to: ~/psilia-fetched/
+  push_to: mycloud:/data/psilia/
+```
+
+Both paths are prompted lazily on first use if not set.
+
+### Open question: cloud access model
+
+Currently only the laptop holds cloud credentials. The device reaches the cloud via SSH agent forwarding, driven by the laptop. This keeps credential management centralized but requires the laptop to be present for every push.
+
+Alternative: give each device its own cloud credentials (SSH key or API token) so it can push autonomously — e.g. on a schedule or when connected to a known WiFi. This would enable unattended uploads but means managing credentials on each device. TBD which model we adopt long-term.
+
+
 ## Interacting with the Runtime
 
 There are two interfaces to the runtime, both available from laptop or phone: the CLI and the Web UI.
@@ -458,6 +499,10 @@ There are two interfaces to the runtime, both available from laptop or phone: th
 - `psilia runtime start/stop` — lifecycle
 - `psilia runtime attach` — live status view (1 Hz refresh); the primary way to monitor the runtime
 - `psilia runtime update` — pull latest ROS package, rebuild Docker image
+
+`psilia data ...` — data transfer:
+- `psilia data pull [device]` — pull MCAP recordings from device to laptop
+- `psilia data push [device]` — push data to cloud (direct from device, or from laptop's pull_to)
 
 `psilia sensor ...` — sensor and calibration management:
 - `psilia sensor add` — register a sensor, associate calibration file

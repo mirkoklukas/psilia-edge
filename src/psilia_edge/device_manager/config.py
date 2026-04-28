@@ -41,6 +41,13 @@ def write_pull_to(path: Path) -> None:
     write_config(config)
 
 
+def write_push_to(dest: str) -> None:
+    """Write data.push_to destination to psilia.yaml (host:path format)."""
+    config = read_config()
+    config.setdefault("data", {})["push_to"] = dest
+    write_config(config)
+
+
 def _render_ssh_block(devices: dict) -> str:
     """Render all registered devices into SSH Host blocks."""
     blocks = []

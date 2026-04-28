@@ -411,6 +411,91 @@ def pull(
             ui.ok("done")
 
 
+@data_app.command()
+def push(
+    device: str = typer.Argument(
+        None,
+        help="Registered device name. Without device, pushes from local pull_to directory.",
+    ),
+    to: str = typer.Option(
+        None,
+        "--to",
+        help="Cloud destination (host:path). Overrides data.push_to in psilia.yaml (not saved).",
+    ),
+) -> None:
+    """Push recorded MCAP data to a remote destination.
+
+    With a device: SSH into the device with agent forwarding and rsync its
+    data directory directly to the cloud. Without a device: rsync the local
+    pull_to directory to the cloud.
+    """
+    from psilia_edge.device_manager.config import write_push_to
+    from psilia_edge.device_manager.data import (
+        build_device_push_cmd,
+        build_push_cmd,
+        ensure_ssh_agent_key,
+        get_active_recording,
+        get_pull_to,
+        get_push_to,
+        get_remote_data_dir,
+    )
+    from psilia_edge.runtime.config import ConfigurationError
+    from psilia_edge.utils import run_streamed
+
+    # Resolve push_to: flag > config > prompt
+    if to is not None:
+        push_to = to
+    else:
+        try:
+            push_to = get_push_to()
+        except ConfigurationError:
+            raw = ui.ask("Cloud destination (host:path)")
+            push_to = raw.strip()
+            write_push_to(push_to)
+
+    # Ensure the cloud host's SSH key is loaded in the agent (needed for
+    # agent forwarding when pushing via a device).
+    cloud_host = push_to.split(":")[0] if ":" in push_to else push_to
+    ensure_ssh_agent_key(cloud_host)
+
+    if device:
+        ui.header(["Data", "Push"], device)
+
+        remote_data_dir = get_remote_data_dir(device)
+        ui.info(f"Pushing Data:\n{device}:{remote_data_dir} → {push_to}")
+
+        active_recording = get_active_recording(device)
+        if active_recording:
+            ui.detail("excluding active recording", active_recording)
+
+        cmd = build_device_push_cmd(
+            device,
+            remote_data_dir,
+            push_to,
+            exclude=[active_recording] if active_recording else None,
+        )
+        rc = run_streamed(cmd)
+    else:
+        try:
+            pull_to = get_pull_to()
+        except ConfigurationError:
+            ui.warn(
+                "No local data directory (data.pull_to not set). "
+                "Run 'psilia data pull' first or specify a device."
+            )
+            raise typer.Exit(1)
+
+        ui.header(["Data", "Push"], "local")
+        ui.info(f"Pushing Data:\n{pull_to} → {push_to}")
+        cmd = build_push_cmd(str(pull_to), push_to)
+        rc = run_streamed(cmd)
+
+    if rc != 0:
+        ui.fail(f"push failed (exit {rc})")
+    else:
+        ui.ok("done")
+
+
 # ── print helper commands ─────────────────────────────────────────────────────
 def _print_section(title: str, content: str) -> None:
     ui.title(str(title))
