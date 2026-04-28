@@ -1,5 +1,5 @@
 """
-Preview node — subscribes to /psilia/stereo/image_raw, downsamples, and republishes on
+Preview node — subscribes to /psilia/stereo/raw/image, downsamples, and republishes on
 /psilia/preview/image          (raw, sensor_msgs/Image)
 /psilia/preview/image/compressed  (JPEG, sensor_msgs/CompressedImage)
 at a low frame rate for live monitoring (web UI, recording view).
@@ -33,7 +33,7 @@ class PreviewNode(Node):
 
     def __node_init__(self):
         self._last_publish = 0.0
-        self.create_subscription(Image, "/psilia/stereo/image_raw", self._on_image, 10)
+        self.create_subscription(Image, "/psilia/stereo/raw/image", self._on_image, 10)
         self.pub = self.create_publisher(Image, "/psilia/preview/image", 10)
         self.pub_compressed = self.create_publisher(CompressedImage, "/psilia/preview/image/compressed", 10)
 

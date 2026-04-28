@@ -29,9 +29,9 @@ _HZ_FILE = Path("/psilia/run/hz.json")
 
 _DEFAULT_HZ_TOPICS = [
     "/psilia/heartbeat, std_msgs/msg/String",
-    "/psilia/stereo/image_raw, sensor_msgs/msg/Image",
-    "/psilia/stereo/image_rect, sensor_msgs/msg/Image",
-    "/psilia/stereo/depth, sensor_msgs/msg/Image",
+    "/psilia/stereo/raw/image, sensor_msgs/msg/Image",
+    "/psilia/stereo/rect/image, sensor_msgs/msg/Image",
+    "/psilia/stereo/depth/image, sensor_msgs/msg/Image",
     "/psilia/preview/image/compressed, sensor_msgs/msg/CompressedImage",
     "/psilia/preview/depth/compressed, sensor_msgs/msg/CompressedImage",
     "/psilia/preview/rectified/compressed, sensor_msgs/msg/CompressedImage",

@@ -1,7 +1,7 @@
 """
-CUDA depth node — subscribes to /psilia/stereo/image_raw (side-by-side stereo),
+CUDA depth node — subscribes to /psilia/stereo/raw/image (side-by-side stereo),
 rectifies and computes depth entirely on GPU, and publishes on
-/psilia/stereo/depth (32FC1) and /psilia/stereo/depth/camera_info (rectified left camera).
+/psilia/stereo/depth/image (32FC1) and /psilia/stereo/depth/camera_info (rectified left camera).
 
 Replaces rectify_node + depth_node when CUDA is available. Disable those two
 and enable this one via ros.nodes in runtime.yaml.
@@ -53,13 +53,17 @@ class DepthCudaNode(Node):
         self._stereo_cal = StereoCalibration.load(self.calibration_file, strict=False).rectify()
         self._ready = False
 
-        self.pub = self.create_publisher(Image, "/psilia/stereo/depth", 1)
+        self.pub = self.create_publisher(Image, "/psilia/stereo/depth/image", 1)
         self.pub_info = self.create_publisher(CameraInfo, "/psilia/stereo/depth/camera_info", 1)
         self._camera_info = None
         self.pub_rect = None
+        self._pub_rect_info_left = None
+        self._pub_rect_info_right = None
         if self.publish_rectified:
-            self.pub_rect = self.create_publisher(Image, "/psilia/stereo/image_rect", 1)
-        self.create_subscription(Image, "/psilia/stereo/image_raw", self.on_image, 1)
+            self.pub_rect = self.create_publisher(Image, "/psilia/stereo/rect/image", 1)
+            self._pub_rect_info_left = self.create_publisher(CameraInfo, "/psilia/stereo/rect/left/camera_info", 1)
+            self._pub_rect_info_right = self.create_publisher(CameraInfo, "/psilia/stereo/rect/right/camera_info", 1)
+        self.create_subscription(Image, "/psilia/stereo/raw/image", self.on_image, 1)
 
     def _setup_depth(self, frame_width: int, frame_height: int):
         """Initialize GPU rectification maps, stereo matcher, and buffers."""
@@ -109,16 +113,12 @@ class DepthCudaNode(Node):
         self._gpu_frame = cv2.cuda.GpuMat()
 
         # Build CameraInfo for the rectified left camera (depth viewpoint).
-        info = CameraInfo()
-        info.header.frame_id = "camera"
-        info.width = cal0.width
-        info.height = cal0.height
-        info.distortion_model = "plumb_bob"
-        info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
-        info.k = cal0.P_rect[:3, :3].flatten().tolist()
-        info.r = cal0.R_rect.flatten().tolist()
-        info.p = cal0.P_rect.flatten().tolist()
-        self._camera_info = info
+        self._camera_info = self._build_rect_camera_info(cal0)
+
+        # Build CameraInfo for rectified stereo pair (published when publish_rectified=true).
+        if self.publish_rectified:
+            self._rect_info_left = self._build_rect_camera_info(cal0)
+            self._rect_info_right = self._build_rect_camera_info(cal1)
 
         # Pre-allocated publish buffer for depth (32FC1 = 4 bytes per pixel).
         buf_size = self.width * self.height * 4
@@ -132,6 +132,18 @@ class DepthCudaNode(Node):
             f"CUDA depth node ready: f={self.focal_length:.1f} baseline={self.baseline:.4f}m "
             f"num_disparities={self.num_disparities}"
         )
+
+    def _build_rect_camera_info(self, cal) -> CameraInfo:
+        info = CameraInfo()
+        info.header.frame_id = "camera"
+        info.width = cal.width
+        info.height = cal.height
+        info.distortion_model = "plumb_bob"
+        info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
+        info.k = cal.P_rect[:3, :3].flatten().tolist()
+        info.r = cal.R_rect.flatten().tolist()
+        info.p = cal.P_rect.flatten().tolist()
+        return info
 
     def on_image(self, msg: Image):
         if not self._ready:
@@ -199,6 +211,11 @@ class DepthCudaNode(Node):
             rect_msg.step = rect_sbs.shape[1] * 3
             rect_msg.data = rect_sbs.tobytes()
             self.pub_rect.publish(rect_msg)
+
+            self._rect_info_left.header = msg.header
+            self._rect_info_right.header = msg.header
+            self._pub_rect_info_left.publish(self._rect_info_left)
+            self._pub_rect_info_right.publish(self._rect_info_right)
 
 
 def main():

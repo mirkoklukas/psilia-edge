@@ -1,7 +1,7 @@
 """
-Depth node — subscribes to /psilia/stereo/image_rect (side-by-side stereo),
+Depth node — subscribes to /psilia/stereo/rect/image (side-by-side stereo),
 computes disparity via StereoSGBM, converts to depth, and publishes on
-/psilia/stereo/depth (32FC1) and /psilia/stereo/depth/camera_info (rectified left camera).
+/psilia/stereo/depth/image (32FC1) and /psilia/stereo/depth/camera_info (rectified left camera).
 
 Parameters (set via launch file or command line):
   calibration_file  — path to a stereo calibration YAML file (psilia or Kalibr format)
@@ -54,10 +54,10 @@ class DepthNode(Node):
         self._stereo_cal = StereoCalibration.load(self.calibration_file, strict=False).rectify()
         self._ready = False
 
-        self.pub = self.create_publisher(Image, "/psilia/stereo/depth", 1)
+        self.pub = self.create_publisher(Image, "/psilia/stereo/depth/image", 1)
         self.pub_info = self.create_publisher(CameraInfo, "/psilia/stereo/depth/camera_info", 1)
         self._camera_info = None
-        self.create_subscription(Image, "/psilia/stereo/image_rect", self.on_image, 1)
+        self.create_subscription(Image, "/psilia/stereo/rect/image", self.on_image, 1)
 
     def _setup_depth(self, frame_width: int, frame_height: int):
         """Initialize depth computation, rescaling calibration if needed."""

@@ -1,6 +1,9 @@
 """
-Rectify node — subscribes to /psilia/stereo/image_raw (side-by-side stereo),
-applies stereo rectification, and publishes on /psilia/stereo/image_rect.
+Rectify node — subscribes to /psilia/stereo/raw/image (side-by-side stereo),
+applies stereo rectification, and publishes on /psilia/stereo/rect/image.
+
+Also publishes rectified CameraInfo on /psilia/stereo/rect/left/camera_info and
+/psilia/stereo/rect/right/camera_info (zero distortion, rectified K/P).
 
 Parameters (set via launch file or command line):
   calibration_file  — path to a stereo calibration YAML file (psilia or Kalibr format)
@@ -15,12 +18,12 @@ import numpy as np
 
 import rclpy  # type: ignore
 from rclpy.node import Node  # type: ignore
-from sensor_msgs.msg import Image  # type: ignore
+from sensor_msgs.msg import CameraInfo, Image  # type: ignore
 from std_msgs.msg import Header  # type: ignore
 from builtin_interfaces.msg import Time  # type: ignore
 
 from psilia_runtime.better_ros import better_node, ROSValue
-from psilia_runtime.camera import StereoCalibration
+from psilia_runtime.camera import CameraCalibration, StereoCalibration
 
 
 @better_node
@@ -37,8 +40,12 @@ class RectifyNode(Node):
         self._stereo_cal = StereoCalibration.load(self.calibration_file, strict=False).rectify()
         self._ready = False
 
-        self.pub = self.create_publisher(Image, "/psilia/stereo/image_rect", 1)
-        self.create_subscription(Image, "/psilia/stereo/image_raw", self.on_image, 1)
+        self.pub = self.create_publisher(Image, "/psilia/stereo/rect/image", 1)
+        self._pub_info_left = self.create_publisher(CameraInfo, "/psilia/stereo/rect/left/camera_info", 1)
+        self._pub_info_right = self.create_publisher(CameraInfo, "/psilia/stereo/rect/right/camera_info", 1)
+        self._camera_info_left = None
+        self._camera_info_right = None
+        self.create_subscription(Image, "/psilia/stereo/raw/image", self.on_image, 1)
 
     def _setup_rectification(self, frame_width: int, frame_height: int):
         """Initialize rectification maps, rescaling calibration if needed."""
@@ -63,6 +70,9 @@ class RectifyNode(Node):
         self.height = stereo.cam0.height
         self._ready = True
 
+        self._camera_info_left = self._build_camera_info(stereo.cam0)
+        self._camera_info_right = self._build_camera_info(stereo.cam1)
+
         self.get_logger().info(
             f"Stereo rectification ready: {self.width}x{self.height} "
             f"({self.camera_left}, {self.camera_right})"
@@ -78,6 +88,18 @@ class RectifyNode(Node):
         self._np_buf = np.frombuffer(self._buf, dtype=np.uint8).reshape(
             self.height, full_width, 3
         )
+
+    def _build_camera_info(self, cal: CameraCalibration) -> CameraInfo:
+        info = CameraInfo()
+        info.header.frame_id = "camera"
+        info.width = cal.width
+        info.height = cal.height
+        info.distortion_model = "plumb_bob"
+        info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
+        info.k = cal.P_rect[:3, :3].flatten().tolist()
+        info.r = cal.R_rect.flatten().tolist()
+        info.p = cal.P_rect.flatten().tolist()
+        return info
 
     def on_image(self, msg: Image):
         if not self._ready:
@@ -105,6 +127,11 @@ class RectifyNode(Node):
         out.step = out.width * 3
         out.data = self._buf
         self.pub.publish(out)
+
+        self._camera_info_left.header = msg.header
+        self._camera_info_right.header = msg.header
+        self._pub_info_left.publish(self._camera_info_left)
+        self._pub_info_right.publish(self._camera_info_right)
 
 
 def main():

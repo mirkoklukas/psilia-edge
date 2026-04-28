@@ -1,5 +1,5 @@
 """
-Depth preview node — subscribes to /psilia/stereo/depth (32FC1), applies a colormap,
+Depth preview node — subscribes to /psilia/stereo/depth/image (32FC1), applies a colormap,
 downsamples, and republishes on
 /psilia/preview/depth              (raw, sensor_msgs/Image)
 /psilia/preview/depth/compressed   (JPEG, sensor_msgs/CompressedImage)
@@ -35,8 +35,8 @@ class DepthPreviewNode(Node):
     def __node_init__(self):
         self._last_publish = 0.0
         self._last_publish_rect = 0.0
-        self.create_subscription(Image, "/psilia/stereo/depth", self._on_depth, 1)
-        self.create_subscription(Image, "/psilia/stereo/image_rect", self._on_rectified, 1)
+        self.create_subscription(Image, "/psilia/stereo/depth/image", self._on_depth, 1)
+        self.create_subscription(Image, "/psilia/stereo/rect/image", self._on_rectified, 1)
         self.pub = self.create_publisher(Image, "/psilia/preview/depth", 10)
         self.pub_compressed = self.create_publisher(CompressedImage, "/psilia/preview/depth/compressed", 10)
         self.pub_rect_compressed = self.create_publisher(CompressedImage, "/psilia/preview/rectified/compressed", 10)

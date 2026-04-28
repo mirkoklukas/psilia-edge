@@ -1,6 +1,6 @@
 """
-Point cloud preview node — subscribes to /psilia/stereo/depth (32FC1),
-/psilia/stereo/depth/camera_info, and /psilia/stereo/image_raw (for color),
+Point cloud preview node — subscribes to /psilia/stereo/depth/image (32FC1),
+/psilia/stereo/depth/camera_info, and /psilia/stereo/rect/image (for color),
 back-projects valid depth pixels to 3D, and publishes a colored point cloud
 on /psilia/preview/pointcloud (sensor_msgs/PointCloud2).
 
@@ -42,9 +42,9 @@ class PointcloudPreviewNode(Node):
         self.create_subscription(
             CameraInfo, "/psilia/stereo/depth/camera_info", self._on_camera_info, 1
         )
-        self.create_subscription(Image, "/psilia/stereo/depth", self._on_depth, 1)
+        self.create_subscription(Image, "/psilia/stereo/depth/image", self._on_depth, 1)
         self.create_subscription(
-            Image, "/psilia/stereo/image_rect", self._on_image, 1
+            Image, "/psilia/stereo/rect/image", self._on_image, 1
         )
         self.pub = self.create_publisher(PointCloud2, "/psilia/preview/pointcloud", 1)
 

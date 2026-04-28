@@ -1,8 +1,8 @@
 """
-Camera node — reads from a UVC camera and publishes on /psilia/stereo/image_raw.
+Camera node — reads from a UVC camera and publishes on /psilia/stereo/raw/image.
 
-Optionally publishes CameraInfo on /psilia/stereo/left/camera_info and
-/psilia/stereo/right/camera_info if a calibration file is provided.
+Optionally publishes CameraInfo on /psilia/stereo/raw/left/camera_info and
+/psilia/stereo/raw/right/camera_info if a calibration file is provided.
 
 Parameters (set via launch_params.yaml):
   device           — /dev/video path (e.g. /dev/video0)
@@ -47,7 +47,7 @@ class CameraNode(Node):
             f"CameraNode init: device={self.device} format={self.pixel_format} "
             f"{self.width}x{self.height} fps={self.fps}"
         )
-        self.pub = self.create_publisher(Image, "/psilia/stereo/image_raw", 10)
+        self.pub = self.create_publisher(Image, "/psilia/stereo/raw/image", 10)
         self._setup_camera_info()
         self._stream = CameraStream(
             self.device, self.pixel_format, self.width, self.height, self.fps,
@@ -92,8 +92,8 @@ class CameraNode(Node):
 
         self._camera_info_left = self._build_camera_info(stereo.cam0)
         self._camera_info_right = self._build_camera_info(stereo.cam1)
-        self._pub_info_left = self.create_publisher(CameraInfo, "/psilia/stereo/left/camera_info", 10)
-        self._pub_info_right = self.create_publisher(CameraInfo, "/psilia/stereo/right/camera_info", 10)
+        self._pub_info_left = self.create_publisher(CameraInfo, "/psilia/stereo/raw/left/camera_info", 10)
+        self._pub_info_right = self.create_publisher(CameraInfo, "/psilia/stereo/raw/right/camera_info", 10)
 
         self.get_logger().info("CameraInfo ready (left + right).")
 
