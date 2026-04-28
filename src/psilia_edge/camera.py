@@ -11,19 +11,13 @@ from .utils import load_yaml, save_yaml
 
 Array: TypeAlias = Any
 
-StereoRectification = namedtuple(
-    "StereoRectification",
-    [
-        "map1_l",
-        "map2_l",
-        "map1_r",
-        "map2_r",
-        "R0",
-        "R1",
-        "P0",
-        "P1",
-        "Q",
-    ],
+# Precomputed pixel lookup tables for cv2.remap. A single remap call undistorts
+# (removes lens distortion) and rectifies (aligns epipolar lines) in one step.
+# Each camera needs two maps: map1 holds integer (x, y) coordinates, map2 holds
+# a sub-pixel interpolation table (CV_16SC2 format for fast fixed-point remap).
+StereoRemapTables = namedtuple(
+    "StereoRemapTables",
+    ["map1_l", "map2_l", "map1_r", "map2_r"],
 )
 Matrix: TypeAlias = Array
 Matrix3x3: TypeAlias = Array
@@ -395,7 +389,7 @@ class StereoCalibration:
     def __init__(self, cam0: CameraCalibration, cam1: CameraCalibration):
         self.cam0 = cam0  # left camera
         self.cam1 = cam1  # right camera
-        self.maps: StereoRectification | None = None
+        self.maps: StereoRemapTables | None = None
         self.disparity_to_3d: Matrix4x4 | None = None
 
         if self.is_rectified:
@@ -448,27 +442,18 @@ class StereoCalibration:
     @staticmethod
     def _compute_maps(
         cam0: CameraCalibration, cam1: CameraCalibration
-    ) -> StereoRectification:
-        R0, R1 = cam0.R_rect, cam1.R_rect
-        P0, P1 = cam0.P_rect, cam1.P_rect
-        Q = StereoCalibration._compute_Q(cam0, cam1)
-
+    ) -> StereoRemapTables:
         map1_l, map2_l = cv2.initUndistortRectifyMap(
-            cam0.K, np.array(cam0.d), R0, P0, cam0.res, cv2.CV_16SC2
+            cam0.K, np.array(cam0.d), cam0.R_rect, cam0.P_rect, cam0.res, cv2.CV_16SC2
         )
         map1_r, map2_r = cv2.initUndistortRectifyMap(
-            cam1.K, np.array(cam1.d), R1, P1, cam1.res, cv2.CV_16SC2
+            cam1.K, np.array(cam1.d), cam1.R_rect, cam1.P_rect, cam1.res, cv2.CV_16SC2
         )
-        return StereoRectification(
+        return StereoRemapTables(
             map1_l=map1_l,
             map2_l=map2_l,
             map1_r=map1_r,
             map2_r=map2_r,
-            R0=R0,
-            R1=R1,
-            P0=P0,
-            P1=P1,
-            Q=Q,
         )
 
     @staticmethod
