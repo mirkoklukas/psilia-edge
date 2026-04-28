@@ -89,6 +89,13 @@ async def api_config() -> JSONResponse:
     return JSONResponse(dict(read_config()))
 
 
+@app.get("/api/runtime-config")
+async def api_runtime_config() -> JSONResponse:
+    from psilia_edge.runtime.config import read_runtime_config
+
+    return JSONResponse(dict(read_runtime_config()))
+
+
 @app.get("/api/status")
 async def api_status(
     uptime: bool = True,
