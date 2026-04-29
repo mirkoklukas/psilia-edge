@@ -214,37 +214,27 @@ def init(
 @app.command()
 @device_decorator
 def setup(
-    init: bool = typer.Option(
-        False,
-        "--init/--skip-init",
-        "-i",
-        help="Whether to initialize the runtime home directory",
-    ),
     hotspot: bool = typer.Option(
-        False, "--hotspot/--no-hotspot", "-h", help="Run AP hotspot setup"
+        False, "--hotspot", "-h", help="Run only AP hotspot setup"
     ),
-    wifi: bool = typer.Option(
-        False, "--wifi/--no-wifi", "-w", help="Run home WiFi setup"
-    ),
-    run_all: bool = typer.Option(
-        False, "--all/--none", "-a", help="Run all setup steps (init, hotspot, wifi)."
-    ),
+    wifi: bool = typer.Option(False, "--wifi", "-w", help="Run only home WiFi setup"),
 ) -> None:
-    """Configure the runtime: init home directory, network hotspot, and WiFi."""
+    """Configure the runtime: network hotspot, WiFi, and other setup steps.
+
+    Without flags, runs all setup steps. With a flag, runs only that step.
+    Requires 'psilia runtime init' to have been run first.
+    """
     from psilia_edge.runtime.config import get_runtime_home
     from psilia_edge.runtime.setup import (
-        run_runtime_init,
         run_hotspot_setup,
         run_wifi_setup,
     )
 
-    ui.header(["Runtime", "Setup"], "Setting up a runtime...")
-    if init or run_all:
-        home = ui.ask("Runtime home directory")
-        run_runtime_init(home, mkdir=True)
-    else:
-        home = get_runtime_home()
-        ui.info(f"Skipping runtime home initialization. Using: {home}")
+    ui.header(["Runtime", "Setup"])
+    home = get_runtime_home()
+    ui.info(f"Runtime home: {home}")
+
+    run_all = not (hotspot or wifi)
 
     if hotspot or run_all:
         run_hotspot_setup()

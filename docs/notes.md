@@ -240,7 +240,7 @@ ros2 topic hz /psilia/image/raw
 
 ## Everything else
 
-Call from `/docs`:
+Call from `/docs/strategy`:
 ```bash
 pandoc psilia-vision.md -o psilia-vision.pdf --pdf-engine=xelatex -V geometry:margin=1.75in
 pandoc about.md -o about.pdf --pdf-engine=xelatex -V geometry:margin=1.75in
@@ -248,7 +248,7 @@ pandoc psilia-pitch.md -o psilia-pitch.pdf --pdf-engine=xelatex -V geometry:marg
 
 pandoc psilia-defensibility.md -o psilia-defensibility.pdf --pdf-engine=xelatex -V geometry:margin=1.5in
 
-pandoc psilia-reframing.md -o psilia-reframin.pdf --pdf-engine=xelatex -V geometry:margin=1.5in
+pandoc psilia-reframing.md -o psilia-reframing.pdf --pdf-engine=xelatex -V geometry:margin=1.5in
 
 pandoc psilia-interview-questions.md -o psilia-interview-questions.pdf --pdf-engine=xelatex -V geometry:margin=1.5in
 ```

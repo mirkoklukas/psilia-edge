@@ -6,6 +6,7 @@
 **/.DS_Store
 docs/*
 !docs/*.md
+!docs/*.html
 !docs/archive/
 !docs/**/*.md
 __pycache__/

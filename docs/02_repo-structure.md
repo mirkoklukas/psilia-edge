@@ -9,8 +9,9 @@ psilia-edge/
   ros/                  ROS 2 package and Docker setup
   web/                  Browser UI (served by base layer)
   scripts/              Bootstrap scripts for Jetson setup
-  docs/                 Documentation
+  docs/                 Documentation, design, architecture
   assets/               Logo files, ASCII art
+  tools/                Place for tools like color and theme picker.
 ```
 
 ## `src/psilia_edge/` — Edge Package
@@ -21,6 +22,7 @@ CLI, runtime lifecycle, and device management. Provides the `psilia` CLI entry p
 psilia_edge/
   cli.py                Top-level CLI (typer) — runtime, sensor, data sub-apps
   ui.py                 Rich-based terminal output helpers
+  camera.py             Camera and stereo calibration classes
   runtime/              Runtime lifecycle (the core product)
     sensor.py           Sensor registration and calibration management
   device_manager/       Laptop-side device and data management
@@ -41,9 +43,10 @@ Contains the ROS 2 colcon workspace and the Docker setup that runs it.
 ros/
   docker/               Dockerfile and container scripts
   psilia_runtime/       ROS 2 package (mounted into container)
+    launch/             Launch files
     psilia_runtime/
-      nodes/              Psilia's ROS nodes
-      ...                 Python package files
+      nodes/            Psilia's ROS nodes
+      ...               Python package files
 ```
 
 

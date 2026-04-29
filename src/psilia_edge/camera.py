@@ -384,7 +384,7 @@ class CameraCalibration:
 class StereoCalibration:
     """Stereo camera calibration holding a left (cam0) and right (cam1) CameraCalibration."""
 
-    _SUPPORTED_DISTORTION_MODELS = {"RADTAN", "RATIONAL_POLYNOMIAL"}
+    _SUPPORTED_DISTORTION_MODELS = {"RADTAN", "RATIONAL_POLYNOMIAL", "PLUMB_BOB"}
 
     def __init__(self, cam0: CameraCalibration, cam1: CameraCalibration):
         self.cam0 = cam0  # left camera
