@@ -443,6 +443,41 @@
           </div></div>
         </div>
 
+        <div class="cmd" onclick="toggle(this)">
+          <div class="cmd__row">
+            <div class="cmd__code"><span class="cmd__cli">preview</span></div>
+            <div class="cmd__desc">Live image previews for the Web UI</div>
+            <div class="cmd__badges">
+              <span class="badge badge--web">Web UI</span>
+              <span class="badge badge--cli">ROS</span>
+            </div>
+            <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">
+            Downsampled, low-bandwidth image streams for live monitoring in the Web UI. Each preview node subscribes to a full-resolution topic, downsamples via stride slicing, and republishes as compressed JPEG or point cloud data.
+            <div style="margin-top: 0.5rem;">
+              <div class="cmd__code"><span class="cmd__cli">Image</span></div>
+              <div style="margin-top: 0.3rem;">Published on <code>/psilia/preview/image/compressed</code> (<code>sensor_msgs/CompressedImage</code>, JPEG, 5 Hz)</div>
+              <div style="margin-top: 0.15rem; font-size: 0.68rem; color: var(--color-dim);">Downsampled raw stereo frame from <code>preview_node</code></div>
+            </div>
+            <div style="margin-top: 0.5rem;">
+              <div class="cmd__code"><span class="cmd__cli">Depth</span></div>
+              <div style="margin-top: 0.3rem;">Published on <code>/psilia/preview/depth/compressed</code> (<code>sensor_msgs/CompressedImage</code>, JPEG, 5 Hz)</div>
+              <div style="margin-top: 0.15rem; font-size: 0.68rem; color: var(--color-dim);">Colormapped depth (Plasma), invalid pixels shown as white. Clamped to <code>max_depth</code> (default 3.0 m)</div>
+            </div>
+            <div style="margin-top: 0.5rem;">
+              <div class="cmd__code"><span class="cmd__cli">Rectified</span></div>
+              <div style="margin-top: 0.3rem;">Published on <code>/psilia/preview/rectified/compressed</code> (<code>sensor_msgs/CompressedImage</code>, JPEG, 5 Hz)</div>
+              <div style="margin-top: 0.15rem; font-size: 0.68rem; color: var(--color-dim);">Downsampled rectified stereo frame from <code>depth_preview_node</code></div>
+            </div>
+            <div style="margin-top: 0.5rem;">
+              <div class="cmd__code"><span class="cmd__cli">Point Cloud</span></div>
+              <div style="margin-top: 0.3rem;">Published on <code>/psilia/preview/pointcloud</code> (<code>sensor_msgs/PointCloud2</code>, 2 Hz)</div>
+              <div style="margin-top: 0.15rem; font-size: 0.68rem; color: var(--color-dim);">Back-projected XYZRGB from depth + rectified image. Optional subsampling via <code>num_samples</code></div>
+            </div>
+          </div></div>
+        </div>
+
       </div>
     </div>
 
