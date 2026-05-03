@@ -36,9 +36,7 @@
       padding: 2rem 1.25rem 4rem;
     }
 
-    .header {
-      margin-bottom: 2.5rem;
-    }
+    .header { margin-bottom: 2.5rem; }
 
     .brand {
       font-size: 1rem;
@@ -53,9 +51,7 @@
       margin-top: 0.2rem;
     }
 
-    .section {
-      margin-bottom: 2.5rem;
-    }
+    .section { margin-bottom: 2.5rem; }
 
     .section__title {
       font-size: 0.72rem;
@@ -66,20 +62,15 @@
       margin-bottom: 0.75rem;
     }
 
-    /* ── Command list ── */
     .cmd-list {
       background: var(--color-surface);
       border-radius: 6px;
       overflow: hidden;
     }
 
-    .cmd {
-      border-bottom: var(--border);
-    }
-
+    .cmd { border-bottom: var(--border); }
     .cmd:last-child { border-bottom: none; }
 
-    /* ── Clickable row ── */
     .cmd__row {
       display: flex;
       align-items: baseline;
@@ -89,51 +80,38 @@
       transition: background 0.15s;
     }
 
-    .cmd__row:hover {
-      background: rgba(0,0,0,0.02);
-    }
+    .cmd__row:hover { background: rgba(0,0,0,0.02); }
 
-    /* ── Code spans ── */
     .cmd__code {
       font-family: var(--font-mono);
       font-size: 0.75rem;
       white-space: nowrap;
       flex-shrink: 0;
+      font-weight: 400;
+      color: var(--color-text);
     }
 
-    .cmd__cli    { font-weight: 400; color: var(--color-text); }
-    .cmd__app    { font-weight: 400; color: var(--color-text); }
-    .cmd__sub    { font-weight: 300; color: var(--color-muted); }
-    .cmd__args   { font-weight: 300; color: var(--color-dim); }
-
-    /* ── Short description (in row) ── */
     .cmd__desc {
       font-size: 0.75rem;
       color: var(--color-dim);
       font-weight: 300;
     }
 
-    /* ── Chevron ── */
     .cmd__chevron {
       flex-shrink: 0;
       color: var(--color-dim);
       transition: transform 0.2s;
     }
 
-    .cmd.open .cmd__chevron {
-      transform: rotate(90deg);
-    }
+    .cmd.open .cmd__chevron { transform: rotate(90deg); }
 
-    /* ── Expandable detail ── */
     .cmd__detail {
       max-height: 0;
       overflow: hidden;
       transition: max-height 0.25s ease;
     }
 
-    .cmd.open .cmd__detail {
-      max-height: 600px;
-    }
+    .cmd.open .cmd__detail { max-height: 600px; }
 
     .cmd__detail-inner {
       padding: 0 0.9rem 0.7rem;
@@ -143,7 +121,6 @@
       line-height: 1.65;
     }
 
-    /* ── Badges ── */
     .badge {
       font-family: var(--font-mono);
       font-size: 0.55rem;
@@ -152,14 +129,7 @@
       padding: 0.12rem 0.4rem;
       border-radius: 3px;
       display: inline-block;
-    }
-
-    .badge--cli {
-      color: var(--color-muted);
-      border: 1px solid rgba(0,0,0,0.12);
-    }
-
-    .badge--web {
+      white-space: nowrap;
       color: var(--color-muted);
       border: 1px solid rgba(0,0,0,0.12);
     }
@@ -168,15 +138,6 @@
       display: flex;
       gap: 0.35rem;
       margin-left: auto;
-    }
-
-    .cmd__detail-inner code {
-      font-family: var(--font-mono);
-      font-size: 0.68rem;
-      color: var(--color-text);
-      background: rgba(0,0,0,0.05);
-      padding: 0.1rem 0.3rem;
-      border-radius: 3px;
     }
   </style>
 </head>
@@ -188,299 +149,211 @@
       <div class="header__sub">CLI Reference</div>
     </div>
 
-    <!-- Device Management -->
     <div class="section">
       <div class="section__title">Device Management</div>
       <div class="cmd-list">
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__sub">pair</span></div>
+            <span class="cmd__code">psilia pair</span>
             <div class="cmd__desc">Pair a Jetson over SSH</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Interactive wizard that connects to a Jetson on the local network, generates a dedicated SSH keypair, adds a managed section to <code>~/.ssh/config</code>, and registers the device in <code>~/.psilia/psilia.yaml</code>.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Interactive wizard that connects to a Jetson on the local network, generates a dedicated SSH keypair, adds a managed section to ~/.ssh/config, and registers the device in ~/.psilia/psilia.yaml.</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__sub">bootstrap</span> <span class="cmd__args">&lt;device&gt;</span></div>
+            <span class="cmd__code">psilia bootstrap <device></span>
             <div class="cmd__desc">Bootstrap a Jetson over SSH</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Copies the bootstrap script to a paired device and runs it remotely. Clones the repo, installs the CLI, and sets up the runtime home directory. Requires <code>psilia pair</code> first.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Copies the bootstrap script to a paired device and runs it remotely. Clones the repo, installs the CLI, and sets up the runtime home directory. Requires psilia pair first.</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__sub">devices</span></div>
+            <span class="cmd__code">psilia devices</span>
             <div class="cmd__desc">List registered devices</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Shows all Jetson devices registered in <code>~/.psilia/psilia.yaml</code> with their SSH host and key paths.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Shows all Jetson devices registered in ~/.psilia/psilia.yaml with their SSH host and key paths.</div></div>
         </div>
-
       </div>
     </div>
-
-    <!-- Sensors & Calibration -->
     <div class="section">
       <div class="section__title">Sensors & Calibration</div>
       <div class="cmd-list">
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">sensor</span> <span class="cmd__sub">scan</span></div>
+            <span class="cmd__code">psilia sensor scan</span>
             <div class="cmd__desc">Detect connected cameras and USB devices</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Enumerates connected USB cameras and devices. On Linux uses <code>v4l2</code> and sysfs, on macOS uses <code>system_profiler</code>. Groups stereo cameras (dual /dev/video nodes) into a single physical device.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Enumerates connected USB cameras and devices. On Linux uses v4l2 and sysfs, on macOS uses system_profiler. Groups stereo cameras (dual /dev/video nodes) into a single physical device.</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">sensor</span> <span class="cmd__sub">add</span></div>
-            <div class="cmd__desc">Register a sensor, associate calibration file</div>
+            <span class="cmd__code">psilia sensor add</span>
+            <div class="cmd__desc">Register a sensor and associate a calibration file</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Interactive wizard that detects connected cameras, prompts for a calibration file and label, and writes the sensor entry to <code>~/.psilia/psilia.yaml</code>. Calibration files are copied to <code>~/.psilia/calibrations/</code>. Also supports non-interactive mode via <code>--key</code> and <code>--raw</code> flags.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Interactive wizard that detects connected cameras, prompts for a calibration file and label, and writes the sensor entry to ~/.psilia/psilia.yaml. Calibration files are copied to ~/.psilia/calibrations/. Also supports non-interactive mode via --key and --raw flags.</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">sensor</span> <span class="cmd__sub">remove</span> <span class="cmd__args">&lt;key&gt;</span></div>
+            <span class="cmd__code">psilia sensor remove <key></span>
             <div class="cmd__desc">Unregister a sensor</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Removes a sensor entry from <code>~/.psilia/psilia.yaml</code> by its key (label or UID). Optionally deletes the associated calibration file with <code>--delete-calibration</code>.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Removes a sensor entry from ~/.psilia/psilia.yaml by its key (label or UID). Optionally deletes the associated calibration file with --delete-calibration.</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">sensor</span> <span class="cmd__sub">list</span></div>
+            <span class="cmd__code">psilia sensor list</span>
             <div class="cmd__desc">Show registered sensors</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Displays all sensors in <code>~/.psilia/psilia.yaml</code> with their UID, label, and calibrated resolutions. Supports <code>--json</code> for machine-readable output and <code>-d &lt;device&gt;</code> to query a remote device.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Displays all sensors in ~/.psilia/psilia.yaml with their UID, label, and calibrated resolutions. Supports --json for machine-readable output and -d <device> to query a remote device.</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">sensor</span> <span class="cmd__sub">push</span> <span class="cmd__args">&lt;device&gt;</span></div>
-            <div class="cmd__desc">Push sensor entries + calibrations to a remote device</div>
+            <span class="cmd__code">psilia sensor push <device></span>
+            <div class="cmd__desc">Push sensor entries and calibrations to a remote device</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Copies sensor entries and calibration files to a registered Jetson over SSH. By default pushes all sensors; use <code>--key</code> for a specific one. Skips sensors already registered on the device unless <code>--overwrite</code> is set.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Copies sensor entries and calibration files to a registered Jetson over SSH. By default pushes all sensors; use --key for a specific one. Skips sensors already registered on the device unless --overwrite is set.</div></div>
         </div>
-
       </div>
     </div>
-
-    <!-- Runtime Lifecycle -->
     <div class="section">
       <div class="section__title">Runtime Lifecycle</div>
       <div class="cmd-list">
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">runtime</span> <span class="cmd__sub">init</span> <span class="cmd__args">[path]</span></div>
+            <span class="cmd__code">psilia runtime init [path]</span>
             <div class="cmd__desc">Create runtime home, Docker image, ROS workspace</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Sets up the runtime home directory structure (<code>ros/</code>, <code>data/</code>, <code>log/</code>, <code>conf/</code>), copies the ROS package, builds the Docker image, and writes a default <code>runtime.yaml</code>. Path defaults to the current directory.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Sets up the runtime home directory structure (ros/, data/, log/, conf/), copies the ROS package, builds the Docker image, and writes a default runtime.yaml. Path defaults to the current directory.</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">runtime</span> <span class="cmd__sub">setup</span></div>
+            <span class="cmd__code">psilia runtime setup</span>
             <div class="cmd__desc">Interactive setup (init + hotspot + WiFi)</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Runs runtime init plus optional network configuration steps: AP hotspot setup for a USB WiFi dongle and home WiFi credentials. Use <code>--all</code> to run everything, or <code>--hotspot</code> / <code>--wifi</code> individually.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Runs runtime init plus optional network configuration steps — AP hotspot setup for a USB WiFi dongle and home WiFi credentials. Use --all to run everything, or --hotspot / --wifi individually.</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">runtime</span> <span class="cmd__sub">start</span> <span class="cmd__args">--base</span></div>
+            <span class="cmd__code">psilia runtime start --base</span>
             <div class="cmd__desc">Start base layer (FastAPI + Docker container)</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Starts the always-on base layer: a FastAPI web server serving the Web UI and REST API, and the Docker container. The container runs <code>colcon build</code> on startup (incremental, fast after first build).</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Starts the always-on base layer — a FastAPI web server serving the Web UI and REST API, and the Docker container. The container runs colcon build on startup (incremental, fast after first build).</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">runtime</span> <span class="cmd__sub">start</span> <span class="cmd__args">--spatial</span></div>
+            <span class="cmd__code">psilia runtime start --spatial</span>
             <div class="cmd__desc">Start spatial layer (ROS nodes)</div>
+            <div class="cmd__badges"><span class="badge badge--cli">CLI</span><span class="badge badge--cli">Web UI</span></div>
+            <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Launches ROS nodes inside the already-running container. Runs requirement checks (container, camera, calibration, resolution, hotspot) before launch and writes launch_params.yaml. Use --force to start with partial requirements.</div></div>
+        </div>
+        <div class="cmd" onclick="toggle(this)">
+          <div class="cmd__row">
+            <span class="cmd__code">psilia runtime stop</span>
+            <div class="cmd__desc">Stop spatial and base layers</div>
+            <div class="cmd__badges"><span class="badge badge--cli">CLI</span><span class="badge badge--cli">Web UI</span></div>
+            <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Stops the spatial layer (ROS nodes) and then the base layer (FastAPI server + Docker container). Use --spatial or --base to stop a single layer.</div></div>
+        </div>
+        <div class="cmd" onclick="toggle(this)">
+          <div class="cmd__row">
+            <span class="cmd__code">psilia runtime attach</span>
+            <div class="cmd__desc">Live TUI — heartbeat, topic Hz, start/stop spatial</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Launches ROS nodes inside the already-running container. Runs requirement checks (container, camera, calibration, resolution, hotspot) before launch and writes <code>launch_params.yaml</code>. Use <code>--force</code> to start with partial requirements.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Live terminal view refreshing at 1 Hz. Shows base and spatial layer status, heartbeat age, topic frequencies, and preflight checks. Keyboard shortcuts: [s] start, [x] stop, [f] toggle force, [r] refresh checks, [l] logs.</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">runtime</span> <span class="cmd__sub">stop</span></div>
-            <div class="cmd__desc">Stop spatial + base layers</div>
-            <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
-            <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Stops the spatial layer (ROS nodes) and then the base layer (FastAPI server + Docker container). Use <code>--spatial</code> or <code>--base</code> to stop a single layer.</div></div>
-        </div>
-
-        <div class="cmd" onclick="toggle(this)">
-          <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">runtime</span> <span class="cmd__sub">attach</span></div>
-            <div class="cmd__desc">Live TUI: heartbeat, topic Hz, start/stop spatial</div>
-            <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
-            <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Live terminal view refreshing at 1 Hz. Shows base and spatial layer status, heartbeat age, topic frequencies, and preflight checks. Keyboard shortcuts: <code>[s]</code> start, <code>[x]</code> stop, <code>[f]</code> toggle force, <code>[r]</code> refresh checks, <code>[l]</code> logs.</div></div>
-        </div>
-
-        <div class="cmd" onclick="toggle(this)">
-          <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">runtime</span> <span class="cmd__sub">status</span></div>
+            <span class="cmd__code">psilia runtime status</span>
             <div class="cmd__desc">Status snapshot (base, spatial, docker, storage, etc.)</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">One-shot status of the runtime. Use flags to select sections: <code>--base</code>, <code>--spatial</code>, <code>--docker</code>, <code>--ros</code>, <code>--storage</code>, <code>--hotspot</code>, <code>--recording</code>. Supports <code>--json</code> for machine-readable output.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">One-shot status of the runtime. Use flags to select sections — --base, --spatial, --docker, --ros, --storage, --hotspot, --recording. Supports --json for machine-readable output.</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">runtime</span> <span class="cmd__sub">config</span> <span class="cmd__args">[keys...]</span></div>
+            <span class="cmd__code">psilia runtime config [keys...]</span>
             <div class="cmd__desc">Query runtime config values</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Prints static config values, one per line. Available keys: <code>home-dir</code>, <code>data-dir</code>, <code>ros-dir</code>, <code>log-dir</code>, <code>repo-dir</code>, <code>api-port</code>, <code>rosbridge-port</code>. Designed for scripting via <code>$(psilia runtime config home-dir)</code>.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Prints static config values, one per line. Available keys — home-dir, data-dir, ros-dir, log-dir, repo-dir, api-port, rosbridge-port. Designed for scripting via $(psilia runtime config home-dir).</div></div>
         </div>
-
       </div>
     </div>
-
-    <!-- Data Operations -->
     <div class="section">
       <div class="section__title">Data Operations</div>
       <div class="cmd-list">
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">data</span> <span class="cmd__sub">pull</span> <span class="cmd__args">[device]</span></div>
+            <span class="cmd__code">psilia data pull [device]</span>
             <div class="cmd__desc">Pull MCAP recordings from device to laptop</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">Rsyncs the device's data directory to the laptop. Excludes any actively recording file. Without a device argument, pulls from all registered devices. Destination is configured via <code>data.pull_to</code> in <code>psilia.yaml</code> (prompted on first use).</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Rsyncs the device's data directory to the laptop. Excludes any actively recording file. Without a device argument, pulls from all registered devices. Destination is configured via data.pull_to in psilia.yaml (prompted on first use).</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">psilia</span> <span class="cmd__app">data</span> <span class="cmd__sub">push</span> <span class="cmd__args">[device]</span></div>
+            <span class="cmd__code">psilia data push [device]</span>
             <div class="cmd__desc">Push data to cloud (direct or via laptop)</div>
             <div class="cmd__badges"><span class="badge badge--cli">CLI</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">With a device: SSH into the device with agent forwarding and rsync directly to the cloud (private key never leaves the laptop). Without a device: pushes the local <code>pull_to</code> directory. Destination is configured via <code>data.push_to</code> in <code>psilia.yaml</code>.</div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">With a device — SSH into the device with agent forwarding and rsync directly to the cloud (private key never leaves the laptop). Without a device — pushes the local pull_to directory. Destination is configured via data.push_to in psilia.yaml.</div></div>
         </div>
-
       </div>
     </div>
-
-    <!-- Services -->
     <div class="section">
       <div class="section__title">Services</div>
       <div class="cmd-list">
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">recording</span></div>
+            <span class="cmd__code">recording</span>
             <div class="cmd__desc">Start/stop MCAP recording of ROS topics</div>
-            <div class="cmd__badges">
-              <span class="badge badge--web">Web UI</span>
-              <span class="badge badge--cli">ROS</span>
-            </div>
+            <div class="cmd__badges"><span class="badge badge--cli">Web UI</span><span class="badge badge--cli">ROS</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">
-            Managed by <code>recording_node</code> inside the Docker container. Controlled via ROS topics from the Web UI.
-            <div style="margin-top: 0.5rem;">
-              <div class="cmd__code"><span class="cmd__cli">Start</span></div>
-              <div style="margin-top: 0.3rem;">Publish to <code>/psilia/web/recording/start</code> (<code>std_msgs/String</code>)</div>
-              <div style="margin-top: 0.3rem; font-size: 0.68rem; color: var(--color-dim);">Message payload</div>
-              <pre style="background: rgba(0,0,0,0.04); padding: 0.5rem 0.6rem; border-radius: 4px; margin: 0.2rem 0 0; font-family: var(--font-mono); font-size: 0.65rem; color: var(--color-text); overflow-x: auto; line-height: 1.5;">{
-  "session": "crimson-falcon",
-  "topics": [
-    "/psilia/raw/image",
-    "/psilia/depth/image"
-  ]
-}</pre>
-            </div>
-            <div style="margin-top: 0.5rem;">
-              <div class="cmd__code"><span class="cmd__cli">Stop</span></div>
-              <div style="margin-top: 0.3rem;">Publish to <code>/psilia/web/recording/stop</code> (<code>std_msgs/String</code>)</div>
-            </div>
-            <div style="margin-top: 0.5rem;">
-              <div class="cmd__code"><span class="cmd__cli">Status</span></div>
-              <div style="margin-top: 0.3rem;">Published at 1 Hz on <code>/psilia/recording/status</code> (<code>std_msgs/Bool</code>)</div>
-            </div>
-            <div style="margin-top: 0.4rem;">
-              Recordings are saved to <code>{runtime_home}/data/</code> as <code>{device}_{session}_{counter}_{time}</code>. Storage format is MCAP when available, otherwise SQLite3.
-            </div>
-          </div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Managed by recording_node inside the Docker container. Controlled via ROS topics from the Web UI. Recordings are saved to {runtime_home}/data/ as {device}_{session}_{counter}_{time}.mcap. Publish to /psilia/web/recording/start (std_msgs/String) with JSON payload {session, topics[]}. Publish to /psilia/web/recording/stop to stop. Status published at 1 Hz on /psilia/recording/status (std_msgs/Bool).</div></div>
         </div>
-
         <div class="cmd" onclick="toggle(this)">
           <div class="cmd__row">
-            <div class="cmd__code"><span class="cmd__cli">preview</span></div>
+            <span class="cmd__code">preview</span>
             <div class="cmd__desc">Live image previews for the Web UI</div>
-            <div class="cmd__badges">
-              <span class="badge badge--web">Web UI</span>
-              <span class="badge badge--cli">ROS</span>
-            </div>
+            <div class="cmd__badges"><span class="badge badge--cli">Web UI</span><span class="badge badge--cli">ROS</span></div>
             <svg class="cmd__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><polyline points="4,2 8,6 4,10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <div class="cmd__detail"><div class="cmd__detail-inner">
-            Downsampled, low-bandwidth image streams for live monitoring in the Web UI. Each preview node subscribes to a full-resolution topic, downsamples via stride slicing, and republishes as compressed JPEG or point cloud data.
-            <div style="margin-top: 0.5rem;">
-              <div class="cmd__code"><span class="cmd__cli">Image</span></div>
-              <div style="margin-top: 0.3rem;">Published on <code>/psilia/preview/image/compressed</code> (<code>sensor_msgs/CompressedImage</code>, JPEG, 5 Hz)</div>
-              <div style="margin-top: 0.15rem; font-size: 0.68rem; color: var(--color-dim);">Downsampled raw stereo frame from <code>preview_node</code></div>
-            </div>
-            <div style="margin-top: 0.5rem;">
-              <div class="cmd__code"><span class="cmd__cli">Depth</span></div>
-              <div style="margin-top: 0.3rem;">Published on <code>/psilia/preview/depth/compressed</code> (<code>sensor_msgs/CompressedImage</code>, JPEG, 5 Hz)</div>
-              <div style="margin-top: 0.15rem; font-size: 0.68rem; color: var(--color-dim);">Colormapped depth (Plasma), invalid pixels shown as white. Clamped to <code>max_depth</code> (default 3.0 m)</div>
-            </div>
-            <div style="margin-top: 0.5rem;">
-              <div class="cmd__code"><span class="cmd__cli">Rectified</span></div>
-              <div style="margin-top: 0.3rem;">Published on <code>/psilia/preview/rectified/compressed</code> (<code>sensor_msgs/CompressedImage</code>, JPEG, 5 Hz)</div>
-              <div style="margin-top: 0.15rem; font-size: 0.68rem; color: var(--color-dim);">Downsampled rectified stereo frame from <code>depth_preview_node</code></div>
-            </div>
-            <div style="margin-top: 0.5rem;">
-              <div class="cmd__code"><span class="cmd__cli">Point Cloud</span></div>
-              <div style="margin-top: 0.3rem;">Published on <code>/psilia/preview/pointcloud</code> (<code>sensor_msgs/PointCloud2</code>, 2 Hz)</div>
-              <div style="margin-top: 0.15rem; font-size: 0.68rem; color: var(--color-dim);">Back-projected XYZRGB from depth + rectified image. Optional subsampling via <code>num_samples</code></div>
-            </div>
-          </div></div>
+          <div class="cmd__detail"><div class="cmd__detail-inner">Downsampled, low-bandwidth image streams for live monitoring. Image — /psilia/preview/image/compressed (CompressedImage, JPEG, 5 Hz). Depth — /psilia/preview/depth/compressed (CompressedImage, JPEG, 5 Hz), colormapped with Plasma, clamped to max_depth (default 3.0 m). Rectified — /psilia/preview/rectified/compressed (CompressedImage, JPEG, 5 Hz). Point cloud — /psilia/preview/pointcloud (PointCloud2, 2 Hz), XYZRGB back-projected from depth + rectified image.</div></div>
         </div>
-
       </div>
     </div>
-
   </div>
 
   <script>

@@ -135,9 +135,9 @@ The vars are loaded automatically when you `cd` into the project and unloaded wh
 `.envrc` is gitignored.
 
 
-# Cheatsheet
+## Cheatsheet
 
-## Network
+### Network
 ```bash
 # Show all connections
 nmcli connection show
@@ -158,7 +158,7 @@ nmcli connection delete "name"
 # Activate connection
 nmcli connection up "name"
 ```
-## Docker
+### Docker
 
 ```bash
 # Enter the running container (with ROS sourced)
@@ -179,7 +179,7 @@ docker build --network=host -t psilia/runtime:latest /ssd/psilia/psilia-edge/ros
 docker logs psilia-runtime -f
 ```
 
-## Runtime (Jetson)
+### Runtime (Jetson)
 
 ```bash
 # Start base layer + spatial layer
@@ -198,7 +198,7 @@ psilia attach
 psilia update
 ```
 
-## Runtime (Laptop)
+### Runtime (Laptop)
 
 ```bash
 # Same commands, targeting a registered device
@@ -209,7 +209,7 @@ psilia attach borne
 psilia update borne
 ```
 
-## Getting into a headless Jetson (no monitor, no existing SSH)
+### Getting into a headless Jetson (no monitor, no existing SSH)
 
 ```bash
 # --- Option 1: USB serial console ---
@@ -225,7 +225,7 @@ ping nvidia.local
 ssh nvidia@nvidia.local
 ```
 
-## ROS (inside container)
+### ROS (inside container)
 
 ```bash
 ros2 node list
@@ -237,6 +237,73 @@ tail -f ~/.ros/log/latest/launch.log
 
 ros2 topic hz /psilia/image/raw
 ```
+
+## [2026-05-03] Package distribution: extras vs namespace packages
+
+Two options for splitting out the data API and future utilities from the core runtime:
+
+**Extras** (`pip install psilia-edge[data]`) — one package, optional dependency groups. `pip install psilia-edge` gives the minimal runtime for Jetson; `pip install psilia-edge[data]` adds `mcap`, `numpy`, and future data/analysis tools for the laptop side. Simpler to maintain, recommended for now.
+
+**Namespace packages** — multiple separately-installable packages (`psilia-edge`, `psilia-data`, ...) that all expose modules under a shared `psilia.*` namespace. Independent PyPI packages, can live in separate repos, stitched together by Python at import time. More overhead, makes sense only if the sub-packages are genuinely independent and distributed separately.
+
+The three sub-packages and their deployment targets:
+
+| Package | Target | Role |
+|---|---|---|
+| `psilia-edge` | Jetson (host) | Runtime, CLI, base + spatial layer lifecycle |
+| `psilia-inference` | Docker container | Inference algorithms, model wrappers, ROS nodes |
+| `psilia-dev` | Laptop / cloud | MCAP reader, data API, notebook utilities, dev tooling |
+
+Since these have distinct deployment targets, namespace packages may make more sense than extras long-term — you'd never want inference deps on the Jetson host or dev tooling inside Docker.
+
+## [2026-05-03] Calibration storage
+
+Store calibration data in `psilia.yaml` (or split into a dedicated file — e.g. `calibrations.yaml` — if it grows large). Key idea: use a unique sensor identifier (e.g. serial number) as the key, so calibration data is reliably mapped to a specific physical sensor regardless of port or connection order.
+
+Each entry stores intrinsic and extrinsic calibration. Simple case: a single stereo camera (intrinsics per lens + stereo extrinsics). More complex case: a full sensor rig with multiple cameras and/or IMUs, each with their own intrinsics and extrinsics relative to a common rig frame.
+
+```yaml
+calibrations:
+  <sensor-serial>:
+    type: stereo_camera   # or mono_camera, imu, sensor_rig, ...
+    intrinsics:
+      left:  { ... }
+      right: { ... }
+    extrinsics:
+      left_to_right: { ... }
+  <rig-serial>:
+    type: sensor_rig
+    sensors:
+      - serial: <sensor-serial>
+        extrinsic_to_rig: { ... }
+```
+
+May split into a separate `calibrations.yaml` once the schema is stable, with a pointer in `psilia.yaml`.
+
+## [2026-05-03] Camera pipeline architecture
+
+The frame pipeline is central to the runtime. The target architecture separates concerns into three layers:
+
+1. **CameraStream** — capture thread writes frames into a shared ring buffer. Pure Python/OpenCV, no ROS dependency.
+2. **Algorithm workers** (pose estimation, depth inference, etc.) — plain Python, each reads from the ring buffer, copies their frame, runs inference. No ROS.
+3. **ROS publisher nodes** — thin wrappers that drain result queues and publish to `/psilia/pose`, `/psilia/depth`, etc. ROS is only involved at this last step.
+
+This keeps algorithms independently testable outside ROS and decouples inference speed from the ROS publish rate.
+
+## [2026-05-03] Ring buffer for zero-copy frame sharing across processes
+
+For sharing frames across OS processes without copying through ROS topics or queues:
+
+- Main process allocates `N * frame_size + sizeof(int)` bytes via `multiprocessing.shared_memory`
+- Layout: N fixed-size frame slots + one int (write index) at a known offset
+- Capture thread writes frame at slot `i % N`, increments index
+- Each consumer process attaches by name, reads from `index - 1`, copies once into their own working buffer
+- Multiple readers never conflict — reads don't advance the pointer, only the capture thread does
+- At 30fps and N=10 slots, consumers have ~300ms of slack before their slot gets overwritten
+
+Synchronization is minimal — one atomic int write. No locks needed if memory ordering is handled carefully. At 3200x1200 color (11.5 MB/frame) zero-copy at the handoff matters — each consumer still pays one copy into their working buffer, but no additional copies for routing/queuing.
+
+---
 
 ## Everything else
 

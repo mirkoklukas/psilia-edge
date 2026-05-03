@@ -53,3 +53,61 @@ likely exited due to an entrypoint error (e.g. `colcon build` failure).
 docker ps -a                  # confirm container is in exited state
 docker logs psilia-runtime    # see why it stopped
 ```
+
+---
+
+## Viewing ROS node logs
+
+All ROS nodes log to stdout (`RCUTILS_LOGGING_USE_STDOUT=1` is set in the docker run command). Use:
+
+```bash
+docker logs psilia-runtime        # full log
+docker logs psilia-runtime -f     # follow live
+docker logs psilia-runtime --tail 100  # last 100 lines
+```
+
+---
+
+## Base layer fails to start — port already in use
+
+Symptom in `~/.psilia/log/psilia-edge.log`:
+```
+ERROR: [Errno 48] error while attempting to bind on address ('0.0.0.0', 8080): address already in use
+```
+
+This usually means a previous psilia server is still running (stale PID file) or another process is on port 8080.
+
+Find what's on the port:
+```bash
+lsof -i :8080
+```
+
+Kill the psilia process (replace PID with the one from `lsof`):
+```bash
+kill <PID>
+```
+
+Or kill everything on the port in one shot:
+```bash
+lsof -ti :8080 | xargs kill
+```
+
+Then run `psilia runtime stop` to clean up the stale PID file before starting again.
+
+---
+
+## Docker build fails — parent snapshot does not exist
+
+Symptom:
+```
+ERROR: failed to solve: failed to prepare extraction snapshot "...": parent snapshot ... does not exist: not found
+```
+
+This is a Docker layer cache corruption issue, not a code problem. The build steps complete successfully but the final export fails.
+
+Fix:
+```bash
+docker builder prune -f
+```
+
+Then rebuild.

@@ -8,6 +8,7 @@ docs/*
 !docs/*.md
 !docs/*.html
 !docs/archive/
+!docs/internal/
 !docs/**/*.md
 __pycache__/
 
@@ -32,6 +33,7 @@ ros_ws/src/*
 !ros_ws/src/psilia_ros/
 
 scripts/**/*.log
+docs/internal/tmp/
 
 # Files with a leading underscore `_files.*` are private,
 # helps keeping the repo clean while prototyping

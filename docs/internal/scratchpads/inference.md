@@ -46,3 +46,24 @@ Two pipeline paths exist — **GPU** (`depth_cuda_node`: raw → rectify → dep
 
 
 ## Pose Inference
+
+
+## Device Management
+
+### psilia pair
+
+Pair a Jetson over SSH
+
+> Interactive wizard that connects to a Jetson, generates a dedicated SSH keypair...
+
+badges: CLI
+
+## Device Management
+
+### psilia pair
+
+Pair a Jetson over SSH
+
+> Interactive wizard that connects to a Jetson, generates a dedicated SSH keypair...
+
+badges: CLI
