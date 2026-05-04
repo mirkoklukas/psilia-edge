@@ -76,7 +76,7 @@ class CameraNode(Node):
             self.get_logger().info("No calibration_file — CameraInfo will not be published.")
             return
 
-        stereo = StereoCalibration.load(self.calibration_file, strict=False).rectify()
+        stereo = StereoCalibration.load(self.calibration_file, strict=False).rectify(force=True)
 
         # Rescale calibration if the capture resolution doesn't match.
         eye_w = self.width // 2
@@ -88,7 +88,7 @@ class CameraNode(Node):
             )
             stereo = StereoCalibration(
                 stereo.cam0.rescale(factor), stereo.cam1.rescale(factor)
-            ).rectify()
+            ).rectify(force=True)
 
         self._camera_info_left = self._build_camera_info(stereo.cam0)
         self._camera_info_right = self._build_camera_info(stereo.cam1)

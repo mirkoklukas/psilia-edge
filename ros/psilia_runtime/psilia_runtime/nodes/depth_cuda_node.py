@@ -50,7 +50,7 @@ class DepthCudaNode(Node):
             return
 
         # TODO: validate_rectification() here and log warnings if it fails.
-        self._stereo_cal = StereoCalibration.load(self.calibration_file, strict=False).rectify()
+        self._stereo_cal = StereoCalibration.load(self.calibration_file, strict=False).rectify(force=True)
         self._ready = False
 
         self.pub = self.create_publisher(Image, "/psilia/stereo/depth/image", 1)
@@ -78,7 +78,7 @@ class DepthCudaNode(Node):
             )
             stereo = StereoCalibration(
                 stereo.cam0.rescale(factor), stereo.cam1.rescale(factor)
-            ).rectify()
+            ).rectify(force=True)
 
         Q = stereo.disparity_to_3d
         self.focal_length = Q[2, 3]

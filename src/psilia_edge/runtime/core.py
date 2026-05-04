@@ -154,7 +154,7 @@ def resolve_camera() -> ResolverResult:
     sensor_id = build_sensor_id(camera)
     return ResolverResult(
         ok=True,
-        detail=f"{camera.get('device')} {size['width']}x{size['height']}",
+        detail=f"{camera.get('device')} 2x{size['width'] // 2}x{size['height']}",
         data={"info": camera, "sensor_id": sensor_id},
     )
 

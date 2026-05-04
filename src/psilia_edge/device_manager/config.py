@@ -27,7 +27,6 @@ def add_device_entry(name: str, host: str, user: str, key_path: Path) -> None:
         "host": host,
         "user": user,
         "key": str(key_path),
-        "hotspot_ip": None,
     }
     write_config(config)
 
@@ -59,15 +58,6 @@ def _render_ssh_block(devices: dict) -> str:
             f"    IdentityFile {dev['key']}"
         )
         blocks.append(block)
-
-        if hotspot_ip := dev.get("hotspot_ip"):
-            hotspot_block = (
-                f"Host {name}-hotspot\n"
-                f"    HostName {hotspot_ip}\n"
-                f"    User {dev['user']}\n"
-                f"    IdentityFile {dev['key']}"
-            )
-            blocks.append(hotspot_block)
 
     return "\n\n".join(blocks)
 
