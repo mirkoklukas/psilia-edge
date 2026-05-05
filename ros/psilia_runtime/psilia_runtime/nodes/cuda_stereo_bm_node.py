@@ -102,6 +102,9 @@ class CudaStereoBmNode(Node):
             numDisparities=self.num_disparities,
             blockSize=self.block_size,
         )
+        # cv::cuda::StereoBM::compute requires an explicit Stream in this
+        # OpenCV build (StereoSGM accepts the 2-arg form; BM does not).
+        self._stream = cv2.cuda.Stream()
 
         # Pre-allocated GPU mat for frame upload.
         self._gpu_frame = cv2.cuda.GpuMat()
@@ -167,8 +170,9 @@ class CudaStereoBmNode(Node):
         gpu_gray_l = cv2.cuda.cvtColor(self._gpu_rect_l, cv2.COLOR_BGR2GRAY)
         gpu_gray_r = cv2.cuda.cvtColor(self._gpu_rect_r, cv2.COLOR_BGR2GRAY)
 
-        # Stereo matching on GPU.
-        gpu_disparity = self._stereo.compute(gpu_gray_l, gpu_gray_r)
+        # Stereo matching on GPU. cv::cuda::StereoBM requires explicit stream.
+        gpu_disparity = self._stereo.compute(gpu_gray_l, gpu_gray_r, self._stream)
+        self._stream.waitForCompletion()
 
         # Download disparity and compute depth on CPU.
         # cv::cuda::StereoBM returns CV_8U (0..numDisparities), unlike SGM which
