@@ -91,6 +91,19 @@ def _get_runtime_config_path():
     return get_runtime_config_path(missing_ok=True)
 
 
+def _get_launch_params_path():
+    from psilia_edge.runtime.config import RUN_DIR
+
+    return RUN_DIR / "launch_params.yaml"
+
+
+_CONFIG_FILES: list[tuple[str, object, str]] = [
+    ("psilia.yaml", _get_psilia_config_path, ""),
+    ("runtime.yaml", _get_runtime_config_path, ""),
+    ("launch_params.yaml", _get_launch_params_path, "requires spatial layer"),
+]
+
+
 class BaseLayerPanel(Static):
     """Base layer status: daemon, container, URL."""
 
@@ -236,36 +249,42 @@ class SpatialLayerPanel(Static):
 
 
 class ConfigPanel(VerticalScroll):
-    """Displays a YAML config file. Collapses when not focused."""
+    """Displays a YAML config file. Toggle expand/collapse with Enter."""
 
     can_focus = True
-    collapsed: reactive[bool] = reactive(False)
+    collapsed: reactive[bool] = reactive(True)
+
+    BINDINGS = [
+        Binding("enter", "toggle", "Expand/Collapse"),
+    ]
 
     def __init__(
         self,
         file_label: str,
         file_path_getter,
-        collapsed: bool = False,
+        note: str = "",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self._file_label = file_label
         self._file_path_getter = file_path_getter
-        self._init_collapsed = collapsed
+        self._note = note
 
     def compose(self) -> ComposeResult:
         yield Static("", classes="config-content")
 
     def on_mount(self) -> None:
-        self.collapsed = self._init_collapsed
         self._apply_layout()
         self.refresh_content()
 
-    def on_focus(self) -> None:
-        self.collapsed = False
-        for panel in self.screen.query(ConfigPanel):
-            if panel is not self:
-                panel.collapsed = True
+    def action_toggle(self) -> None:
+        if self.collapsed:
+            for panel in self.screen.query(ConfigPanel):
+                if panel is not self:
+                    panel.collapsed = True
+            self.collapsed = False
+        else:
+            self.collapsed = True
 
     def watch_collapsed(self) -> None:
         self._apply_layout()
@@ -282,19 +301,21 @@ class ConfigPanel(VerticalScroll):
 
     def _build(self) -> str:
         arrow = "▶" if self.collapsed else "▼"
+        note = f"  [dim italic]{self._note}[/]" if self._note else ""
         try:
             path = self._file_path_getter()
         except Exception:
-            return f"{arrow} [bold]{self._file_label}[/]  [dim](not found)[/]"
+            return f"{arrow} [bold]{self._file_label}[/]  [dim](not found)[/]{note}"
 
+        header = f"{arrow} [bold]{self._file_label}[/]  [dim]{path}[/]{note}"
         if self.collapsed:
-            return f"{arrow} [bold]{self._file_label}[/]  [dim]{path}[/]"
+            return header
 
         try:
             content = path.read_text(errors="replace")
-            return f"{arrow} [bold]{self._file_label}[/]  [dim]{path}[/]\n\n{content}"
+            return f"{header}\n\n{content}"
         except Exception:
-            return f"{arrow} [bold]{self._file_label}[/]  [dim](not found)[/]"
+            return f"{arrow} [bold]{self._file_label}[/]  [dim](not found)[/]{note}"
 
 
 class LogPanel(Log):
@@ -447,10 +468,10 @@ class PsiliaApp(App):
     #log-panel {
         height: 1fr;
     }
-    #config-psilia, #config-runtime {
+    .config-panel {
         padding: 1;
     }
-    #config-psilia:focus, #config-runtime:focus {
+    .config-panel:focus {
         background: $surface;
     }
     """
@@ -473,15 +494,8 @@ class PsiliaApp(App):
                 yield Static("", id="log-label")
                 yield LogPanel(id="log-panel")
             with TabPane("Config", id="tab-config"):
-                yield ConfigPanel(
-                    "psilia.yaml", _get_psilia_config_path, id="config-psilia"
-                )
-                yield ConfigPanel(
-                    "runtime.yaml",
-                    _get_runtime_config_path,
-                    collapsed=True,
-                    id="config-runtime",
-                )
+                for label, getter, note in _CONFIG_FILES:
+                    yield ConfigPanel(label, getter, note, classes="config-panel")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -501,7 +515,9 @@ class PsiliaApp(App):
         elif event.pane.id == "tab-logs":
             self.query_one("#log-panel", LogPanel).focus()
         elif event.pane.id == "tab-config":
-            self.query_one("#config-psilia", ConfigPanel).focus()
+            panels = self.query(ConfigPanel)
+            if panels:
+                panels.first().focus()
 
     def _load_initial_log(self) -> None:
         self.query_one("#log-panel", LogPanel)._switch_log()

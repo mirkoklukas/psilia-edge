@@ -34,10 +34,10 @@ class DepthCudaNode(Node):
     calibration_file: ROSValue = ""
     camera_left: ROSValue = "cam0"
     camera_right: ROSValue = "cam1"
-    num_disparities: ROSValue = 192
-    p1: ROSValue = 200
-    p2: ROSValue = 800
-    uniqueness_ratio: ROSValue = 5
+    num_disparities: ROSValue = 128
+    p1: ROSValue = 20
+    p2: ROSValue = 100
+    uniqueness_ratio: ROSValue = 1
     publish_rectified: ROSValue = False
 
     def __node_init__(self):
