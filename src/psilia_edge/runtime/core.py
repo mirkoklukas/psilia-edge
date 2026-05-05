@@ -8,6 +8,7 @@ import time
 
 from psilia_edge.runtime.config import RUN_DIR, get_api_port, read_config
 from psilia_edge.runtime.requirements import (
+    RequirementResult,
     RequirementSpec,
     ResolverResult,
     run_requirements,
@@ -460,71 +461,149 @@ def check_spatial_requirements():
     return run_requirements(SPATIAL_REQUIREMENTS)
 
 
-def _build_launch_params(ctx) -> dict:
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+#
+#   Spatial node table — declarative binding of nodes to requirements.
+#
+#   For each conditional spatial node:
+#     requires: list of ctx tree paths that must all be ``ok`` for the
+#               node to be added.
+#     params:   ros_param_name -> ctx path. Each value is pulled from
+#               ctx; if the path traverses a non-ok node (e.g. optional
+#               calibration when calibration failed), the param is
+#               silently skipped.
+#
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+SPATIAL_NODES: dict[str, dict] = {
+    "camera_node": {
+        "requires": ["camera"],
+        "params": {
+            "device": "camera:info:device",
+            "pixel_format": "camera:info:pixel_format",
+            "width": "camera:info:width",
+            "height": "camera:info:height",
+            "fps": "camera:info:fps",
+            # Optional — included only when calibration also resolves.
+            "calibration_file": "camera.calibration:container_path",
+        },
+    },
+    "preview_node": {
+        "requires": ["camera"],
+        "params": {},
+    },
+    "rectify_node": {
+        "requires": ["camera.calibration"],
+        "params": {"calibration_file": "camera.calibration:container_path"},
+    },
+    "depth_node": {
+        "requires": ["camera.calibration"],
+        "params": {"calibration_file": "camera.calibration:container_path"},
+    },
+    "depth_preview_node": {
+        "requires": ["camera.calibration"],
+        "params": {},
+    },
+    "pointcloud_preview_node": {
+        "requires": ["camera.calibration"],
+        "params": {},
+    },
+    "depth_cuda_node": {
+        "requires": ["camera.calibration", "container.cuda"],
+        "params": {"calibration_file": "camera.calibration:container_path"},
+    },
+    "cuda_stereo_bm_node": {
+        "requires": ["camera.calibration", "container.cuda"],
+        "params": {"calibration_file": "camera.calibration:container_path"},
+    },
+}
+
+
+def _resolve_node_params(ctx: RequirementResult, sources: dict[str, str]) -> dict:
+    """Pull each value from ctx; silently skip params whose source path failed.
+
+    KeyError covers two cases:
+      - a node along the tree path was skipped (failed requirement) and has empty data,
+      - the named data key doesn't exist (typo in the table).
+    Both result in the param being omitted; a typo'd key surfaces as the
+    consuming node's own missing-param error at runtime.
+    """
+    out = {}
+    for ros_param, path in sources.items():
+        try:
+            out[ros_param] = ctx[path]
+        except KeyError:
+            continue
+    return out
+
+
+def _build_launch_params(ctx: RequirementResult) -> dict:
     """Build node list and per-node parameters from resolved requirements.
+
+    ``ctx`` is the root ``RequirementResult`` from
+    ``check_spatial_requirements()`` (i.e. ``run_requirements(SPATIAL_REQUIREMENTS)``).
+    Each child node has ``.ok``, ``.detail``, and ``.data``; index with
+    ``ctx["x"]`` for a node and ``ctx["x:key"]`` for a data field. The shape
+    expected here, per ``SPATIAL_REQUIREMENTS``:
+
+        ctx["container"]            .ok=is_container_running()
+        ctx["container.cuda"]       .ok=has_cuda()
+        ctx["camera"]               .ok=camera detected & usable
+                                    .data["info"]: {device, pixel_format,
+                                        width, height, fps, name?, product?,
+                                        serial?, vendor_id?, product_id?, ...}
+                                    .data["sensor_id"]: stable id string
+        ctx["camera.calibration"]   .ok=calibration file resolved
+                                    .data["host_path"]: Path on host
+                                    .data["container_path"]: "/psilia/calibrations/<name>"
+        ctx["hotspot"]              (not used here)
+
+    Children of a failed parent are auto-skipped (``ok=False, detail="skipped"``),
+    so guarding on the parent's ``.ok`` before reading a child is sufficient.
 
     Returns a dict ready to be written to launch_params.yaml:
         nodes: [list of conditional node names to launch]
         <node_name>: {ros__parameters: {...}}
 
-    After building the requirement-derived node list, applies user overrides
-    from runtime.yaml ``ros.nodes``. Each entry can be a bool (enable/disable)
-    or a dict with ``enable`` and ``parameters`` keys. Nodes set to disabled
-    are removed. User parameters are merged on top of requirement-derived ones.
+    Walks ``SPATIAL_NODES`` to derive the eligible node list, then applies
+    user overrides from runtime.yaml ``ros.nodes``. Each user entry can be
+    a bool (enable/disable) or a dict with ``enable`` and ``parameters``
+    keys. ``enable: true`` adds a node from the table if its requirements
+    are met; ``enable: false`` removes a node. User parameters are merged
+    on top of requirement-derived ones.
     """
     from psilia_edge.runtime.config import read_runtime_config
 
-    nodes = []
-    params = {}
+    nodes: list[str] = []
+    params: dict[str, dict] = {}
 
-    camera = ctx["camera"]
-    if camera.ok:
-        camera_info = camera.data["info"]
-        camera_params = {
-            k: camera_info[k]
-            for k in ("device", "pixel_format", "width", "height", "fps")
-            if k in camera_info
-        }
-        params["camera_node"] = {"ros__parameters": camera_params}
-        nodes.extend(["camera_node", "preview_node"])
+    def _try_add(name: str) -> bool:
+        spec = SPATIAL_NODES[name]
+        if not all(ctx[req].ok for req in spec["requires"]):
+            return False
+        if name not in nodes:
+            nodes.append(name)
+        node_params = _resolve_node_params(ctx, spec["params"])
+        if node_params:
+            existing = params.get(name, {}).get("ros__parameters", {})
+            params[name] = {"ros__parameters": {**existing, **node_params}}
+        return True
 
-    calibration = ctx["camera.calibration"] if camera.ok else None
-    if calibration and calibration.ok:
-        container_path = calibration.data["container_path"]
-        logger.info("Calibration resolved: %s", container_path)
-        cal_params = {"ros__parameters": {"calibration_file": container_path}}
-        # Pass calibration to camera node for CameraInfo publishing.
-        if "camera_node" in params:
-            params["camera_node"]["ros__parameters"]["calibration_file"] = (
-                container_path
-            )
-        params["rectify_node"] = cal_params
-        params["depth_node"] = cal_params
-        nodes.extend(
-            [
-                "rectify_node",
-                "depth_node",
-                "depth_preview_node",
-                "pointcloud_preview_node",
-            ]
-        )
+    for name in SPATIAL_NODES:
+        _try_add(name)
 
-        cuda = ctx["container.cuda"]
-        if cuda.ok:
-            params["depth_cuda_node"] = cal_params
-            nodes.append("depth_cuda_node")
-    elif camera.ok:
+    # Diagnostic logs preserved from the previous implementation.
+    if not ctx["camera"].ok:
+        logger.info("No camera detected and no camera configured.")
+    elif not ctx["camera.calibration"].ok:
         logger.warning(
             "No calibration found for camera (UID: %s). "
             "Rectify/depth nodes will not launch.",
-            camera.data.get("sensor_id"),
+            ctx["camera"].data.get("sensor_id"),
         )
-    else:
-        logger.info("No camera detected and no camera configured.")
 
-    # Apply node config: defaults, then user overrides from runtime.yaml ros.nodes.
+    # Apply user overrides from runtime.yaml ros.nodes.
     # Each entry can be:
-    #   bool              — enable/disable (backward compat)
+    #   bool              — enable/disable
     #   dict              — {enable: bool, parameters: {key: val}}
     rt_config = read_runtime_config(missing_ok=True)
     user_nodes = rt_config.get("ros", {}).get("nodes", {})
@@ -539,9 +618,19 @@ def _build_launch_params(ctx) -> dict:
         else:
             continue
 
-        if not enabled and name in nodes:
-            logger.info("Disabled node: %s", name)
-            nodes.remove(name)
+        if not enabled:
+            if name in nodes:
+                logger.info("Disabled node: %s", name)
+                nodes.remove(name)
+        elif name not in nodes and name in SPATIAL_NODES:
+            if _try_add(name):
+                logger.info("Enabled node from user override: %s", name)
+            else:
+                failed = [r for r in SPATIAL_NODES[name]["requires"] if not ctx[r].ok]
+                logger.warning(
+                    "User enabled %s but requirements not met: %s", name, failed
+                )
+
         if user_params:
             existing = params.get(name, {}).get("ros__parameters", {})
             params[name] = {"ros__parameters": {**existing, **user_params}}
