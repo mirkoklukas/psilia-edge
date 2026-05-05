@@ -19,3 +19,5 @@ Additional docs (load on demand):
 - docs/03_setup.md — Install flow, network setup, dependencies
 - docs/dev-notes.md — V0 scope, TODOs, troubleshooting, design ideas
 - docs/strategy/psilia-pitch.md — Short two pager with company vision, positioning, product description, business model
+
+- docs/internal/llm-context/llm-project-assistant.md — project assistant, or just assistant. will ask you to load this from time to time.

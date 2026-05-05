@@ -108,3 +108,24 @@ Reflected new framing as LLM-assisted project manager. Rewrote doc to match user
 
 ## [2026-05-03] Moved tools/ to tools.md + scripts/ #change
 Separated catalog (tools.md) from scripts (scripts/). Cleaner — no markdown mixed with code.
+
+## [2026-05-05] Started stereo-depth scratchpad #new-file
+New scratchpad at docs/internal/scratchpads/stereo-depth.md for stereo depth on Jetson Orin Nano. Blank — to be filled in collaboratively. Linked from index.md.
+
+## [2026-05-05] Staged finding: Orin Nano has no PVA #new-file #hardware
+docs/internal/staged/jetson-orin-nano-accelerators.md — verified via NVIDIA Jetson Linux Developer Guide that Orin Nano (4GB and 8GB) has zero PVA cores. Implication: no VPI PVA offload for stereo depth; GPU is the only compute target. OFA presence not separately verified.
+
+## [2026-05-05] Spec update: always log new files under docs/internal/ #change
+Added explicit rule to llm-project-assistant.md: append a #new-file entry to log.md whenever a new file is added under docs/internal/ (staged docs, scratchpads, scripts, reference material).
+
+## [2026-05-05] Added Staged Files section to project-assistant spec #change
+New section in llm-project-assistant.md describing the staged/ inbox pattern (placeholder — intake flow TBD). Frontmatter spec includes summary (1-line preferred, up to ~3 lines) and source fields. Backfilled summary/source into the existing staged doc jetson-orin-nano-accelerators.md.
+
+## [2026-05-05] Clarified source field semantics #change
+source is origin-only (conversation, web, paper, experiment) — full citations and verifying refs live in the doc body. Updated llm-project-assistant.md spec wording and trimmed the existing staged doc's source to "Conversation 2026-05-05".
+
+## [2026-05-05] Renamed staged/ to inbox/, added knowledge-base framing #change
+Renamed docs/internal/staged/ → docs/internal/inbox/. Reframed the project-assistant spec around "building a knowledge base" — Overview now distinguishes existing pieces (structured files, scratchpads, inbox) from the planned curated destination (docs/internal/knowledge-base/). Section "Staged Files" → "Inbox". Frontmatter type: staged → inbox (backfilled in jetson-orin-nano-accelerators.md).
+
+## [2026-05-05] Verified: Orin Nano also has no OFA #change
+Confirmed via NVIDIA Jetson Linux Developer Guide R36.4.4 (NVP Model Clock Configuration tables) that the Orin Nano tier has no OFA entries — Orin NX and AGX Orin list ofa: 780.8 MHz, Nano variants do not. Updated inbox/jetson-orin-nano-accelerators.md: added "What is OFA?" section, merged finding into "no PVA and no OFA", removed OFA from "Not verified", updated summary and tags. VPI's OFA-backend "advanced SGM" path is therefore unavailable on Orin Nano in addition to the PVA path.

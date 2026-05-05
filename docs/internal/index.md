@@ -49,6 +49,7 @@ Active working docs. Collaborative — LLM does not edit autonomously.
 
 - [[inference]] — what the runtime computes, what it needs, how it's wired
 - [[isaac-ros]] — investigation into NVIDIA Isaac ROS ESS stereo depth on Jetson
+- [[stereo-depth]] — stereo depth on Jetson: options, current SGM/CUDA approach, tuning
 
 ---
 
