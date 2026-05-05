@@ -127,17 +127,17 @@ Common path counts: 4 (fast), 8 (standard, two passes), 16 (highest quality).
 
 Concrete implementations and their fit on Jetson Orin Nano Super:
 
-| Library / API | Algorithm | Backend | Runtime cost | On Orin Nano Super | Notes |
-|---|---|---|---|---|---|
-| `cv::cuda::StereoBM` (cudastereo) | SAD block matching | CUDA GPU | Very low | ✓ | Pure data term — fast, noisy |
-| `cv::cuda::StereoSGM` (cudastereo) | Census + SGM | CUDA GPU | Medium | ✓ | Standard pick if using OpenCV |
-| `cv::cuda::StereoBeliefPropagation` | Full-MRF BP | CUDA GPU | High | ✓ but slow | Best classical quality, not real-time at full res |
-| `cv::cuda::StereoConstantSpaceBP` | Constant-space BP | CUDA GPU | High (lower mem) | ✓ but slow | Memory-efficient BP variant |
-| libSGM (Fixstars) | Census + SGM | CUDA GPU | Medium (often faster than OpenCV SGM) | ✓ | Most-cited SGM on Jetson |
-| VPI `StereoDisparityEstimator` | SGM | CPU | High (slow) | ✓ but slow | Reference / fallback |
-| VPI `StereoDisparityEstimator` | SGM | CUDA GPU | Medium | ✓ | Same niche as OpenCV CUDA SGM |
-| VPI `StereoDisparityEstimator` | SGM variant | PVA | — | ✗ no PVA on Nano | Not available |
-| VPI `StereoDisparityEstimator` | "Advanced SGM" | OFA | — | ✗ no OFA on Nano | Not available |
+| Library / API                       | Algorithm          | Backend  | Runtime cost                          | On Orin Nano Super | Notes                                             |
+| ----------------------------------- | ------------------ | -------- | ------------------------------------- | ------------------ | ------------------------------------------------- |
+| `cv::cuda::StereoBM` (cudastereo)   | SAD block matching | CUDA GPU | Very low                              | ✓                  | Pure data term — fast, noisy                      |
+| `cv::cuda::StereoSGM` (cudastereo)  | Census + SGM       | CUDA GPU | Medium                                | ✓                  | Standard pick if using OpenCV                     |
+| `cv::cuda::StereoBeliefPropagation` | Full-MRF BP        | CUDA GPU | High                                  | ✓ but slow         | Best classical quality, not real-time at full res |
+| `cv::cuda::StereoConstantSpaceBP`   | Constant-space BP  | CUDA GPU | High (lower mem)                      | ✓ but slow         | Memory-efficient BP variant                       |
+| libSGM (Fixstars)                   | Census + SGM       | CUDA GPU | Medium (often faster than OpenCV SGM) | ✓                  | Most-cited SGM on Jetson                          |
+| VPI `StereoDisparityEstimator`      | SGM                | CPU      | High (slow)                           | ✓ but slow         | Reference / fallback                              |
+| VPI `StereoDisparityEstimator`      | SGM                | CUDA GPU | Medium                                | ✓                  | Same niche as OpenCV CUDA SGM                     |
+| VPI `StereoDisparityEstimator`      | SGM variant        | PVA      | —                                     | ✗ no PVA on Nano   | Not available                                     |
+| VPI `StereoDisparityEstimator`      | "Advanced SGM"     | OFA      | —                                     | ✗ no OFA on Nano   | Not available                                     |
 
 Caveats on runtime cost: qualitative only. Actual numbers depend on resolution, disparity range, $P_1/P_2$, and contention with other GPU workloads (significant on Orin Nano — single accelerator). Order of magnitude at 720p / 64–128 disparities on the Nano GPU: BM single-digit ms, SGM tens of ms, BP hundreds of ms.
 
