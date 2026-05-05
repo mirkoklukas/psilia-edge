@@ -131,6 +131,10 @@ class CudaStereoBmNode(Node):
         )
 
     def _build_rect_camera_info(self, cal) -> CameraInfo:
+        # CameraInfo for an already-rectified image: K, D describe the
+        # rectified (virtual) camera, R is identity (no further rotation
+        # needed), P carries the projection (with baseline term for the
+        # right camera in stereo).
         info = CameraInfo()
         info.header.frame_id = "camera"
         info.width = cal.width
@@ -138,7 +142,7 @@ class CudaStereoBmNode(Node):
         info.distortion_model = "plumb_bob"
         info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
         info.k = cal.P_rect[:3, :3].flatten().tolist()
-        info.r = cal.R_rect.flatten().tolist()
+        info.r = np.eye(3).flatten().tolist()
         info.p = cal.P_rect.flatten().tolist()
         return info
 
