@@ -1,12 +1,14 @@
 ---
-type: scratchpad
+type: working-doc
+summary: Stereo depth on Jetson — classical methods as energy minimization, algorithm spectrum (BM/SGM/MRF), and options table.
 created: 2026-05-05
-tags: [stereo, depth, jetson]
-parent: null
+tags:
+  - stereo
+  - depth
+  - jetson
 ---
 
 # Stereo Depth on Jetson
-
 
 ## Stereo as Energy Minimization
 

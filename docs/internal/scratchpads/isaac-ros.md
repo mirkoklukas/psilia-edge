@@ -1,3 +1,10 @@
+---
+type: working-doc
+summary: "Investigation into using NVIDIA Isaac ROS (ESS stereo depth) on the Jetson Orin Nano — support status, package distribution, alternatives."
+created: 2026-04-24
+tags: [isaac-ros, jetson, stereo]
+---
+
 # Isaac ROS — Notes & Findings
 
 > Investigation into using NVIDIA Isaac ROS (specifically ESS stereo depth) on the Jetson Orin Nano Super. Last updated: 2026-04-24.
