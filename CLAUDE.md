@@ -13,9 +13,10 @@
 
 @docs/01_design.md — the "design doc", guiding principles, architecture, and runtime operations
 @docs/02_repo-structure.md - the "repo structure", rough overview of how the `psilia-edge` repository is organized.
+@docs/internal/next-session.md — short note on what to pick up in the next session.
 
 Additional docs (load on demand):
-- docs/todos.md — the "todos", TODOs and next-session plan
+- docs/internal/todos.md — the "todos", TODOs
 - docs/03_setup.md — Install flow, network setup, dependencies
 - docs/dev-notes.md — V0 scope, TODOs, troubleshooting, design ideas
 - docs/strategy/psilia-pitch.md — Short two pager with company vision, positioning, product description, business model
