@@ -327,14 +327,14 @@ def sensor_push(
 @sensor_app.command("scan")
 def sensor_scan() -> None:
     """Scan for connected cameras and USB devices."""
-    from psilia_edge.runtime.hotplug import scan_cameras, usb_list_devices
+    from psilia_edge.runtime.hotplug import list_cameras, usb_list_devices
 
     ui.header(["Sensor", "Scan"], "Scanning for connected cameras…")
-    groups = scan_cameras()
-    if not groups:
+    cams = list_cameras()
+    if not cams:
         ui.warn("No cameras found.")
     else:
-        ui.print_tree(groups, label="cameras")
+        ui.print_tree(cams, label="cameras")
 
     ui.print_tree(usb_list_devices(), label="USB devices")
 

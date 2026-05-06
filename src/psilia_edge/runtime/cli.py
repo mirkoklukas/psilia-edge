@@ -749,6 +749,62 @@ def logs(
     subprocess.run(cmd)
 
 
+@app.command()
+def lite(
+    port: int = typer.Option(
+        None, "--port", "-p", help="HTTP port (default: api_port from config, or 8080)."
+    ),
+    host: str = typer.Option("0.0.0.0", "--host", help="Bind address.", hidden=True),
+    data_dir: Path = typer.Option(
+        None,
+        "--data-dir",
+        help="Override the directory for recordings (default: {runtime_home}/data/lite).",
+    ),
+) -> None:
+    """Lite mode: camera preview + recording in a single FastAPI process.
+
+    Skips Docker and ROS entirely. Camera selection happens in the web UI.
+    Blocks until Ctrl+C.
+    """
+    from psilia_edge.runtime.config import (
+        ConfigurationError,
+        get_api_port,
+        get_runtime_home,
+    )
+    from psilia_edge.runtime.lite import serve
+
+    ui.header(["Runtime", "Lite"], "Camera preview + recording, no Docker, no ROS.")
+
+    if data_dir is None:
+        try:
+            home = get_runtime_home()
+        except ConfigurationError:
+            ui.warn("No runtime home configured.")
+            answer = ui.ask(
+                "Folder to write recordings to (one-shot, not persisted)",
+                default=str(Path.home() / "psilia-lite"),
+            )
+            home = Path(answer).expanduser()
+            data_dir = home / "data" / "lite"
+        else:
+            data_dir = home / "data" / "lite"
+
+    data_dir = data_dir.expanduser()
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    if port is None:
+        port = get_api_port()
+
+    hostname = socket.gethostname().split(".")[0]
+    ui.info(f"Recordings → {data_dir}")
+    ui.info(f"Web UI     → http://{hostname}.local:{port}/lite.html")
+
+    try:
+        serve(data_dir=data_dir, host=host, port=port)
+    except KeyboardInterrupt:
+        ui.print("[dim]Stopped.[/dim]")
+
+
 @app.command(hidden=True)
 def cam() -> None:
     """Detect connected camera and show what would be written to launch_params.yaml."""

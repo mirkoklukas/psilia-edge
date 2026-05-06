@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Psilia Edge — Lite</title>
+  <script src="/api/js/config.js"></script>
+  <script src="/psilia-theme.js"></script>
+  <link rel="stylesheet" href="/psilia.css">
+  <style>
+    #stream-img {
+      width: 100%;
+      image-rendering: pixelated;
+      border-radius: var(--radius-sm);
+      display: block;
+      margin-top: var(--space-md);
+      background: #000;
+      /* aspect-ratio is set dynamically once a camera is selected. */
+    }
+    #stream-empty {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-idle);
+      margin-top: var(--space-md);
+      padding: var(--space-md);
+      border: 1px dashed var(--color-border);
+      border-radius: var(--radius-sm);
+      text-align: center;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--color-text-muted);
+      padding: 0.15rem 0;
+    }
+    .cc__field { margin-top: var(--space-md); }
+    .cam-list { list-style: none; margin: 0; padding: 0; }
+    .cam-item {
+      padding: 0.6rem 0.75rem;
+      margin: 0.4rem 0;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      transition: border-color 0.1s;
+    }
+    .cam-item.selected { border-color: var(--color-green); }
+    .cam-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--color-text-muted);
+      margin-bottom: 0.4rem;
+    }
+    .res-row { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .res-btn {
+      padding: 0.25rem 0.55rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--color-text);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .res-btn:hover { background: rgba(78,204,163,0.08); }
+    .res-btn.selected {
+      background: rgba(78,204,163,0.18);
+      border-color: var(--color-green);
+      color: var(--color-green);
+    }
+    .res-btn.default::after {
+      content: ' (default)';
+      color: var(--color-text-muted);
+    }
+    .res-ratio {
+      color: var(--color-text-muted);
+      margin-left: 0.3rem;
+      font-size: 0.62rem;
+    }
+    .collapsible-title {
+      cursor: pointer;
+      user-select: none;
+    }
+    .collapsible-title.collapsed { margin-bottom: 0; }
+    .collapsible-title .chev {
+      display: inline-block;
+      transition: transform 0.15s;
+      color: var(--color-text-muted);
+      font-size: 0.7rem;
+      margin-right: 0.4rem;
+    }
+    .collapsible-title.collapsed .chev { transform: rotate(-90deg); }
+    .collapsible-body { overflow: hidden; }
+    .collapsible-body.collapsed { display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar__brand-row">
+      <div class="brand">
+        <span class="brand__psilia">Psilia</span>
+        <span class="brand__edge">Edge</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.6rem;">
+        <button class="theme-toggle" onclick="psiliaToggleTheme()">theme</button>
+        <div class="di">
+          <div class="di__dot" id="di-dot"></div>
+          <span id="di-hostname"></span>
+        </div>
+      </div>
+    </div>
+    <nav class="topbar__nav">
+      <a href="/lite.html" class="topbar__nav-item topbar__nav-item--active">lite</a>
+    </nav>
+  </div>
+
+  <main class="page">
+
+    <!-- Live stream -->
+    <div class="cc">
+      <div class="cc__title">/lite/stream</div>
+      <img id="stream-img" style="display:none;" />
+      <div id="stream-empty">no camera selected — pick one below</div>
+    </div>
+
+    <!-- Camera selection -->
+    <div class="cc">
+      <div class="cc__title collapsible-title" id="cam-title" onclick="toggleCameraCard()" style="display:flex;justify-content:space-between;align-items:center;">
+        <span><span class="chev">▾</span>Camera</span>
+        <span class="btn-refresh__label" onclick="event.stopPropagation(); loadCameras()" style="cursor:pointer;font-family:var(--font-mono);font-size:0.62rem;color:var(--color-text-muted);">re-probe</span>
+      </div>
+      <div id="cam-body" class="collapsible-body">
+        <ul id="cam-list" class="cam-list">
+          <li class="cam-item" style="cursor:default;color:var(--color-idle);">scanning…</li>
+        </ul>
+        <div id="camera-meta" style="margin-top: var(--space-md);"></div>
+      </div>
+    </div>
+
+    <!-- Recording controls -->
+    <div class="cc">
+      <div class="cc__title">Recording</div>
+      <div class="cc__field">
+        <label class="input-label" for="session-input">session</label>
+        <input class="input" type="text" id="session-input" placeholder="e.g. crimson-falcon" />
+      </div>
+      <div class="cc__field">
+        <label class="input-label" for="quality-input">JPEG quality <span id="quality-val" style="color:var(--color-text-muted);">95</span></label>
+        <input type="range" min="50" max="100" step="1" value="95" id="quality-input"
+               style="width:100%;"
+               oninput="document.getElementById('quality-val').textContent = this.value"
+               onchange="setQuality(this.value)" />
+        <div style="font-family:var(--font-mono);font-size:0.62rem;color:var(--color-text-muted);margin-top:0.2rem;">
+          higher = bigger files, less compression artefacts. applies to live stream and recording.
+        </div>
+      </div>
+      <div style="margin-top: var(--space-md);">
+        <button class="btn btn--start btn--gradient" id="record-btn" onclick="toggleRecording()">start</button>
+      </div>
+      <div id="rec-meta" class="meta-row" style="margin-top: var(--space-md); display:none;"></div>
+    </div>
+
+    <!-- Viewer (recording playback) -->
+    <div class="cc">
+      <div class="cc__title collapsible-title collapsed" id="viewer-title" onclick="toggleViewer()" style="display:flex;justify-content:space-between;align-items:center;">
+        <span><span class="chev">▾</span><span id="viewer-label">Viewer</span></span>
+      </div>
+      <div id="viewer-body" class="collapsible-body collapsed">
+        <img id="viewer-img" style="width:100%;border-radius:var(--radius-sm);background:#000;display:block;" />
+        <div id="viewer-empty" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--color-idle);padding:var(--space-md);text-align:center;">click a recording below to play</div>
+      </div>
+    </div>
+
+    <!-- Recordings list -->
+    <div class="cc">
+      <div class="cc__title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Recordings</span>
+        <span class="btn-refresh__label" onclick="loadRecordings()" style="cursor:pointer;font-family:var(--font-mono);font-size:0.62rem;color:var(--color-text-muted);">refresh</span>
+      </div>
+      <ul class="topic-list" id="recordings-list">
+        <li id="recordings-placeholder" style="font-family:var(--font-mono);font-size:0.75rem;color:var(--color-idle);">loading…</li>
+      </ul>
+    </div>
+
+  </main>
+
+  <script>
+    document.getElementById('di-hostname').textContent = location.hostname;
+    const API = `http://${location.hostname}:${window.PSILIA?.apiPort ?? location.port}`;
+
+    let isRecording = false;
+    let selectedCvIndex = null;
+    let selectedW = null;
+    let selectedH = null;
+    let streamWired = false;
+    let lastCameras = [];
+    let playingRecording = null;   // name of recording currently being played, or null
+
+    function ensureStreamWired() {
+      if (streamWired) return;
+      const img = document.getElementById('stream-img');
+      img.src = `${API}/api/lite/stream?t=${Date.now()}`;
+      img.style.display = 'block';
+      document.getElementById('stream-empty').style.display = 'none';
+      streamWired = true;
+    }
+
+    function setViewerCollapsed(collapsed) {
+      document.getElementById('viewer-title').classList.toggle('collapsed', collapsed);
+      document.getElementById('viewer-body').classList.toggle('collapsed', collapsed);
+      if (collapsed) stopViewer();
+    }
+
+    function toggleViewer() {
+      const body = document.getElementById('viewer-body');
+      setViewerCollapsed(!body.classList.contains('collapsed'));
+    }
+
+    function stopViewer() {
+      const img = document.getElementById('viewer-img');
+      img.removeAttribute('src');     // closes the streaming connection
+      img.style.aspectRatio = '';
+      document.getElementById('viewer-empty').style.display = 'block';
+      document.getElementById('viewer-label').textContent = 'Viewer';
+      playingRecording = null;
+      loadRecordings();   // refresh highlight
+    }
+
+    function playRecording(rec) {
+      const img = document.getElementById('viewer-img');
+      img.src = `${API}/api/lite/recordings/${encodeURIComponent(rec.name)}/stream?t=${Date.now()}`;
+      if (rec.width && rec.height) img.style.aspectRatio = `${rec.width} / ${rec.height}`;
+      document.getElementById('viewer-empty').style.display = 'none';
+      document.getElementById('viewer-label').textContent = `▶ ${rec.name}`;
+      setViewerCollapsed(false);
+      playingRecording = rec.name;
+      loadRecordings();
+    }
+
+    function applyStreamAspect(w, h) {
+      const img = document.getElementById('stream-img');
+      img.style.aspectRatio = (w && h) ? `${w} / ${h}` : '';
+    }
+
+    function setCameraCardCollapsed(collapsed) {
+      document.getElementById('cam-title').classList.toggle('collapsed', collapsed);
+      document.getElementById('cam-body').classList.toggle('collapsed', collapsed);
+    }
+
+    function toggleCameraCard() {
+      const body = document.getElementById('cam-body');
+      setCameraCardCollapsed(!body.classList.contains('collapsed'));
+    }
+
+    function loadCameras() {
+      const list = document.getElementById('cam-list');
+      list.innerHTML = '<li class="cam-item" style="color:var(--color-idle);">scanning…</li>';
+      fetch(`${API}/api/lite/cameras`)
+        .then(r => r.json())
+        .then(payload => {
+          if (payload.selected) {
+            selectedCvIndex = payload.selected.cv_index;
+            selectedW = payload.selected.width;
+            selectedH = payload.selected.height;
+          }
+          lastCameras = payload.cameras || [];
+          renderCameras(lastCameras);
+        })
+        .catch(() => {
+          list.innerHTML = '<li class="cam-item" style="color:var(--color-idle);">probe failed</li>';
+        });
+    }
+
+    function renderCameras(cams) {
+      const list = document.getElementById('cam-list');
+      if (!cams.length) {
+        list.innerHTML = '<li class="cam-item" style="color:var(--color-idle);">no cameras detected</li>';
+        return;
+      }
+      list.innerHTML = '';
+      cams.forEach(cam => {
+        const camSelected = cam.cv_index === selectedCvIndex;
+        const li = document.createElement('li');
+        li.className = 'cam-item' + (camSelected ? ' selected' : '');
+
+        const def = cam.default_resolution;
+        // Build the resolution set: defaults + available, deduped.
+        const resKey = (w, h) => `${w}x${h}`;
+        const resMap = new Map();
+        if (def) resMap.set(resKey(def[0], def[1]), { w: def[0], h: def[1], isDefault: true });
+        (cam.available_resolutions || []).forEach(([w, h]) => {
+          const k = resKey(w, h);
+          if (!resMap.has(k)) resMap.set(k, { w, h, isDefault: false });
+        });
+
+        const resBtns = [...resMap.values()]
+          .sort((a, b) => a.w * a.h - b.w * b.h)
+          .map(r => {
+            const isSel = camSelected && (
+              (r.w === selectedW && r.h === selectedH) ||
+              (selectedW === 0 && r.isDefault) ||
+              (selectedW == null && r.isDefault)
+            );
+            const cls = ['res-btn', r.isDefault ? 'default' : '', isSel ? 'selected' : ''].filter(Boolean).join(' ');
+            const ratio = aspectRatio(r.w, r.h);
+            return `<button class="${cls}" data-w="${r.w}" data-h="${r.h}">${r.w}×${r.h} <span class="res-ratio">${ratio}</span></button>`;
+          })
+          .join('');
+
+        li.innerHTML = `
+          <div class="cam-row">
+            <span><strong>[cv:${cam.cv_index}]</strong></span>
+            <span>${cam.addr}</span>
+          </div>
+          <div class="res-row">${resBtns || '<span style="color:var(--color-idle);">no resolutions detected</span>'}</div>
+        `;
+
+        li.querySelectorAll('.res-btn').forEach(btn => {
+          btn.onclick = (e) => {
+            e.stopPropagation();
+            selectCamera(cam.cv_index, parseInt(btn.dataset.w, 10), parseInt(btn.dataset.h, 10));
+          };
+        });
+
+        list.appendChild(li);
+      });
+    }
+
+    function selectCamera(cvIndex, width, height) {
+      if (isRecording) {
+        alert('Stop recording before changing camera.');
+        return;
+      }
+      const qs = `cv_index=${cvIndex}` +
+                 (width ? `&width=${width}` : '') +
+                 (height ? `&height=${height}` : '');
+      fetch(`${API}/api/lite/camera/select?${qs}`, { method: 'POST' })
+        .then(r => {
+          if (!r.ok) return r.text().then(t => { throw new Error(t); });
+          return r.json();
+        })
+        .then(info => {
+          selectedCvIndex = info.cv_index;
+          selectedW = info.width;
+          selectedH = info.height;
+          applyStreamAspect(info.width, info.height);
+          streamWired = false;
+          ensureStreamWired();
+          // Re-render highlights from cached probe — don't re-probe.
+          renderCameras(lastCameras);
+          loadStatus();
+        })
+        .catch(err => alert(`select failed: ${err.message}`));
+    }
+
+    function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+
+    function aspectRatio(w, h) {
+      if (!w || !h) return '';
+      const d = gcd(w, h);
+      return `${w / d}:${h / d}`;
+    }
+
+    function fmtSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+    }
+
+    function loadStatus() {
+      fetch(`${API}/api/lite/status`)
+        .then(r => r.json())
+        .then(s => {
+          // Sync selection state with backend.
+          if (s.selected_cv_index != null && s.selected_cv_index !== selectedCvIndex) {
+            selectedCvIndex = s.selected_cv_index;
+          }
+          if (selectedCvIndex != null) {
+            const c = s.camera || {};
+            if (c.width && c.height) applyStreamAspect(c.width, c.height);
+            ensureStreamWired();
+          }
+
+          if (s.jpeg_quality != null) {
+            const slider = document.getElementById('quality-input');
+            // Only update DOM if the user isn't currently dragging.
+            if (document.activeElement !== slider) {
+              slider.value = s.jpeg_quality;
+              document.getElementById('quality-val').textContent = s.jpeg_quality;
+            }
+          }
+
+          // Camera meta
+          const c = s.camera || {};
+          const lines = [
+            ['device',        c.device ?? '—'],
+            ['format',        c.pixel_format ?? '—'],
+            ['resolution',    (c.width && c.height) ? `${c.width}×${c.height}` : '—'],
+            ['fps (target)',  c.fps ?? '—'],
+            ['fps (actual)',  s.estimated_fps != null ? s.estimated_fps.toFixed(1) : '—'],
+            ['data dir',      s.data_dir ?? '—'],
+          ];
+          document.getElementById('camera-meta').innerHTML = lines.map(
+            ([k, v]) => `<div class="meta-row"><span>${k}</span><span>${v}</span></div>`
+          ).join('');
+
+          // Recording state
+          const r = s.recording || {};
+          isRecording = !!r.active;
+          const btn = document.getElementById('record-btn');
+          btn.textContent = isRecording ? 'stop' : 'start';
+          btn.className   = isRecording
+            ? 'btn btn--stop btn--gradient'
+            : 'btn btn--start btn--gradient';
+
+          const rm = document.getElementById('rec-meta');
+          if (isRecording) {
+            rm.style.display = 'flex';
+            rm.innerHTML = `<span>${r.frames} frames</span><span>${r.elapsed_s.toFixed(1)} s</span>`;
+          } else {
+            rm.style.display = 'none';
+          }
+
+          // Heartbeat dot — pulse when frames are flowing.
+          if (s.estimated_fps && s.estimated_fps > 0) {
+            const dot = document.getElementById('di-dot');
+            dot.classList.remove('beat');
+            void dot.offsetWidth;
+            dot.classList.add('beat');
+          }
+        })
+        .catch(() => {});
+    }
+
+    function loadRecordings() {
+      fetch(`${API}/api/lite/recordings`)
+        .then(r => r.json())
+        .then(files => {
+          const list = document.getElementById('recordings-list');
+          if (!files.length) {
+            list.innerHTML = '<li style="font-family:var(--font-mono);font-size:0.75rem;color:var(--color-idle);">no recordings yet</li>';
+            return;
+          }
+          list.innerHTML = '';
+          files.slice(0, 20).forEach(f => {
+            const isPlaying = playingRecording === f.name;
+            const li = document.createElement('li');
+            li.style.cssText = `
+              display:flex;justify-content:space-between;align-items:center;
+              padding:0.4rem 0.6rem;margin:0.2rem 0;border-radius:var(--radius-sm);
+              border:1px solid ${isPlaying ? 'var(--color-green)' : 'var(--color-border)'};
+              background:${isPlaying ? 'rgba(78,204,163,0.08)' : 'transparent'};
+              font-family:var(--font-mono);font-size:0.65rem;cursor:pointer;
+            `;
+            const meta = (f.duration_s != null) ? `${f.duration_s.toFixed(1)}s` : '';
+            li.innerHTML = `
+              <span>${isPlaying ? '▶ ' : ''}${f.name}</span>
+              <span style="color:var(--color-text-muted);">${meta}</span>
+            `;
+            li.onclick = () => playRecording(f);
+            list.appendChild(li);
+          });
+        })
+        .catch(() => {
+          document.getElementById('recordings-list').innerHTML =
+            '<li style="font-family:var(--font-mono);font-size:0.75rem;color:var(--color-idle);">could not load recordings</li>';
+        });
+    }
+
+    function setQuality(value) {
+      fetch(`${API}/api/lite/quality?value=${value}`, { method: 'POST' })
+        .catch(err => console.error('quality update failed', err));
+    }
+
+    function toggleRecording() {
+      const url = isRecording ? '/api/lite/record/stop' : '/api/lite/record/start';
+      const session = document.getElementById('session-input').value.trim();
+      const qs = (!isRecording && session) ? `?session=${encodeURIComponent(session)}` : '';
+      fetch(`${API}${url}${qs}`, { method: 'POST' })
+        .then(r => r.json())
+        .then(() => { loadStatus(); loadRecordings(); })
+        .catch(err => alert(err));
+    }
+
+    loadCameras();
+    loadStatus();
+    loadRecordings();
+    setInterval(loadStatus, 1000);
+  </script>
+</body>
+</html>

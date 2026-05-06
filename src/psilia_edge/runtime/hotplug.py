@@ -145,6 +145,146 @@ def _scan_linux_2() -> list[dict]:
     return cameras
 
 
+def probe_cv2_cameras(max_index: int = 8) -> list[dict]:
+    """List cameras that cv2.VideoCapture can actually open, with resolutions.
+
+    On Linux: enumerated from list_cameras() — `/dev/videoN` paths are stable
+    cv2 handles. Resolutions come from v4l2-ctl via list_cameras().
+
+    On macOS: probes cv2 indices 0..max_index-1 with the AVFoundation backend
+    (early-stop after two consecutive misses), reads each device's default
+    resolution. Available resolutions are best-effort attached by matching the
+    probed default resolution against ffmpeg's known per-device size lists —
+    if a unique match is found, that camera's full size list is attached.
+
+    Each entry:
+      cv_index:              int — pass to cv2.VideoCapture
+      addr:                  display string ("/dev/videoN" or "cv:N")
+      default_resolution:    [w, h] or null
+      available_resolutions: [[w, h], ...] — may be empty if unknown
+    """
+    import sys
+
+    if sys.platform != "darwin":
+        out: list[dict] = []
+        for cam in list_cameras():
+            handle = cam.get("handle")
+            if handle is None or not cam.get("formats"):
+                continue
+            if isinstance(handle, str) and handle.startswith("/dev/video"):
+                try:
+                    cv_index = int(handle.replace("/dev/video", ""))
+                except ValueError:
+                    continue
+            elif isinstance(handle, int):
+                cv_index = handle
+            else:
+                continue
+            sizes = _dedupe_sizes(_collect_sizes(cam.get("formats") or {}))
+            out.append(
+                {
+                    "cv_index": cv_index,
+                    "addr": cam["addr"],
+                    "default_resolution": None,
+                    "available_resolutions": sizes,
+                }
+            )
+        return out
+
+    # macOS: probe cv2; attach each ffmpeg camera's size list when its sizes
+    # uniquely contain the probed default resolution.
+    import cv2
+
+    avf_cams = list_cameras()
+
+    def _sizes_matching(width: int, height: int) -> list[list[int]]:
+        matches = []
+        for cam in avf_cams:
+            sizes = _collect_sizes(cam.get("formats") or {})
+            if any(s == [width, height] for s in sizes):
+                matches.append(sizes)
+        # Only attach if uniquely matched — otherwise we'd be guessing.
+        return _dedupe_sizes(matches[0]) if len(matches) == 1 else []
+
+    out = []
+    misses = 0
+    for n in range(max_index):
+        cap = cv2.VideoCapture(n, cv2.CAP_AVFOUNDATION)
+        if not cap.isOpened():
+            cap.release()
+            misses += 1
+            if misses >= 2:
+                break
+            continue
+        misses = 0
+        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+        default = [w, h] if w and h else None
+        out.append(
+            {
+                "cv_index": n,
+                "addr": f"cv:{n}",
+                "default_resolution": default,
+                "available_resolutions": _sizes_matching(w, h) if default else [],
+            }
+        )
+    return out
+
+
+def _collect_sizes(formats: dict) -> list[list[int]]:
+    sizes: list[list[int]] = []
+    for fmt_info in formats.values():
+        for size in fmt_info.get("sizes") or []:
+            w, h = int(size.get("width", 0)), int(size.get("height", 0))
+            if w and h:
+                sizes.append([w, h])
+    return sizes
+
+
+def _dedupe_sizes(sizes: list[list[int]]) -> list[list[int]]:
+    seen: set[tuple[int, int]] = set()
+    out: list[list[int]] = []
+    for w, h in sizes:
+        key = (w, h)
+        if key not in seen:
+            seen.add(key)
+            out.append([w, h])
+    out.sort(key=lambda s: s[0] * s[1])
+    return out
+
+
+def list_cameras() -> list[dict]:
+    """Flat list of connected cameras, with cv2-ready handles.
+
+    A higher-level view on top of scan_cameras(). Each entry adds:
+      handle: what to pass to cv2.VideoCapture — a /dev/videoN path on Linux,
+              an AVFoundation integer index on macOS, or None if the device
+              has no driver handle (e.g. a USB-only entry without a v4l2 node).
+      addr:   display string for the handle (e.g. "/dev/video0", "avf:1").
+      label:  human-readable name for UIs.
+
+    All other fields from scan_cameras() (formats, USB descriptors, etc.) are preserved.
+    """
+    out: list[dict] = []
+    for group in scan_cameras():
+        for cam in group:
+            if "device" in cam:
+                handle: str | int | None = cam["device"]
+                addr = cam["device"]
+            elif "avf_index" in cam:
+                handle = cam["avf_index"]
+                addr = f"avf:{cam['avf_index']}"
+            else:
+                handle = None
+                addr = cam.get("bus_id", "?")
+            label = (
+                cam.get("product") or cam.get("name") or cam.get("manufacturer") or "?"
+            )
+            out.append({**cam, "handle": handle, "addr": addr, "label": label})
+    return out
+
+
 def scan_cameras() -> list[list[dict]]:
     """Return cameras grouped by physical device (serial or bus_id).
 
@@ -554,6 +694,7 @@ def _scan_macos_2() -> list[dict]:
         cam_name = cam.get("product", cam.get("name", ""))
         for avf in avf_devices:
             if avf["name"] == cam_name or cam_name in avf["name"]:
+                cam["avf_index"] = avf["index"]
                 formats = _avf_device_formats(avf["index"])
                 if formats:
                     cam["formats"] = formats

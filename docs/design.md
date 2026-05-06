@@ -375,6 +375,32 @@ The container itself is only torn down when the base layer stops. The slow `dock
 `psilia runtime update` is the only operation that rebuilds the Docker image or clears the colcon build cache. It runs `colcon build` on the next container start (incremental, fast after first build).
 
 
+## Lite Mode
+
+`psilia runtime lite` is an escape hatch from the two-layer runtime: a single FastAPI process that opens a UVC camera with OpenCV, serves a live MJPEG preview, and writes recordings — no Docker, no ROS, no colcon workspace. Useful for quick capture sessions on a laptop where the spatial pipeline isn't needed.
+
+**Lifecycle.** Blocking foreground command (no daemon, no PID file). Ctrl+C stops uvicorn, closes the camera, and finalises any open recording. No camera is opened at startup — the user picks one in the web UI (`/lite.html`).
+
+**Camera selection.** Done in the web UI via `GET /api/lite/cameras` (probes cv2 indices) and `POST /api/lite/camera/select?cv_index=N&width=W&height=H`. On Linux the cv2 index maps directly to `/dev/videoN`; on macOS cv2's AVFoundation index ordering can differ from ffmpeg's, so the picker probes cv2 itself and best-effort labels resolutions by matching default-resolution against ffmpeg's known size lists. Recording-in-flight blocks camera swaps with HTTP 409.
+
+**Recordings.** One directory per recording at `{runtime_home}/data/lite/{stem}/`, where `stem = {device}_{session}_{counter}_{YYYY-MM-DD_HH-MM}` (matches the ROS `recording_node` naming convention). Inside each directory:
+- `{stem}.mjpg` — concatenated JPEGs (raw "Motion JPEG" stream); intentionally minimal, no container, no per-frame timestamps. ffmpeg reads via its `mjpeg` demuxer.
+- `metadata.yaml` — `frames`, `duration_s`, `fps`, capture metadata.
+
+The directory layout makes it easy to add per-recording artefacts later (thumbnails, derived MP4, calibration snapshot, …) without renaming.
+
+**Viewing recordings.**
+```bash
+# Quick preview (raw stream, may be choppy on some ffmpeg builds):
+ffplay -f mjpeg -framerate 30 file.mjpg
+
+# Convert to MP4 for reliable playback:
+ffmpeg -framerate 30 -f mjpeg -i file.mjpg -c:v libx264 -pix_fmt yuv420p out.mp4
+```
+
+`-framerate` is required at decode time since the file has no embedded timing — pass the sidecar's measured `fps` value for accurate playback speed.
+
+
 ## Code Structure
 
 Three tiers, each with distinct responsibilities:
