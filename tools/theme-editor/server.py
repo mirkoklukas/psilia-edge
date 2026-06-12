@@ -9,7 +9,7 @@ import yaml
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 
-THEME_FILE = Path(__file__).resolve().parents[2] / "src" / "psilia_edge" / "runtime" / "_theme.yaml"
+THEME_FILE = Path(__file__).resolve().parents[2] / "src" / "psilia.edge" / "runtime" / "_theme.yaml"
 
 app = FastAPI()
 

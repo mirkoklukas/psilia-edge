@@ -11,14 +11,24 @@
 
 # Project Context
 
-@docs/01_design.md — the "design doc", guiding principles, architecture, and runtime operations
-@docs/02_repo-structure.md - the "repo structure", rough overview of how the `psilia-edge` repository is organized.
-@docs/internal/next-session.md — short note on what to pick up in the next session.
+Project-specific docs (load on demand):
+- docs/strategy/psilia-pitch.md — short two-pager: company vision, positioning, product description, business model.
+- docs/ — specs, references, how-tos, research notes (use `internal/index.md` to navigate).
 
-Additional docs (load on demand):
-- docs/internal/todos.md — the "todos", TODOs
-- docs/03_setup.md — Install flow, network setup, dependencies
-- docs/dev-notes.md — V0 scope, TODOs, troubleshooting, design ideas
-- docs/strategy/psilia-pitch.md — Short two pager with company vision, positioning, product description, business model
+# WORKFLOW SETUP
 
-- docs/internal/llm-context/llm-project-assistant.md — project assistant, or just assistant. will ask you to load this from time to time.
+@internal/index.md
+@repo-structure.md
+@design.md
+@internal/tmp/next-session.md
+
+- `internal/index.md` — hand-curated semantic lookup: one-line summaries and aliases to help locate files **by what they're about**. Use it when you have a concept and need candidate docs/files, or when the user references something by alias / says _"check your index"_. Entries can target sections (`[[doc#section]]`) and carry inline aliases. It is NOT an inventory and may be incomplete — never use it to find a file by filename, and never use it as a substitute for inspecting the filesystem. For `@path` references or any "does X exist / what's in Y" question, go straight to `ls`/Read. Maintain the index and edit it freely without asking: update whenever a file is added, removed, renamed, or substantially changed.
+- `repo-structure.md` — readable overview of the repo. Claude keeps it current as the codebase evolves.
+- `design.md` — primary design doc (architecture, structure, key decisions). Co-edited; changes require user approval.
+- `internal/tmp/next-session.md` — read at session start. Surface what's there; don't act on it autonomously.
+- `internal/log.md` — append-only log of context that wouldn't survive otherwise. **Log proactively** — don't wait to be asked. After any of these land, append an entry (most recent last): design decisions (the *why* — not captured in code or commits), non-trivial fixes (`#fix`), gotchas (env quirks, undocumented behavior), convention changes. Don't duplicate what git, `notes.md`, or the artifact already records. Use `grep` to read; don't read the whole file.
+- `internal/notes.md` — post-it catch-all for forward-looking ideas. Append only on user request (add the date); never delete or rewrite existing entries without approval.
+- `internal/feedback.md` — append when the user adjusts your behavior mid-session. Don't fold/process unless explicitly asked.
+- `internal/todos.md` — project todos. Claude may keep it tidy; substantive edits to existing items require user approval.
+- New working docs: copy `internal/templates/SPEC.md` into `docs/drafts/` and rename. Seed `summary` and `tags` from context. Treat as collaborative — don't refactor unless asked.
+- `#hey-claude` tags — inline sticky notes left in any doc. When the user says *"run hey-claude for this doc"* / *"run hey-claude"*, grep for `#hey-claude` in scope, propose actions for each, confirm, apply. Persistent and idempotent — tags stay in place; re-runs reconcile to the desired state.

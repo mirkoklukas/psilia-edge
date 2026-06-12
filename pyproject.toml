@@ -17,16 +17,23 @@ dependencies = [
     "opencv-python-headless",
 ]
 
+[project.optional-dependencies]
+# Numerical core (off-device): SE(3)/transform math. Not installed on edge.
+core-jax = [
+    "jax",
+    "jaxlie",
+]
+
 [project.scripts]
-psilia = "psilia_edge.cli:app"
-rt = "psilia_edge.runtime.cli:app"
+psilia = "psilia.cli:app"
+rt = "psilia.edge.runtime.cli:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/psilia_edge", "src/psilia_core"]
+packages = ["src/psilia"]
 
 [dependency-groups]
 dev = [

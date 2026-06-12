@@ -33,7 +33,8 @@ ros_ws/src/*
 !ros_ws/src/psilia_ros/
 
 scripts/**/*.log
-docs/internal/tmp/
+internal/tmp/
+!internal/tmp/next-session.md
 
 # Files with a leading underscore `_files.*` are private,
 # helps keeping the repo clean while prototyping

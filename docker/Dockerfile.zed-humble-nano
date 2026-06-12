@@ -1,0 +1,82 @@
+# -----------------------------------
+#    Stage 0: Base with ZED runtime
+# -----------------------------------
+FROM stereolabs/zed:5.0-tools-devel-l4t-r36.4 AS zed-base
+
+# (Optional) Install basic utilities you want available early
+RUN apt-get update && apt-get install -y \
+    curl wget gnupg2 lsb-release git \
+    && rm -rf /var/lib/apt/lists/*
+
+# -----------------------------------
+#   Stage 1: ROS Humble install
+# -----------------------------------
+FROM zed-base AS ros-humble
+
+# Set up ROS 2 sources
+RUN apt-get update && apt-get install -y curl gnupg2 lsb-release \
+    && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+    | gpg --dearmor -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+    http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
+    | tee /etc/apt/sources.list.d/ros2.list > /dev/null \
+    && apt-get update && apt-get install -y ros-humble-desktop python3-rosdep python3-colcon-common-extensions \
+    && rm -rf /var/lib/apt/lists/*
+
+# Initialize rosdep
+RUN rosdep init && rosdep update
+SHELL ["/bin/bash", "-c"]
+ENV ROS_DISTRO=humble
+RUN apt-get update && \
+    rosdep update
+RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+RUN apt-get install -y ros-$ROS_DISTRO-rosbag2-storage-mcap
+
+# -----------------------------------
+#    Stage 2: ZED ROS wrapper
+# -----------------------------------
+FROM ros-humble AS zed-humble
+
+COPY --from=zed-base /usr/local/cuda /usr/local/cuda
+COPY --from=zed-base /usr/local/zed /usr/local/zed
+
+WORKDIR /ros_ws/src
+RUN git clone https://github.com/stereolabs/zed-ros2-wrapper.git
+
+WORKDIR /ros_ws/
+RUN apt-get update && \
+    rosdep update && \
+    rosdep install --from-paths src --ignore-src -r -y && \
+    . /opt/ros/humble/setup.sh
+
+RUN apt-get update && \
+    apt-get install -y usbutils && \
+    apt-get install -y ros-humble-cob-srvs
+
+RUN sudo apt-get install -y ros-humble-foxglove-bridge ros-humble-topic-tools vim
+
+# NOTE: you must share ~/.git-credentials with the container durin the
+# build using `--secret id=git_credentials,src=$HOME/.git-credentials`
+WORKDIR /root/
+RUN git config --global credential.helper store
+RUN --mount=type=secret,id=git_credentials,target=/root/.git-credentials \
+    git clone --branch dev --single-branch https://github.com/mirkoklukas/psilia-core.git && \
+    pip install -e ./psilia-core
+
+RUN apt-get install -y iputils-ping
+
+# mcap CLI for inspecting and manipulating mcap files
+RUN curl -sL https://github.com/foxglove/mcap/releases/latest/download/mcap-linux-arm64 \
+    -o /usr/local/bin/mcap && chmod +x /usr/local/bin/mcap
+
+# Needed for web-ui
+RUN apt-get update && \
+    apt-get install -y ros-humble-rosbridge-server && \
+    apt-get install ros-humble-rosapi
+
+COPY entrypoint.zed-humble-nano.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Source ROS 2 & workspace on container start
+CMD ["/bin/bash"]

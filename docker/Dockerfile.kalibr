@@ -1,0 +1,59 @@
+FROM ros:noetic
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    git wget autoconf automake nano curl tree vim \
+    python3-dev python3-pip python3-scipy python3-matplotlib \
+    ipython3 python3-wxgtk4.0 python3-tk python3-igraph python3-pyx \
+    libeigen3-dev libboost-all-dev libsuitesparse-dev \
+    doxygen \
+    libopencv-dev \
+    libpoco-dev libtbb-dev libblas-dev liblapack-dev libv4l-dev \
+    python3-catkin-tools python3-osrf-pycommon && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install cv_bridge opencv-python
+
+# Create ROS workspace
+RUN mkdir -p catkin_ws/src
+WORKDIR /catkin_ws
+
+# Initialize workspace
+RUN catkin init && \
+    catkin config --extend /opt/ros/noetic && \
+    catkin config --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+# Build kalibr
+RUN git -C src clone https://github.com/ethz-asl/kalibr.git
+RUN catkin build
+
+# Install mcap cli
+RUN curl "https://github.com/foxglove/mcap/releases/download/releases%2Fmcap-cli%2Fv0.0.32/mcap-linux-$(dpkg --print-architecture)" -Lo ./mcap && \
+  chmod +x ./mcap && \
+  mv ./mcap /usr/bin
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Add ROS setup to bashrc and create an entrypoint script
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc && \
+    echo "source /catkin_ws/devel/setup.bash" >> ~/.bashrc
+
+# Create an entrypoint script that sources ROS and then executes the command
+RUN echo '#!/bin/bash\n\
+source /opt/ros/${ROS_DISTRO}/setup.bash\n\
+source /catkin_ws/devel/setup.bash\n\
+exec "$@"' > /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]
+
+# Other dependencies
+RUN pip3 install rosbags
+
+
+ENV DEBIAN_FRONTEND=
