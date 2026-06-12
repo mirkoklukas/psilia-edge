@@ -13,9 +13,9 @@ import typer
 
 from psilia.edge import ui
 
-# This module exposes the edge sub-apps (runtime, sensor, data) and the `debug`
-# command. The root CLI in `psilia/cli.py` mounts them — see there for the
-# composition. `runtime_app` is re-exported above for the root to pick up.
+# This module exposes the edge sub-apps (sensor, data) and the `debug` command.
+# The root CLI in `psilia/cli.py` mounts them — see there for the composition.
+# (The runtime sub-app is imported by the root straight from runtime/cli.py.)
 
 # ── sensor sub-app ───────────────────────────────────────────��───────────────
 sensor_app = typer.Typer(help="Manage sensors and calibrations.")

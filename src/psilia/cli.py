@@ -8,7 +8,8 @@
 
 import typer
 
-from psilia.edge.cli import data_app, debug, runtime_app, sensor_app
+from psilia.edge.cli import data_app, debug, sensor_app
+from psilia.edge.runtime.cli import app as runtime_app
 
 app = typer.Typer(help="Psilia — spatial perception for edge devices")
 
